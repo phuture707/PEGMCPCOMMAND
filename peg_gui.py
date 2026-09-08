@@ -441,6 +441,17 @@ class PegasusHandler(BaseHTTPRequestHandler):
         if url_path == "/api/bot/config":
             cfg = payload.get("config", {})
             cfg_file = BASE_DIR / "bot_config.json"
+            existing_cfg = {}
+            if cfg_file.exists():
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        existing_cfg = json.load(f)
+                except Exception:
+                    pass
+            if "queued_actions" not in cfg:
+                cfg["queued_actions"] = existing_cfg.get("queued_actions", [])
+            if "scheduled_tasks" not in cfg:
+                cfg["scheduled_tasks"] = existing_cfg.get("scheduled_tasks", [])
             with open(cfg_file, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, indent=2)
             self._send_json({"success": True, "config": cfg})
@@ -565,9 +576,20 @@ class PegasusHandler(BaseHTTPRequestHandler):
             profile_file = profiles_dir / f"{name}.json"
             with open(profile_file, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, indent=2)
+
             cfg_file = BASE_DIR / "bot_config.json"
+            existing_cfg = {}
+            if cfg_file.exists():
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        existing_cfg = json.load(f)
+                except Exception:
+                    pass
+            active_cfg = dict(cfg)
+            active_cfg["queued_actions"] = existing_cfg.get("queued_actions", [])
+            active_cfg["scheduled_tasks"] = existing_cfg.get("scheduled_tasks", [])
             with open(cfg_file, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+                json.dump(active_cfg, f, indent=2)
             self._send_json({
                 "success": True,
                 "name": name,
@@ -586,6 +608,15 @@ class PegasusHandler(BaseHTTPRequestHandler):
                 cfg = json.load(f)
             cfg["profile_name"] = name
             cfg_file = BASE_DIR / "bot_config.json"
+            existing_cfg = {}
+            if cfg_file.exists():
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        existing_cfg = json.load(f)
+                except Exception:
+                    pass
+            cfg["queued_actions"] = existing_cfg.get("queued_actions", [])
+            cfg["scheduled_tasks"] = existing_cfg.get("scheduled_tasks", [])
             with open(cfg_file, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, indent=2)
             self._send_json({
