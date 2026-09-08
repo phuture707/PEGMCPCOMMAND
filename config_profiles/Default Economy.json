@@ -1,0 +1,23 @@
+{
+  "profile_name": "Default Economy",
+  "enabled": true,
+  "auto_claim_missions": true,
+  "auto_repair_pds": true,
+  "auto_construct": true,
+  "auto_research": true,
+  "construction_priorities": [
+    "main-metal-mine",
+    "main-crystal-synthesizer",
+    "main-eonium-refinery",
+    "main-shipyard",
+    "main-heavy-factory"
+  ],
+  "research_priorities": [
+    "main-constructions",
+    "main-hyperspace-travel",
+    "main-intelligence",
+    "main-waves"
+  ],
+  "max_actions_per_tick": 8,
+  "dry_run": false
+}

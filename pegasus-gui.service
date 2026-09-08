@@ -1,0 +1,16 @@
+[Unit]
+Description=Pegasus Galaxy MCP Web GUI Control Hub
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/peg-mcp
+ExecStart=/usr/bin/python3 /opt/peg-mcp/peg_gui.py --host 0.0.0.0 --port 7890 --no-browser
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

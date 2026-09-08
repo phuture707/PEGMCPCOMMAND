@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "profile_name": "Armada War",
+  "auto_claim_missions": true,
+  "auto_repair_pds": true,
+  "auto_construct": true,
+  "auto_research": true,
+  "dry_run": false,
+  "max_actions_per_tick": 8,
+  "construction_priorities": [
+    "main-shipyard",
+    "main-heavy-factory",
+    "main-medium-factory",
+    "main-eonium-refinery"
+  ],
+  "research_priorities": [
+    "main-heavy-ships",
+    "main-hyperspace-travel",
+    "main-waves"
+  ],
+  "queued_actions": [],
+  "scheduled_tasks": []
+}

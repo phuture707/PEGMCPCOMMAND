@@ -1,0 +1,22 @@
+{
+  "profile_name": "Fortress Defense",
+  "enabled": true,
+  "auto_claim_missions": true,
+  "auto_repair_pds": true,
+  "auto_construct": true,
+  "auto_research": true,
+  "construction_priorities": [
+    "main-shield-generator",
+    "main-missile-silo",
+    "main-ion-cannon",
+    "main-laser-battery",
+    "main-security-center"
+  ],
+  "research_priorities": [
+    "main-constructions",
+    "main-intelligence",
+    "main-heavy-ships"
+  ],
+  "max_actions_per_tick": 8,
+  "dry_run": false
+}

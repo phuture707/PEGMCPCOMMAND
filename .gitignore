@@ -1,0 +1,15 @@
+# Secrets & local credentials
+.env
+
+# Runtime logs & state
+bot_state.json
+bot.log
+*.log
+
+# Bytecode & cache
+__pycache__/
+*.pyc
+
+# Distribution packages & temp archives
+dist/
+*.zip
