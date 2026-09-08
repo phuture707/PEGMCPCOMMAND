@@ -139,6 +139,8 @@ class PegasusBot:
                         log_msg(f"✅ {act_msg}")
                     else:
                         log_msg(f"🔍 [Dry-Run] Would call claim_missions ({completed_count} ready)")
+                else:
+                    log_msg("🎁 Missions check: 0 completed missions pending.")
             except Exception as e:
                 log_msg(f"⚠️ Error in auto-claim missions: {e}")
 
@@ -147,8 +149,11 @@ class PegasusBot:
             try:
                 pds_resp = self.client.call_tool("list_pds")
                 pds_list = pds_resp.get("data", []) if isinstance(pds_resp, dict) else []
-                for p in pds_list:
-                    if p.get("damaged") and self.actions_this_tick < self.max_actions:
+                damaged = [p for p in pds_list if p.get("damaged")]
+                if damaged:
+                    for p in damaged:
+                        if self.actions_this_tick >= self.max_actions:
+                            break
                         c_id = p.get("constructionId")
                         p_name = p.get("name", c_id)
                         log_msg(f"🛡️ Defense damaged: {p_name}. Initiating emergency repair...")
@@ -160,6 +165,8 @@ class PegasusBot:
                             log_msg(f"✅ {act_msg}")
                         else:
                             log_msg(f"🔍 [Dry-Run] Would repair {p_name}")
+                else:
+                    log_msg(f"🛡️ PDS defenses check: All {len(pds_list)} structures healthy.")
             except Exception as e:
                 log_msg(f"⚠️ Error checking PDS defenses: {e}")
 
@@ -170,14 +177,13 @@ class PegasusBot:
                 active_build = any(c.get("currentlyInProgress") for c in constructions if isinstance(c, dict))
                 if active_build:
                     b_name = [c.get("name") for c in constructions if c.get("currentlyInProgress")]
-                    log_msg(f"🔨 Construction queue active: {b_name[0] if b_name else 'In progress'}")
+                    log_msg(f"🔨 Construction queue: '{b_name[0] if b_name else 'Upgrade'}' currently in progress (queue busy, will check next tick).")
                 else:
                     log_msg("🔨 Construction queue is idle. Checking upgrade priorities...")
                     opts_resp = self.client.list_construction_options()
                     opts = opts_resp.get("data", []) if isinstance(opts_resp, dict) else []
                     priorities = config.get("construction_priorities", [])
 
-                    # Find highest priority affordable build
                     chosen_build = None
                     for prio_id in priorities:
                         match = next((o for o in opts if o.get("id") == prio_id or o.get("constructionId") == prio_id), None)
@@ -185,7 +191,6 @@ class PegasusBot:
                             chosen_build = match
                             break
 
-                    # Fallback to any affordable option
                     if not chosen_build and opts:
                         affordable = [o for o in opts if o.get("canAfford", True)]
                         if affordable:
@@ -204,7 +209,7 @@ class PegasusBot:
                         else:
                             log_msg(f"🔍 [Dry-Run] Would start {build_name}")
                     else:
-                        log_msg("ℹ️ No affordable construction options available.")
+                        log_msg("ℹ️ Construction queue: Idle, but no affordable options match priorities.")
             except Exception as e:
                 log_msg(f"⚠️ Error in auto-construction: {e}")
 
@@ -215,7 +220,7 @@ class PegasusBot:
                 active_res = any(r.get("currentlyInProgress") for r in research_list if isinstance(r, dict))
                 if active_res:
                     r_name = [r.get("name") for r in research_list if r.get("currentlyInProgress")]
-                    log_msg(f"🔬 Research queue active: {r_name[0] if r_name else 'In progress'}")
+                    log_msg(f"🔬 Research queue: '{r_name[0] if r_name else 'Tech'}' currently in progress (queue busy, will check next tick).")
                 else:
                     log_msg("🔬 Research queue is idle. Checking tech priorities...")
                     opts_resp = self.client.list_research_options()
@@ -247,7 +252,7 @@ class PegasusBot:
                         else:
                             log_msg(f"🔍 [Dry-Run] Would start research: {res_name}")
                     else:
-                        log_msg("ℹ️ No affordable research options available.")
+                        log_msg("ℹ️ Research queue: Idle, but no affordable tech options match priorities.")
             except Exception as e:
                 log_msg(f"⚠️ Error in auto-research: {e}")
 
@@ -284,11 +289,14 @@ class PegasusBot:
                         json.dump(config, f, indent=2)
                 except Exception:
                     pass
+        else:
+            log_msg("🎯 Specific queued orders: None pending.")
 
         # 7. Execute Scheduled Recurring / Interval Tasks
         scheduled_tasks = config.get("scheduled_tasks", [])
         if scheduled_tasks and self.actions_this_tick < self.max_actions:
             tasks_modified = False
+            due_tasks = 0
             for task in scheduled_tasks:
                 if not task.get("enabled", True):
                     continue
@@ -315,6 +323,7 @@ class PegasusBot:
                     is_due = (target_tick is not None and tick_num == int(target_tick) and last_tick != tick_num)
 
                 if is_due and tool_name:
+                    due_tasks += 1
                     log_msg(f"⏰ [Scheduled Task '{task.get('id', tool_name)}'] Due on Tick {tick_num}: Executing {tool_name} (args: {args})")
                     if not dry:
                         try:
@@ -342,6 +351,10 @@ class PegasusBot:
                         json.dump(config, f, indent=2)
                 except Exception:
                     pass
+            if due_tasks == 0:
+                log_msg(f"⏰ Scheduled interval tasks: {len(scheduled_tasks)} configured, 0 due this tick.")
+        else:
+            log_msg("⏰ Scheduled interval tasks: None configured.")
 
         # 8. Execute User Custom Strategy Hook
         strategy_mod = load_strategy_module(self.strategy_path)
@@ -370,7 +383,13 @@ class PegasusBot:
             "actionsLog": actions_log,
         })
 
-        log_msg(f"🏁 Tick {tick_num} cycle finished. Actions consumed: {self.actions_this_tick} / {self.max_actions}")
+        if self.actions_this_tick == 0:
+            log_msg(f"🏁 Tick {tick_num} cycle finished: 0 actions executed (All queues busy / Nothing needed). Actions quota preserved (0 / {self.max_actions}).")
+        else:
+            log_msg(f"🏁 Tick {tick_num} cycle finished: {self.actions_this_tick} action(s) executed:")
+            for act in actions_log:
+                log_msg(f"   ▶ {act}")
+            log_msg(f"   Quota consumed: {self.actions_this_tick} / {self.max_actions}")
         log_msg("=" * 50)
         return summary_result
 
@@ -398,11 +417,10 @@ class PegasusBot:
                 # If this tick hasn't been processed yet, run it!
                 if current_tick != self.last_tick_processed:
                     self.run_tick_cycle()
+                    log_msg(f"💤 Tick {current_tick} complete. Bot standing by for Tick {current_tick + 1 if current_tick else ''} (Next tick in: {next_tick_in}).")
 
-                # Sleep before next tick check
-                # Game ticks fire every 30 minutes; sleep 60s between liveness checks
-                log_msg(f"💤 Sleeping until next tick... (Tick {current_tick} complete • Next in: {next_tick_in})")
-                time.sleep(60)
+                # Sleep quietly for 20 seconds before checking if a new tick has arrived (NO log spam)
+                time.sleep(20)
 
             except KeyboardInterrupt:
                 log_msg("🛑 Bot loop stopped by user (Ctrl+C).")
