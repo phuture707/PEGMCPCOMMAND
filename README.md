@@ -2,6 +2,12 @@
 
 A Python client and interactive command-line inspector for [Pegasus Galaxy](https://pegasus-galaxy.net/mcp), connected via Model Context Protocol (MCP 2025-03-26 Streamable HTTP).
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
+[![Python Version](https://img.shields.io/badge/Python-3.10%2B-brightgreen)](https://python.org)
+
+**Official GitHub Repository:** [https://github.com/phuture707/PEGMCPCOMMAND](https://github.com/phuture707/PEGMCPCOMMAND)
+
 Designed both as an **instant game state viewer** and as the **core SDK library for building an autonomous game bot**.
 
 ---

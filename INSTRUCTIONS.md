@@ -2,18 +2,38 @@
 
 Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
+[![Python Version](https://img.shields.io/badge/Python-3.10%2B-brightgreen)](https://python.org)
+
+**Official GitHub Repository:** [https://github.com/phuture707/PEGMCPCOMMAND](https://github.com/phuture707/PEGMCPCOMMAND)
+
 ---
 
 ## 📑 Table of Contents
-1. [Quickstart (3-Step Setup)](#-quickstart-3-step-setup)
-2. [Suite Architecture & Components](#-suite-architecture--components)
-3. [Tool 1: Web Control Hub (`peg_gui.py`)](#-tool-1-web-control-hub-peg_guipy)
-4. [Tool 2: Autonomous Game Bot (`peg_bot.py`)](#-tool-2-autonomous-game-bot-peg_botpy)
-5. [Tool 3: Terminal CLI Inspector (`peg_tool.py`)](#-tool-3-terminal-cli-inspector-peg_toolpy)
-6. [Tool 4: Python Client SDK (`peg_client.py`)](#-tool-4-python-client-sdk-peg_clientpy)
-7. [Strategy Profiles & Custom Python Scripts](#-strategy-profiles--custom-python-scripts)
-8. [24/7 Cloud & VPS Deployment Guide](#-247-cloud--vps-deployment-guide)
-9. [Troubleshooting & FAQ](#-troubleshooting--faq)
+1. [Official Repository & Installation](#-official-github-repository)
+2. [Quickstart (3-Step Setup)](#-quickstart-3-step-setup)
+3. [Suite Architecture & Components](#-suite-architecture--components)
+4. [Tool 1: Web Control Hub (`peg_gui.py`)](#-tool-1-web-control-hub-peg_guipy)
+5. [Tool 2: Autonomous Game Bot (`peg_bot.py`)](#-tool-2-autonomous-game-bot-peg_botpy)
+6. [Tool 3: Terminal CLI Inspector (`peg_tool.py`)](#-tool-3-terminal-cli-inspector-peg_toolpy)
+7. [Tool 4: Python Client SDK (`peg_client.py`)](#-tool-4-python-client-sdk-peg_clientpy)
+8. [Strategy Profiles & Custom Python Scripts](#-strategy-profiles--custom-python-scripts)
+9. [24/7 Cloud & VPS Deployment Guide](#-247-cloud--vps-deployment-guide)
+10. [Troubleshooting & FAQ](#-troubleshooting--faq)
+
+---
+
+## 🔗 Official GitHub Repository
+
+You can find the latest releases, submit bug reports, or contribute improvements at:
+👉 **[https://github.com/phuture707/PEGMCPCOMMAND](https://github.com/phuture707/PEGMCPCOMMAND)**
+
+To clone the repository directly using Git:
+```bash
+git clone https://github.com/phuture707/PEGMCPCOMMAND.git
+cd PEGMCPCOMMAND
+```
 
 ---
 
