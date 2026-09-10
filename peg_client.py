@@ -125,9 +125,14 @@ class PegasusMCPClient:
         Call an MCP tool by name.
         If the tool returns text containing JSON, it is parsed and returned as a dict/list.
         """
+        args = dict(arguments or {})
+        # Parameter alias normalization for compatibility:
+        if tool_name == "repair_pds" and "pdsId" in args and "constructionId" not in args:
+            args["constructionId"] = args.pop("pdsId")
+
         params = {
             "name": tool_name,
-            "arguments": arguments or {},
+            "arguments": args,
         }
         result = self._rpc("tools/call", params)
         if not result or "content" not in result:

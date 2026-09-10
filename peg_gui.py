@@ -3186,7 +3186,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     perform_deep_scan: '{\n  "targetCoords": "55:2:9"\n}',
     start_construction: '{\n  "constructionId": "main-shield-generator"\n}',
     start_research: '{\n  "researchId": "main-constructions"\n}',
-    repair_pds: '{\n  "pdsId": "main-laser-battery"\n}',
+    repair_pds: '{\n  "constructionId": "main-laser-battery"\n}',
     claim_missions: '{}',
     change_tax_rate: '{\n  "taxRate": 10\n}',
     send_message: '{\n  "recipientPlanetId": "...",\n  "subject": "Hello",\n  "message": "Greetings from Pegasus bot"\n}'

@@ -13,6 +13,6 @@ def on_tick(client, state, config, logger):
         if p.get("currentHealth", 1) < p.get("maxHealth", 1):
             logger(f"   ⚠️ Repairing damaged defense: {p.get('name')}")
             try:
-                client.call_tool("repair_pds", {"pdsId": p.get("constructionId")})
+                client.call_tool("repair_pds", {"constructionId": p.get("constructionId")})
             except Exception as e:
                 logger(f"   Repair error: {e}")
