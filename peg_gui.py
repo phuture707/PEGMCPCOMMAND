@@ -2225,12 +2225,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             <span style="color: var(--text-dim);">Quick Presets:</span>
             <a href="javascript:void(0)" onclick="setQuickArgs('produce_ships')" style="color: var(--cyan); text-decoration: none;">[Centurions]</a>
             <a href="javascript:void(0)" onclick="setQuickArgs('search_asteroids')" style="color: var(--cyan); text-decoration: none;">[Asteroid Scan]</a>
-            <a href="javascript:void(0)" onclick="setQuickArgs('change_tax_rate')" style="color: var(--cyan); text-decoration: none;">[Tax 10%]</a>
+            <a href="javascript:void(0)" onclick="setQuickArgs('change_government')" style="color: var(--cyan); text-decoration: none;">[Democracy]</a>
             <a href="javascript:void(0)" onclick="setQuickArgs('repair_pds')" style="color: var(--cyan); text-decoration: none;">[Repair PDS]</a>
             <a href="javascript:void(0)" onclick="setQuickArgs('empty')" style="color: var(--text-dim); text-decoration: none;">[Empty {}]</a>
           </div>
         </div>
-        <textarea id="bot-dispatch-args" class="form-control" rows="3" style="width: 100%; box-sizing: border-box; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.4; background: #030712; color: #a5f3fc; border: 1px solid rgba(0, 229, 255, 0.25); resize: vertical;" placeholder='{"shipId": "main-centurion", "quantity": 10}'>{}</textarea>
+        <textarea id="bot-dispatch-args" class="form-control" rows="3" style="width: 100%; box-sizing: border-box; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.4; background: #030712; color: #a5f3fc; border: 1px solid rgba(0, 229, 255, 0.25); resize: vertical;" placeholder='{"shipDefinitionId": "main-centurion", "quantity": 10}'>{}</textarea>
       </div>
 
       <!-- Controls Row 3: Action Buttons -->
@@ -3179,17 +3179,18 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   }
 
   const QUICK_TOOL_TEMPLATES = {
-    produce_ships: '{\n  "shipId": "main-centurion",\n  "quantity": 10\n}',
-    launch_fleet: '{\n  "fleetNumber": 1,\n  "targetCoords": "55:2:9",\n  "mission": "ATTACK",\n  "ships": {"main-centurion": 20}\n}',
+    produce_ships: '{\n  "shipDefinitionId": "main-centurion",\n  "quantity": 10\n}',
+    launch_fleet: '{\n  "targetPlanetId": "target_planet_id_here",\n  "ships": {\n    "main-centurion": 10\n  },\n  "mission": "ATTACK"\n}',
     search_asteroids: '{}',
-    perform_surface_scan: '{\n  "targetCoords": "55:2:9"\n}',
-    perform_deep_scan: '{\n  "targetCoords": "55:2:9"\n}',
-    start_construction: '{\n  "constructionId": "main-shield-generator"\n}',
+    perform_scan: '{\n  "targetPlanetId": "target_planet_id_here",\n  "scanType": "SURFACE"\n}',
+    perform_wave_scan: '{\n  "targetCoordX": 55,\n  "targetCoordY": 2\n}',
+    build_construction: '{\n  "constructionId": "main-shield-generator"\n}',
     start_research: '{\n  "researchId": "main-constructions"\n}',
     repair_pds: '{\n  "constructionId": "main-laser-battery"\n}',
     claim_missions: '{}',
-    change_tax_rate: '{\n  "taxRate": 10\n}',
-    send_message: '{\n  "recipientPlanetId": "...",\n  "subject": "Hello",\n  "message": "Greetings from Pegasus bot"\n}'
+    change_government: '{\n  "governmentType": "democracy"\n}',
+    trade_resources: '{\n  "sourceResource": "metal",\n  "targetResource": "crystal",\n  "amount": 5000\n}',
+    send_message: '{\n  "recipientId": "player_or_planet_id",\n  "subject": "Hello",\n  "body": "Greetings from Pegasus Commander"\n}'
   };
 
   function onDispatchToolChange(toolName) {

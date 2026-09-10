@@ -221,7 +221,7 @@ planet = client.get_planet_status()
 print(f"Planet Name: {planet.get('name')}")
 
 # Call any arbitrary tool
-res = client.call_tool("list_ships")
+res = client.call_tool("get_planet_ships")
 print(f"Ships in hangar: {res}")
 
 # Close connection when finished

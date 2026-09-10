@@ -126,9 +126,21 @@ class PegasusMCPClient:
         If the tool returns text containing JSON, it is parsed and returned as a dict/list.
         """
         args = dict(arguments or {})
-        # Parameter alias normalization for compatibility:
+        # Parameter and tool name alias normalization for compatibility:
+        if tool_name == "start_construction":
+            tool_name = "build_construction"
+        elif tool_name == "start_ship_production":
+            tool_name = "produce_ships"
+
         if tool_name == "repair_pds" and "pdsId" in args and "constructionId" not in args:
             args["constructionId"] = args.pop("pdsId")
+        elif tool_name == "produce_ships" and "shipId" in args and "shipDefinitionId" not in args:
+            args["shipDefinitionId"] = args.pop("shipId")
+        elif tool_name == "send_message":
+            if "recipientPlanetId" in args and "recipientId" not in args:
+                args["recipientId"] = args.pop("recipientPlanetId")
+            if "message" in args and "body" not in args:
+                args["body"] = args.pop("message")
 
         params = {
             "name": tool_name,
@@ -234,17 +246,50 @@ class PegasusMCPClient:
         args = {"topic": topic} if topic else {}
         return self.call_tool("get_game_rules", args)
 
+    def _get_memory_file(self) -> Path:
+        return Path(__file__).parent / "bot_memory.json"
+
     def get_memory(self, key: str) -> Any:
-        """Retrieve persisted agent memory key."""
-        return self.call_tool("get_memory", {"key": key})
+        """Retrieve persisted agent memory key from local storage."""
+        mem_file = self._get_memory_file()
+        if mem_file.exists():
+            try:
+                with open(mem_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get(key)
+            except Exception:
+                pass
+        return None
 
     def set_memory(self, key: str, value: str) -> Any:
-        """Persist an agent memory key-value pair."""
-        return self.call_tool("set_memory", {"key": key, "value": value})
+        """Persist an agent memory key-value pair to local storage."""
+        mem_file = self._get_memory_file()
+        data = {}
+        if mem_file.exists():
+            try:
+                with open(mem_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        data[key] = value
+        try:
+            with open(mem_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            return {"success": True, "key": key}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
-    def list_memory_keys(self) -> Any:
-        """List all stored memory keys."""
-        return self.call_tool("list_memory_keys")
+    def list_memory_keys(self) -> List[str]:
+        """List all stored local memory keys."""
+        mem_file = self._get_memory_file()
+        if mem_file.exists():
+            try:
+                with open(mem_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return list(data.keys())
+            except Exception:
+                pass
+        return []
 
     def close(self):
         """Close HTTP session."""

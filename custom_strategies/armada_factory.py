@@ -13,6 +13,6 @@ def on_tick(client, state, config, logger):
     if metal >= 50000 and crystal >= 25000:
         logger("🔨 Stockpile adequate: Ordering 10 Centurion fighters...")
         try:
-            client.call_tool("produce_ships", {"shipId": "main-centurion", "quantity": 10})
+            client.call_tool("produce_ships", {"shipDefinitionId": "main-centurion", "quantity": 10})
         except Exception as e:
             logger(f"   Produce ships note: {e}")
