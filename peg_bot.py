@@ -427,7 +427,11 @@ class PegasusBot:
                 save_state({"status": "STOPPED", "stoppedAt": datetime.datetime.now().isoformat()})
                 break
             except Exception as e:
-                log_msg(f"❌ Unexpected loop error: {e}. Retrying in 30 seconds...")
+                err_str = str(e)
+                if "500" in err_str or "502" in err_str or "503" in err_str or "504" in err_str:
+                    log_msg(f"⏳ Upstream Pegasus server momentary maintenance/tick rollover (HTTP 5xx). Auto-resuming in 30s...")
+                else:
+                    log_msg(f"❌ Loop exception: {e}. Retrying in 30 seconds...")
                 time.sleep(30)
 
 

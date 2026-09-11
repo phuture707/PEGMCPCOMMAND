@@ -5,6 +5,7 @@ Connects to https://mcp.pegasus-galaxy.net via Streamable HTTP (JSON-RPC 2.0 / M
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import httpx
@@ -93,23 +94,41 @@ class PegasusMCPClient:
         if params is not None:
             payload["params"] = params
 
-        response = self._session.post(
-            self.base_url,
-            headers=self._headers(),
-            json=payload,
-        )
-        response.raise_for_status()
-        data = response.json()
+        max_retries = 3
+        last_exc = None
+        for attempt in range(max_retries):
+            try:
+                response = self._session.post(
+                    self.base_url,
+                    headers=self._headers(),
+                    json=payload,
+                )
+                # If remote server returns 5xx (transient gateway/cron collision), retry briefly
+                if response.status_code >= 500:
+                    response.raise_for_status()
+                response.raise_for_status()
+                data = response.json()
 
-        if "error" in data:
-            err = data["error"]
-            raise PegasusMCPError(
-                err.get("message", "Unknown MCP error"),
-                code=err.get("code"),
-                data=err.get("data"),
-            )
+                if "error" in data:
+                    err = data["error"]
+                    raise PegasusMCPError(
+                        err.get("message", "Unknown MCP error"),
+                        code=err.get("code"),
+                        data=err.get("data"),
+                    )
 
-        return data.get("result")
+                return data.get("result")
+            except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+                last_exc = exc
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                # Only retry on transient 5xx server errors or transient network drops
+                if status and status < 500:
+                    raise
+                if attempt < max_retries - 1:
+                    sleep_sec = 2 * (attempt + 1)
+                    time.sleep(sleep_sec)
+                else:
+                    raise last_exc
 
     # -------------------------------------------------------------------------
     # Core MCP Protocol
