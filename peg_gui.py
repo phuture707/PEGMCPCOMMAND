@@ -8,6 +8,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 import signal
 import subprocess
@@ -568,12 +569,17 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
 
         if url_path == "/api/bot/profile_save":
-            name = payload.get("name", "").strip() or "Custom Profile"
+            raw_name = payload.get("name", "").strip() or "Custom Profile"
+            name = re.sub(r"[^\w\s\-]", "", raw_name).strip() or "Custom Profile"
             cfg = payload.get("config", {})
             cfg["profile_name"] = name
             profiles_dir = BASE_DIR / "config_profiles"
             profiles_dir.mkdir(exist_ok=True)
-            profile_file = profiles_dir / f"{name}.json"
+            profile_file = (profiles_dir / f"{name}.json").resolve()
+            if not str(profile_file).startswith(str(profiles_dir.resolve())):
+                self._send_json({"success": False, "error": "Invalid profile name"}, status=400)
+                return
+
             with open(profile_file, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, indent=2)
 
@@ -599,10 +605,12 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
 
         if url_path == "/api/bot/profile_load":
-            name = payload.get("name", "").strip()
-            profile_file = BASE_DIR / "config_profiles" / f"{name}.json"
-            if not profile_file.exists():
-                self._send_json({"success": False, "error": f"Profile '{name}' not found"}, status=404)
+            raw_name = payload.get("name", "").strip()
+            name = re.sub(r"[^\w\s\-]", "", raw_name).strip()
+            profiles_dir = (BASE_DIR / "config_profiles").resolve()
+            profile_file = (profiles_dir / f"{name}.json").resolve()
+            if not str(profile_file).startswith(str(profiles_dir)) or not profile_file.exists():
+                self._send_json({"success": False, "error": f"Profile '{raw_name}' not found"}, status=404)
                 return
             with open(profile_file, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
@@ -629,22 +637,30 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
 
         if url_path == "/api/bot/profile_delete":
-            name = payload.get("name", "").strip()
-            profile_file = BASE_DIR / "config_profiles" / f"{name}.json"
-            if profile_file.exists():
+            raw_name = payload.get("name", "").strip()
+            name = re.sub(r"[^\w\s\-]", "", raw_name).strip()
+            profiles_dir = (BASE_DIR / "config_profiles").resolve()
+            profile_file = (profiles_dir / f"{name}.json").resolve()
+            if str(profile_file).startswith(str(profiles_dir)) and profile_file.exists():
                 profile_file.unlink()
             self._send_json({"success": True})
             return
 
         if url_path == "/api/bot/strategy_save":
-            name = payload.get("name", "").strip() or "my_strategy"
-            if not name.endswith(".py"):
-                name += ".py"
+            raw_name = payload.get("name", "").strip() or "my_strategy"
+            if raw_name.endswith(".py"):
+                raw_name = raw_name[:-3]
+            clean_name = re.sub(r"[^\w\-]", "", raw_name).strip() or "my_strategy"
+            name = f"{clean_name}.py"
             code = payload.get("code", "")
             set_active = payload.get("set_active", True)
-            strat_dir = BASE_DIR / "custom_strategies"
+            strat_dir = (BASE_DIR / "custom_strategies").resolve()
             strat_dir.mkdir(exist_ok=True)
-            script_file = strat_dir / name
+            script_file = (strat_dir / name).resolve()
+            if not str(script_file).startswith(str(strat_dir)):
+                self._send_json({"success": False, "error": "Invalid strategy file name"}, status=400)
+                return
+
             with open(script_file, "w", encoding="utf-8") as f:
                 f.write(code)
             active_path = None
@@ -662,12 +678,15 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
 
         if url_path == "/api/bot/strategy_load":
-            name = payload.get("name", "").strip()
-            if not name.endswith(".py"):
-                name += ".py"
-            script_file = BASE_DIR / "custom_strategies" / name
-            if not script_file.exists():
-                self._send_json({"success": False, "error": f"Script '{name}' not found"}, status=404)
+            raw_name = payload.get("name", "").strip()
+            if raw_name.endswith(".py"):
+                raw_name = raw_name[:-3]
+            clean_name = re.sub(r"[^\w\-]", "", raw_name).strip()
+            name = f"{clean_name}.py"
+            strat_dir = (BASE_DIR / "custom_strategies").resolve()
+            script_file = (strat_dir / name).resolve()
+            if not str(script_file).startswith(str(strat_dir)) or not script_file.exists():
+                self._send_json({"success": False, "error": f"Script '{raw_name}' not found"}, status=404)
                 return
             with open(script_file, "r", encoding="utf-8") as f:
                 code = f.read()
@@ -680,11 +699,14 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
 
         if url_path == "/api/bot/strategy_delete":
-            name = payload.get("name", "").strip()
-            if not name.endswith(".py"):
-                name += ".py"
-            script_file = BASE_DIR / "custom_strategies" / name
-            if script_file.exists():
+            raw_name = payload.get("name", "").strip()
+            if raw_name.endswith(".py"):
+                raw_name = raw_name[:-3]
+            clean_name = re.sub(r"[^\w\-]", "", raw_name).strip()
+            name = f"{clean_name}.py"
+            strat_dir = (BASE_DIR / "custom_strategies").resolve()
+            script_file = (strat_dir / name).resolve()
+            if str(script_file).startswith(str(strat_dir)) and script_file.exists():
                 script_file.unlink()
             self._send_json({"success": True})
             return
