@@ -36,6 +36,8 @@ BASE_DIR = Path(__file__).parent.resolve()
 mcp_client: Optional[PegasusMCPClient] = None
 cached_tools: Optional[list] = None
 cached_ships: Optional[list] = None
+cached_constructions: Optional[list] = None
+cached_research: Optional[list] = None
 bot_process: Optional[subprocess.Popen] = None
 
 
@@ -279,6 +281,25 @@ class PegasusHandler(BaseHTTPRequestHandler):
                     entry["playerStatus"] = live_map.get(d.get("id"))
                     merged.append(entry)
                 self._send_json({"success": True, "pds": merged})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, status=500)
+            return
+
+        if url_path == "/api/reference":
+            global cached_constructions, cached_research
+            try:
+                if not cached_constructions:
+                    cached_constructions = mcp_client.read_resource("pegasus://construction/definitions")
+                if not cached_research:
+                    cached_research = mcp_client.read_resource("pegasus://research/definitions")
+                if not cached_ships:
+                    cached_ships = mcp_client.read_resource("pegasus://ship/definitions")
+                self._send_json({
+                    "success": True,
+                    "constructions": cached_constructions,
+                    "research": cached_research,
+                    "ships": cached_ships
+                })
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
@@ -1567,6 +1588,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     <button class="tab-btn" onclick="switchTab('commands')">🛠️ Command Hub (67 Tools)</button>
     <button class="tab-btn" onclick="switchTab('missions')">🎯 Quests & Missions</button>
     <button class="tab-btn" onclick="switchTab('ships')">🚀 Hangar & Ship Codex</button>
+    <button class="tab-btn" onclick="switchTab('reference')">📚 Game Codex & IDs</button>
     <button class="tab-btn" onclick="switchTab('bot')">🤖 Bot Studio</button>
     <button class="tab-btn" onclick="switchTab('memory')">🧠 Bot Memory</button>
   </div>
@@ -2338,6 +2360,40 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       </div>
     </div>
   </div>
+
+  <!-- TAB 6: Game Codex & IDs Reference -->
+  <div id="tab-reference" class="tab-content">
+    <div class="panel" style="margin-bottom: 1.5rem;">
+      <div class="panel-header">
+        <div class="panel-title">📚 Official Game Codex & ID Encyclopedia</div>
+        <span class="badge badge-info">Exact Server Object IDs</span>
+      </div>
+      <p style="color: var(--text-dim); margin-bottom: 1rem; font-size: 0.92rem; line-height: 1.5;">
+        Every building, research technology, defense battery, and ship in Pegasus Galaxy has a unique identifier required by MCP commands (e.g. <code style="color: var(--cyan);">constructionId</code>, <code style="color: var(--cyan);">researchId</code>, <code style="color: var(--cyan);">shipDefinitionId</code>). Click any ID badge or card button to copy it instantly or inject it into your Bot Studio queue!
+      </p>
+
+      <!-- Search and Filter Controls -->
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem;">
+        <input type="text" id="ref-search-input" class="form-control" placeholder="🔍 Search by name, ID, category, or description..." style="flex: 1; min-width: 260px;" oninput="renderReferenceTab()">
+        
+        <div style="display: flex; gap: 0.35rem;">
+          <button class="tab-btn active" id="ref-sub-all" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('ALL')">All (71)</button>
+          <button class="tab-btn" id="ref-sub-constructions" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('CONSTRUCTIONS')">🏗️ Constructions (24)</button>
+          <button class="tab-btn" id="ref-sub-research" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('RESEARCH')">🔬 Research (12)</button>
+          <button class="tab-btn" id="ref-sub-ships" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('SHIPS')">🚀 Ships (35)</button>
+        </div>
+      </div>
+
+      <div id="ref-stats-banner" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim);">
+        Showing all game objects.
+      </div>
+    </div>
+
+    <!-- Reference Grid Container -->
+    <div id="reference-items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem;">
+      <div style="color: var(--text-dim); font-family: var(--font-mono);">Loading Game Codex & IDs...</div>
+    </div>
+  </div>
 </div>
 
 <!-- Toast notification -->
@@ -2454,6 +2510,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (tabId === 'commands' && allTools.length === 0) loadTools();
     if (tabId === 'missions') loadMissions();
     if (tabId === 'ships') loadShipsAndPds();
+    if (tabId === 'reference') loadReferenceTab();
     if (tabId === 'bot') loadBotStudio();
     if (tabId === 'memory') loadMemory();
   }
@@ -3077,6 +3134,222 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         </div>
       `;
       pdsCont.appendChild(card);
+    });
+  }
+
+  // --- Official Game Codex & IDs Reference Tab ---
+  let refData = { constructions: [], research: [], ships: [] };
+  let refCategory = 'ALL';
+
+  async function loadReferenceTab() {
+    const grid = document.getElementById('reference-items-grid');
+    if (!refData.constructions.length && !refData.research.length && !refData.ships.length) {
+      grid.innerHTML = '<div style="color: var(--text-dim); font-family: var(--font-mono);">Fetching all Game IDs from MCP server...</div>';
+      try {
+        const res = await fetch('/api/reference');
+        const json = await res.json();
+        if (json.success) {
+          refData = {
+            constructions: json.constructions || [],
+            research: json.research || [],
+            ships: json.ships || []
+          };
+        }
+      } catch (e) {
+        grid.innerHTML = `<div style="color: var(--red);">Error loading game reference data: ${e.message}</div>`;
+        return;
+      }
+    }
+    renderReferenceTab();
+  }
+
+  function setRefCategory(cat) {
+    refCategory = cat;
+    ['all', 'constructions', 'research', 'ships'].forEach(c => {
+      const btn = document.getElementById('ref-sub-' + c);
+      if (btn) btn.classList.toggle('active', c.toUpperCase() === cat);
+    });
+    renderReferenceTab();
+  }
+
+  function copyToClipboard(text, label) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(`📋 Copied ${label || 'ID'}: "${text}"`);
+    }).catch(() => {
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+      showToast(`📋 Copied: "${text}"`);
+    });
+  }
+
+  function injectToBotQueue(toolName, argKey, objId) {
+    switchTab('bot');
+    const toolSelect = document.getElementById('bot-dispatch-tool');
+    const argsInput = document.getElementById('bot-dispatch-args');
+    if (toolSelect) toolSelect.value = toolName;
+    if (argsInput) {
+      if (toolName === 'produce_ships') {
+        argsInput.value = JSON.stringify({ [argKey]: objId, quantity: 10 }, null, 2);
+      } else {
+        argsInput.value = JSON.stringify({ [argKey]: objId }, null, 2);
+      }
+    }
+    showToast(`⚡ Loaded "${objId}" into Bot Studio dispatcher (${toolName})`);
+  }
+
+  function renderReferenceTab() {
+    const grid = document.getElementById('reference-items-grid');
+    const searchVal = (document.getElementById('ref-search-input')?.value || '').toLowerCase().trim();
+    const statsBanner = document.getElementById('ref-stats-banner');
+
+    let items = [];
+
+    if (refCategory === 'ALL' || refCategory === 'CONSTRUCTIONS') {
+      refData.constructions.forEach(c => {
+        items.push({
+          type: 'CONSTRUCTION',
+          typeLabel: '🏗️ Construction',
+          id: c.id,
+          name: c.name,
+          category: c.category || 'Structure',
+          description: c.description || '',
+          metal: c.requiredMetal || 0,
+          crystal: c.requiredCrystal || 0,
+          eonium: c.requiredEonium || 0,
+          points: c.requiredPoints || 0,
+          prerequisites: c.prerequisites || [],
+          toolName: c.category && c.category.toUpperCase().includes('DEFEN') ? 'repair_pds' : 'build_construction',
+          argKey: 'constructionId'
+        });
+      });
+    }
+
+    if (refCategory === 'ALL' || refCategory === 'RESEARCH') {
+      refData.research.forEach(r => {
+        items.push({
+          type: 'RESEARCH',
+          typeLabel: '🔬 Research Tech',
+          id: r.id,
+          name: r.name,
+          category: r.category || 'Technology',
+          description: r.description || '',
+          metal: r.requiredMetal || 0,
+          crystal: r.requiredCrystal || 0,
+          eonium: r.requiredEonium || 0,
+          points: r.requiredPoints || 0,
+          prerequisites: r.prerequisites || [],
+          toolName: 'start_research',
+          argKey: 'researchId'
+        });
+      });
+    }
+
+    if (refCategory === 'ALL' || refCategory === 'SHIPS') {
+      refData.ships.forEach(s => {
+        items.push({
+          type: 'SHIP',
+          typeLabel: '🚀 Ship Design',
+          id: s.id,
+          name: s.name,
+          category: s.category || s.shipClass || 'Vessel',
+          faction: s.faction || 'Neutral',
+          description: s.description || '',
+          metal: s.requiredMetal || 0,
+          crystal: s.requiredCrystal || 0,
+          eonium: s.requiredEonium || 0,
+          points: s.requiredPoints || 0,
+          prerequisites: s.prerequisites || [],
+          toolName: 'produce_ships',
+          argKey: 'shipDefinitionId'
+        });
+      });
+    }
+
+    // Apply text search
+    if (searchVal) {
+      items = items.filter(it => 
+        it.id.toLowerCase().includes(searchVal) ||
+        it.name.toLowerCase().includes(searchVal) ||
+        it.category.toLowerCase().includes(searchVal) ||
+        it.description.toLowerCase().includes(searchVal) ||
+        (it.faction && it.faction.toLowerCase().includes(searchVal))
+      );
+    }
+
+    if (statsBanner) {
+      statsBanner.innerHTML = `Displaying <strong style="color: var(--cyan);">${items.length}</strong> matching game definitions (Category: ${refCategory}). Click any code snippet to copy to clipboard!`;
+    }
+
+    if (items.length === 0) {
+      grid.innerHTML = '<div style="color: var(--yellow); font-family: var(--font-mono); grid-column: 1/-1; padding: 2rem; text-align: center;">No items matched your filter query.</div>';
+      return;
+    }
+
+    grid.innerHTML = '';
+    items.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'ship-card';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.justifyContent = 'space-between';
+
+      const typeColor = it.type === 'CONSTRUCTION' ? 'var(--blue)' : (it.type === 'RESEARCH' ? 'var(--purple)' : 'var(--cyan)');
+      const badgeBorder = it.type === 'CONSTRUCTION' ? 'rgba(77, 157, 224, 0.3)' : (it.type === 'RESEARCH' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(0, 229, 255, 0.3)');
+
+      let prereqHtml = '';
+      if (it.prerequisites && it.prerequisites.length > 0) {
+        const pList = it.prerequisites.map(p => `<span style="background: rgba(255,255,255,0.06); padding: 0.15rem 0.4rem; border-radius: 4px; margin-right: 0.3rem;">${p.name || p.id} (Lvl ${p.minLevel || 1})</span>`).join(' ');
+        prereqHtml = `<div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); margin-bottom: 0.6rem;">Requires: ${pList}</div>`;
+      }
+
+      card.innerHTML = `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem;">
+            <div>
+              <span style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: ${typeColor}; border: 1px solid ${badgeBorder}; background: rgba(0,0,0,0.3); padding: 0.15rem 0.5rem; border-radius: 4px; display: inline-block; margin-bottom: 0.3rem;">
+                ${it.typeLabel} • ${it.category}
+              </span>
+              <div class="ship-name" style="font-size: 1.15rem;">${it.name}</div>
+            </div>
+          </div>
+
+          <!-- Click-to-copy exact ID -->
+          <div style="margin-bottom: 0.75rem;">
+            <div style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 0.2rem; font-family: var(--font-mono);">EXACT SERVER ID:</div>
+            <div onclick="copyToClipboard('${it.id}', 'Object ID')" title="Click to Copy ID" style="cursor: pointer; background: #030712; border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 6px; padding: 0.4rem 0.6rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+              <code style="color: #a5f3fc; font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700;">${it.id}</code>
+              <span style="color: var(--cyan); font-size: 0.75rem;">📋 Copy</span>
+            </div>
+          </div>
+
+          <p style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem; line-height: 1.4;">${it.description || 'Standard galactic asset.'}</p>
+          ${prereqHtml}
+        </div>
+
+        <div>
+          <!-- Resource Costs -->
+          <div style="font-family: var(--font-mono); font-size: 0.76rem; background: rgba(0,0,0,0.25); border-radius: 6px; padding: 0.45rem 0.6rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
+            <span style="color: #94a3b8;">M: <strong style="color: #e2e8f0;">${formatNum(it.metal)}</strong></span>
+            <span style="color: #94a3b8;">C: <strong style="color: #a5f3fc;">${formatNum(it.crystal)}</strong></span>
+            <span style="color: #94a3b8;">E: <strong style="color: #e879f9;">${formatNum(it.eonium)}</strong></span>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn-refresh" style="flex: 1; padding: 0.35rem 0.5rem; font-size: 0.75rem;" onclick="injectToBotQueue('${it.toolName}', '${it.argKey}', '${it.id}')">
+              ⚡ Queue in Bot
+            </button>
+            <button class="btn-refresh" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;" onclick="copyToClipboard('${it.id}', 'ID')">
+              📋 ID
+            </button>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
     });
   }
 

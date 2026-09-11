@@ -408,6 +408,107 @@ def print_rules(client: PegasusMCPClient, topic: Optional[str] = None, raw_json:
     ))
 
 
+def print_reference(client: PegasusMCPClient, category_filter: Optional[str] = None, raw_json: bool = False):
+    """Fetches and displays official game object IDs (constructions, research, ships)."""
+    with console.status("[bold cyan]Fetching game definitions from MCP server...", spinner="dots"):
+        constructions = client.read_resource("pegasus://construction/definitions") or []
+        research = client.read_resource("pegasus://research/definitions") or []
+        ships = client.read_resource("pegasus://ship/definitions") or []
+
+    if raw_json:
+        print(json.dumps({
+            "constructions": constructions,
+            "research": research,
+            "ships": ships
+        }, indent=2))
+        return
+
+    cat = (category_filter or "all").lower()
+
+    if cat in ("all", "constructions", "c", "build", "b"):
+        t_const = Table(
+            box=box.ROUNDED,
+            title=f"🏗️ Pegasus Constructions & Buildings ({len(constructions)} Total)",
+            title_style="bold blue",
+            header_style="bold cyan",
+            expand=True
+        )
+        t_const.add_column("Exact Construction ID", style="bold bright_cyan", ratio=3)
+        t_const.add_column("Building Name", style="bold white", ratio=3)
+        t_const.add_column("Category", ratio=2)
+        t_const.add_column("Lvl 1 Metal", justify="right", ratio=2)
+        t_const.add_column("Lvl 1 Crystal", justify="right", ratio=2)
+        t_const.add_column("Lvl 1 Eonium", justify="right", ratio=2)
+
+        for c in sorted(constructions, key=lambda x: (x.get("category", ""), x.get("name", ""))):
+            t_const.add_row(
+                c.get("id", ""),
+                c.get("name", ""),
+                c.get("category", "Structure"),
+                f"{c.get('requiredMetal', 0):,}",
+                f"{c.get('requiredCrystal', 0):,}",
+                f"{c.get('requiredEonium', 0):,}",
+            )
+        console.print(t_const)
+        console.print("[dim]Use with tool: [bold]build_construction[/bold] (e.g. {\"constructionId\": \"main-shipyard\"}) or [bold]repair_pds[/bold][/dim]\n")
+
+    if cat in ("all", "research", "r", "tech", "t"):
+        t_res = Table(
+            box=box.ROUNDED,
+            title=f"🔬 Pegasus Research Technologies ({len(research)} Total)",
+            title_style="bold magenta",
+            header_style="bold cyan",
+            expand=True
+        )
+        t_res.add_column("Exact Research ID", style="bold bright_magenta", ratio=3)
+        t_res.add_column("Technology Name", style="bold white", ratio=3)
+        t_res.add_column("Category", ratio=2)
+        t_res.add_column("Lvl 1 Metal", justify="right", ratio=2)
+        t_res.add_column("Lvl 1 Crystal", justify="right", ratio=2)
+        t_res.add_column("Lvl 1 Eonium", justify="right", ratio=2)
+
+        for r in sorted(research, key=lambda x: x.get("name", "")):
+            t_res.add_row(
+                r.get("id", ""),
+                r.get("name", ""),
+                r.get("category", "Tech"),
+                f"{r.get('requiredMetal', 0):,}",
+                f"{r.get('requiredCrystal', 0):,}",
+                f"{r.get('requiredEonium', 0):,}",
+            )
+        console.print(t_res)
+        console.print("[dim]Use with tool: [bold]start_research[/bold] (e.g. {\"researchId\": \"main-constructions\"})[/dim]\n")
+
+    if cat in ("all", "ships", "s", "fleet", "f"):
+        t_ships = Table(
+            box=box.ROUNDED,
+            title=f"🚀 Pegasus Ship Designs & Codex ({len(ships)} Total)",
+            title_style="bold green",
+            header_style="bold cyan",
+            expand=True
+        )
+        t_ships.add_column("Exact Ship Definition ID", style="bold bright_green", ratio=3)
+        t_ships.add_column("Ship Name", style="bold white", ratio=3)
+        t_ships.add_column("Class", ratio=2)
+        t_ships.add_column("Faction", ratio=2)
+        t_ships.add_column("Unit Metal", justify="right", ratio=2)
+        t_ships.add_column("Unit Crystal", justify="right", ratio=2)
+        t_ships.add_column("Unit Eonium", justify="right", ratio=2)
+
+        for s in sorted(ships, key=lambda x: (x.get("category", ""), x.get("name", ""))):
+            t_ships.add_row(
+                s.get("id", ""),
+                s.get("name", ""),
+                s.get("category", s.get("shipClass", "Vessel")),
+                s.get("faction", "Neutral"),
+                f"{s.get('requiredMetal', 0):,}",
+                f"{s.get('requiredCrystal', 0):,}",
+                f"{s.get('requiredEonium', 0):,}",
+            )
+        console.print(t_ships)
+        console.print("[dim]Use with tool: [bold]produce_ships[/bold] (e.g. {\"shipDefinitionId\": \"main-vanguard-centurion\", \"quantity\": 10})[/dim]\n")
+
+
 def call_tool_cmd(client: PegasusMCPClient, tool_name: str, args_json: Optional[str] = None, raw_json: bool = False):
     """Calls an arbitrary tool."""
     arguments = {}
@@ -469,6 +570,14 @@ def main():
         help="Fetch game rules (optional topic: overview, resources, construction, research, military, scoring)",
     )
     parser.add_argument(
+        "--reference",
+        "-ref",
+        nargs="?",
+        const="all",
+        metavar="CATEGORY",
+        help="Display official game IDs for constructions, research, and ships (optional filter: constructions, research, ships)",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Output raw JSON instead of formatted tables",
@@ -496,6 +605,8 @@ def main():
             print_missions(client, raw_json=args.json)
         elif args.rules is not None:
             print_rules(client, topic=args.rules, raw_json=args.json)
+        elif args.reference is not None:
+            print_reference(client, category_filter=args.reference, raw_json=args.json)
         else:
             print_dashboard(client, raw_json=args.json)
     except PegasusMCPError as e:

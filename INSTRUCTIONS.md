@@ -295,6 +295,107 @@ Then open `http://localhost:7890` on your desktop browser. It connects directly 
 
 ---
 
+## 📚 Official Game IDs Reference (Buildings, Tech & Ships)
+
+Whenever queuing actions in `bot_config.json`, writing custom strategies in `custom_strategies/`, or issuing direct MCP commands via GUI or CLI (`peg_tool.py`), you must use the exact server identifier strings:
+
+### 🏗️ Constructions (`constructionId`) — 24 Buildings
+Used with: `build_construction`, `cancel_construction`, and `repair_pds`
+
+| Exact Construction ID | Building Name | Category | Lvl 1 Metal | Lvl 1 Crystal | Lvl 1 Eonium |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| `main-metal-mine` | Metal Mine | Economy | 60 | 15 | 0 |
+| `main-crystal-synthesizer` | Crystal Synthesizer | Economy | 48 | 24 | 0 |
+| `main-eonium-refinery` | Eonium Refinery | Economy | 225 | 90 | 0 |
+| `main-metal-refinery` | Metal Refinery | Economy | 800 | 400 | 200 |
+| `main-crystal-refinery` | Crystal Refinery | Economy | 1,000 | 500 | 250 |
+| `main-mining-center` | Mining Center | Economy | 500 | 300 | 100 |
+| `main-resource-vault` | Resource Vault | Economy | 1,000 | 500 | 0 |
+| `main-power-plant` | Power Plant | Infrastructure | 75 | 30 | 0 |
+| `main-city` | City | Infrastructure | 500 | 200 | 100 |
+| `main-habitat` | Habitat | Infrastructure | 200 | 100 | 50 |
+| `main-research-lab` | Research Lab | Science | 200 | 400 | 200 |
+| `main-radar-station` | Radar Station | Science | 150 | 100 | 50 |
+| `main-shipyard` | Shipyard | Military | 400 | 200 | 100 |
+| `main-light-factory` | Light Factory | Military | 8,000 | 5,000 | 2,000 |
+| `main-medium-factory` | Medium Factory | Military | 25,000 | 15,000 | 8,000 |
+| `main-heavy-factory` | Heavy Factory | Military | 80,000 | 50,000 | 25,000 |
+| `main-tactical-defence-system` | Tactical Defence System | Military | 300 | 150 | 50 |
+| `main-intelligence-hq` | Intelligence HQ | Military | 500 | 300 | 200 |
+| `main-wave-amplifier` | Wave Amplifier | Waves | 5,000 | 3,000 | 1,000 |
+| `main-wave-distorter` | Wave Distorter | Waves | 8,000 | 4,000 | 2,000 |
+| `main-missile-battery` | Missile Battery | Defence (PDS) | 2,000 | 0 | 0 |
+| `main-laser-battery` | Laser Battery | Defence (PDS) | 1,500 | 500 | 0 |
+| `main-ion-cannon` | Ion Cannon | Defence (PDS) | 2,000 | 2,000 | 500 |
+| `main-shield-generator` | Planetary Shield | Defence (PDS) | 10,000 | 10,000 | 5,000 |
+
+---
+
+### 🔬 Research Technologies (`researchId`) — 12 Technologies
+Used with: `start_research` and `cancel_research`
+
+| Exact Research ID | Technology Name | Category | Lvl 1 Metal | Lvl 1 Crystal | Lvl 1 Eonium |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| `main-constructions` | Engineering | Population | 3,000 | 3,000 | 3,000 |
+| `main-asteroid-mining` | Asteroid Mining | Mining | 4,000 | 4,000 | 4,000 |
+| `main-core-mining` | Core Mining | Mining | 5,000 | 5,000 | 5,000 |
+| `main-deep-core-mining` | Deep Core Mining | Mining | 8,000 | 8,000 | 8,000 |
+| `main-prospecting` | Prospecting | Mining | 3,000 | 3,000 | 5,000 |
+| `main-ship-technology` | Ship Technology | Ships | 5,000 | 3,000 | 2,000 |
+| `main-hulls` | Hulls | Ships | 6,000 | 3,000 | 2,000 |
+| `main-pds` | PDS Defense Tech | Ships | 8,000 | 5,000 | 4,000 |
+| `main-advanced-scanning` | Advanced Scanning | Scans | 6,000 | 10,000 | 6,000 |
+| `main-waves` | Waves | Scans | 3,000 | 5,000 | 3,000 |
+| `main-hyperspace-travel` | Hyperspace Travel | Travel | 5,000 | 5,000 | 3,000 |
+| `main-intelligence` | Covert Operations | Intelligence | 5,000 | 5,000 | 5,000 |
+
+---
+
+### 🚀 Ship Designs (`shipDefinitionId`) — 35 Ships
+Used with: `produce_ships` (`{"shipDefinitionId": "...", "quantity": 10}`) and `launch_fleet`
+
+| Exact Ship ID | Ship Name | Faction | Class | Unit Metal | Unit Crystal | Unit Eonium |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: |
+| `main-vanguard-centurion` | Centurion | Vanguard | Frigate | 10,000 | 4,000 | 1,500 |
+| `main-vanguard-guardian` | Guardian | Vanguard | Frigate | 15,000 | 6,000 | 2,500 |
+| `main-vanguard-sentinel` | Sentinel | Vanguard | Destroyer | 30,000 | 12,000 | 5,000 |
+| `main-vanguard-titan` | Titan | Vanguard | Cruiser | 60,000 | 25,000 | 12,000 |
+| `main-vanguard-colossus` | Colossus | Vanguard | Battleship | 150,000 | 75,000 | 40,000 |
+| `main-vanguard-imperator` | Imperator | Vanguard | Battleship | 250,000 | 120,000 | 70,000 |
+| `main-vanguard-sovereign` | Sovereign | Vanguard | Battleship | 400,000 | 200,000 | 120,000 |
+| `main-vanguard-ironclad-freighter` | Ironclad Freighter | Vanguard | Transport | 12,000 | 4,000 | 2,000 |
+| `main-vanguard-fortress-transport` | Fortress Transport | Vanguard | Transport | 35,000 | 12,000 | 6,000 |
+| `main-vanguard-supply-runner` | Supply Runner | Vanguard | Transport | 5,000 | 2,000 | 1,000 |
+| `main-vanguard-ore-extractor` | Ore Extractor | Vanguard | Miner | 8,000 | 3,000 | 1,500 |
+| `main-vanguard-core-driller` | Core Driller | Vanguard | Miner | 20,000 | 8,000 | 4,000 |
+| `main-vanguard-siege-harvester` | Siege Harvester | Vanguard | Miner | 50,000 | 20,000 | 10,000 |
+| `main-ashkari-talon` | Talon | Ashkari | Fighter | 3,000 | 1,500 | 500 |
+| `main-ashkari-fang` | Fang | Ashkari | Fighter | 4,500 | 2,000 | 800 |
+| `main-ashkari-viper` | Viper | Ashkari | Fighter | 6,000 | 2,500 | 1,000 |
+| `main-ashkari-raid-runner` | Raid Runner | Ashkari | Corvette | 5,000 | 2,500 | 1,500 |
+| `main-ashkari-ravager` | Ravager | Ashkari | Frigate | 12,000 | 5,000 | 2,000 |
+| `main-ashkari-marauder` | Marauder | Ashkari | Destroyer | 28,000 | 10,000 | 4,500 |
+| `main-ashkari-reaper` | Reaper | Ashkari | Destroyer | 45,000 | 18,000 | 8,000 |
+| `main-ashkari-oblivion` | Oblivion | Ashkari | Battleship | 180,000 | 85,000 | 45,000 |
+| `main-ashkari-plunder-barge` | Plunder Barge | Ashkari | Transport | 10,000 | 3,500 | 1,500 |
+| `main-ashkari-claw-extractor` | Claw Extractor | Ashkari | Miner | 7,500 | 2,500 | 1,200 |
+| `main-synthara-pulse` | Pulse | Synthara | Fighter | 3,500 | 2,000 | 1,000 |
+| `main-synthara-arc` | Arc | Synthara | Fighter | 5,000 | 3,000 | 1,500 |
+| `main-synthara-nexus` | Nexus | Synthara | Fighter | 7,000 | 4,000 | 2,000 |
+| `main-synthara-pulse-courier` | Pulse Courier | Synthara | Corvette | 6,000 | 3,500 | 2,000 |
+| `main-synthara-monolith` | Monolith | Synthara | Cruiser | 55,000 | 30,000 | 15,000 |
+| `main-synthara-oracle` | Oracle | Synthara | Battleship | 140,000 | 80,000 | 45,000 |
+| `main-synthara-obelisk` | Obelisk | Synthara | Battleship | 220,000 | 130,000 | 75,000 |
+| `main-synthara-singularity` | Singularity | Synthara | Battleship | 380,000 | 220,000 | 130,000 |
+| `main-synthara-nexus-freighter` | Nexus Freighter | Synthara | Transport | 14,000 | 6,000 | 3,000 |
+| `main-synthara-singularity-hauler` | Singularity Hauler | Synthara | Transport | 40,000 | 18,000 | 9,000 |
+| `main-synthara-crystal-borer` | Crystal Borer | Synthara | Miner | 9,000 | 4,500 | 2,000 |
+| `main-synthara-void-harvester` | Void Harvester | Synthara | Miner | 45,000 | 22,000 | 11,000 |
+
+*(Tip: In the GUI Dashboard, open the **📚 Game Codex & IDs** tab to filter and copy any ID with one click, or use `python peg_tool.py --reference` in the terminal!)*
+
+---
+
 ## ❓ Troubleshooting & FAQ
 
 * **Issue: "Token is missing or invalid"**
