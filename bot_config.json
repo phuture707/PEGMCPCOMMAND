@@ -19,20 +19,5 @@
     "main-waves"
   ],
   "queued_actions": [],
-  "scheduled_tasks": [
-    {
-      "id": "task_1789049491846",
-      "tool": "repair_pds",
-      "arguments": {
-        "constructionId": "main-laser-battery"
-      },
-      "schedule_type": "every_tick",
-      "interval_ticks": 1,
-      "target_tick": null,
-      "created_at": "15:11:31",
-      "enabled": true,
-      "last_executed_tick": 705,
-      "last_result": "Success"
-    }
-  ]
+  "scheduled_tasks": []
 }

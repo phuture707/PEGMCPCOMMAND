@@ -514,6 +514,25 @@ class PegasusHandler(BaseHTTPRequestHandler):
             self._send_json({"success": True, "queue": q})
             return
 
+        if url_path == "/api/bot/queue_delete":
+            idx = payload.get("index")
+            cfg_file = BASE_DIR / "bot_config.json"
+            cfg = {}
+            if cfg_file.exists():
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                except Exception:
+                    pass
+            q = cfg.get("queued_actions", [])
+            if isinstance(idx, int) and 0 <= idx < len(q):
+                q.pop(idx)
+            cfg["queued_actions"] = q
+            with open(cfg_file, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+            self._send_json({"success": True, "queue": q})
+            return
+
         if url_path == "/api/bot/queue_clear":
             cfg_file = BASE_DIR / "bot_config.json"
             cfg = {}
@@ -2137,15 +2156,17 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         </div>
 
         <div class="form-group">
-          <label class="form-label">Construction Priorities (IDs in build order):</label>
-          <textarea id="cfg-construction-prio" class="form-control" rows="3" style="font-family: var(--font-mono); font-size: 0.8rem;"></textarea>
-          <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem;">Comma-separated IDs, e.g. main-shipyard, main-metal-mine, main-shield-generator</div>
+          <label class="form-label">Construction Priorities (click to add, drag to reorder):</label>
+          <div id="cfg-construction-prio-selected" style="display: flex; flex-wrap: wrap; gap: 0.35rem; min-height: 32px; padding: 0.5rem; background: #030712; border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 6px; margin-bottom: 0.4rem;"></div>
+          <div id="cfg-construction-prio-available" style="display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.4rem; background: rgba(0,0,0,0.2); border-radius: 6px;"></div>
+          <input type="hidden" id="cfg-construction-prio" value="">
         </div>
 
         <div class="form-group">
-          <label class="form-label">Research Priorities (Tech IDs in research order):</label>
-          <textarea id="cfg-research-prio" class="form-control" rows="2" style="font-family: var(--font-mono); font-size: 0.8rem;"></textarea>
-          <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem;">E.g. main-constructions, main-hyperspace-travel, main-intelligence</div>
+          <label class="form-label">Research Priorities (click to add, drag to reorder):</label>
+          <div id="cfg-research-prio-selected" style="display: flex; flex-wrap: wrap; gap: 0.35rem; min-height: 32px; padding: 0.5rem; background: #030712; border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 6px; margin-bottom: 0.4rem;"></div>
+          <div id="cfg-research-prio-available" style="display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.4rem; background: rgba(0,0,0,0.2); border-radius: 6px;"></div>
+          <input type="hidden" id="cfg-research-prio" value="">
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
@@ -2230,13 +2251,15 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <span class="badge badge-info">All 67 Tools Supported</span>
       </div>
 
-      <!-- Controls Row 1: Command & Schedule Interval Selection -->
+      <!-- Controls Row 1: Tool Search + Command + Schedule -->
       <div style="display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 1rem; margin-bottom: 0.85rem; align-items: flex-end;">
         <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label">1. Select Game Command (67 Tools):</label>
+          <label class="form-label">1. Select Game Command:</label>
+          <input type="text" id="bot-dispatch-search" class="form-control" placeholder="🔍 Filter tools... (e.g. fleet, build, scan)" oninput="filterDispatchTools(this.value)" style="margin-bottom: 0.4rem; font-size: 0.8rem;">
           <select id="bot-dispatch-tool" class="form-control" onchange="onDispatchToolChange(this.value)">
             <option value="">Choose a command...</option>
           </select>
+          <div id="bot-dispatch-tool-badge" style="margin-top: 0.3rem; font-size: 0.75rem;"></div>
         </div>
 
         <div class="form-group" style="margin-bottom: 0;">
@@ -2261,20 +2284,18 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Controls Row 2: Full-Width Arguments Box -->
+      <!-- Controls Row 2: Smart Parameter Form -->
       <div class="form-group" style="margin-bottom: 0.6rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-          <label class="form-label" style="margin-bottom: 0;">3. Command Arguments (JSON format — Full Width):</label>
-          <div style="display: flex; gap: 0.4rem; font-size: 0.72rem;">
-            <span style="color: var(--text-dim);">Quick Presets:</span>
-            <a href="javascript:void(0)" onclick="setQuickArgs('produce_ships')" style="color: var(--cyan); text-decoration: none;">[Centurions]</a>
-            <a href="javascript:void(0)" onclick="setQuickArgs('search_asteroids')" style="color: var(--cyan); text-decoration: none;">[Asteroid Scan]</a>
-            <a href="javascript:void(0)" onclick="setQuickArgs('change_government')" style="color: var(--cyan); text-decoration: none;">[Democracy]</a>
-            <a href="javascript:void(0)" onclick="setQuickArgs('repair_pds')" style="color: var(--cyan); text-decoration: none;">[Repair PDS]</a>
-            <a href="javascript:void(0)" onclick="setQuickArgs('empty')" style="color: var(--text-dim); text-decoration: none;">[Empty {}]</a>
-          </div>
+          <label class="form-label" style="margin-bottom: 0;">3. Command Parameters:</label>
+          <button id="btn-toggle-raw-json" class="btn-refresh" style="font-size: 0.7rem; padding: 0.2rem 0.6rem;" onclick="toggleRawJsonMode()">
+            📝 Switch to Raw JSON
+          </button>
         </div>
-        <textarea id="bot-dispatch-args" class="form-control" rows="3" style="width: 100%; box-sizing: border-box; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.4; background: #030712; color: #a5f3fc; border: 1px solid rgba(0, 229, 255, 0.25); resize: vertical;" placeholder='{"shipDefinitionId": "main-centurion", "quantity": 10}'>{}</textarea>
+        <div id="bot-dispatch-form" style="display: flex; flex-direction: column; gap: 0.6rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+          <span style="color: var(--text-dim); font-size: 0.82rem; font-family: var(--font-mono);">Select a command above to see its parameters...</span>
+        </div>
+        <textarea id="bot-dispatch-args" class="form-control" rows="4" style="display: none; width: 100%; box-sizing: border-box; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.4; background: #030712; color: #a5f3fc; border: 1px solid rgba(0, 229, 255, 0.25); resize: vertical;" placeholder='{"shipDefinitionId": "main-centurion", "quantity": 10}'>{}</textarea>
       </div>
 
       <!-- Controls Row 3: Action Buttons -->
@@ -3189,14 +3210,29 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function injectToBotQueue(toolName, argKey, objId) {
     switchTab('bot');
     const toolSelect = document.getElementById('bot-dispatch-tool');
-    const argsInput = document.getElementById('bot-dispatch-args');
     if (toolSelect) toolSelect.value = toolName;
-    if (argsInput) {
-      if (toolName === 'produce_ships') {
-        argsInput.value = JSON.stringify({ [argKey]: objId, quantity: 10 }, null, 2);
-      } else {
-        argsInput.value = JSON.stringify({ [argKey]: objId }, null, 2);
+
+    if (dispatchRawMode) {
+      // Raw JSON mode fallback
+      const argsInput = document.getElementById('bot-dispatch-args');
+      if (argsInput) {
+        if (toolName === 'produce_ships') {
+          argsInput.value = JSON.stringify({ [argKey]: objId, quantity: 10 }, null, 2);
+        } else {
+          argsInput.value = JSON.stringify({ [argKey]: objId }, null, 2);
+        }
       }
+    } else {
+      // Smart form mode — build form then pre-select dropdown value
+      buildDispatchForm(toolName).then(() => {
+        const paramEl = document.getElementById('dispatch-param-' + argKey);
+        if (paramEl) paramEl.value = objId;
+        // For produce_ships, also set quantity
+        if (toolName === 'produce_ships') {
+          const qtyEl = document.getElementById('dispatch-param-quantity');
+          if (qtyEl) qtyEl.value = 10;
+        }
+      });
     }
     showToast(`⚡ Loaded "${objId}" into Bot Studio dispatcher (${toolName})`);
   }
@@ -3451,6 +3487,43 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
   }
 
+  // Tool category definitions for optgroup grouping
+  const TOOL_CATEGORIES = {
+    '🏗️ Colony & Construction': ['build_construction', 'cancel_construction', 'list_construction_options', 'get_active_construction'],
+    '🔬 Research & Technology': ['start_research', 'cancel_research', 'list_research_options', 'get_active_research', 'get_tech_tree'],
+    '🚀 Fleet & Ships': ['produce_ships', 'launch_fleet', 'recall_fleet', 'list_active_fleets', 'list_incoming_fleets', 'get_planet_ships', 'list_production_options'],
+    '🛡️ Defense & PDS': ['list_pds', 'repair_pds'],
+    '🔭 Intelligence & Scanning': ['perform_scan', 'perform_wave_scan', 'get_radar_contacts', 'get_planet_intel'],
+    '💰 Economy & Trade': ['get_planet_status', 'assign_population', 'trade_resources', 'search_asteroids', 'change_government', 'transfer_resources'],
+    '🎁 Missions & Quests': ['list_missions', 'claim_missions'],
+    '💬 Diplomacy & Social': ['send_message', 'list_messages', 'get_message', 'delete_message', 'create_alliance', 'list_alliances', 'join_alliance', 'leave_alliance', 'invite_to_alliance', 'kick_from_alliance', 'declare_war', 'accept_invite', 'decline_invite'],
+    '📊 Leaderboard & Info': ['get_game_state_summary', 'get_tick_info', 'get_player_rank', 'get_leaderboard', 'get_game_rules', 'view_planet', 'get_battle_reports', 'view_battle_report'],
+    '🧠 Memory': ['get_memory', 'set_memory', 'list_memory_keys']
+  };
+
+  // Known enum values for parameters that don't have enums in the schema
+  const KNOWN_ENUMS = {
+    'mission': ['ATTACK', 'DEFEND', 'SPY', 'TRADE', 'COLONIZE'],
+    'scanType': ['SURFACE', 'DEEP'],
+    'governmentType': ['democracy', 'dictatorship', 'communism', 'anarchy', 'technocracy'],
+    'sourceResource': ['metal', 'crystal', 'eonium'],
+    'targetResource': ['metal', 'crystal', 'eonium'],
+    'role': ['miners', 'scientists', 'soldiers']
+  };
+
+  let dispatchRawMode = false;
+
+  async function ensureRefData() {
+    if (refData.constructions.length || refData.research.length || refData.ships.length) return;
+    try {
+      const res = await fetch('/api/reference');
+      const json = await res.json();
+      if (json.success) {
+        refData = { constructions: json.constructions || [], research: json.research || [], ships: json.ships || [] };
+      }
+    } catch(e) {}
+  }
+
   async function populateDispatchToolDropdown() {
     const sel = document.getElementById('bot-dispatch-tool');
     if (!sel || sel.options.length > 1) return;
@@ -3464,60 +3537,239 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
 
     sel.innerHTML = '<option value="">Choose a command...</option>';
-    const sorted = [...allTools].sort((a, b) => a.name.localeCompare(b.name));
-    for (let t of sorted) {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = `${t.name} — ${(t.description || '').substring(0, 48)}...`;
-      sel.appendChild(opt);
+    const categorized = new Set();
+
+    // Build optgroups from category definitions
+    for (const [catName, toolNames] of Object.entries(TOOL_CATEGORIES)) {
+      const catTools = toolNames
+        .map(n => allTools.find(t => t.name === n))
+        .filter(Boolean)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      if (catTools.length === 0) continue;
+      const group = document.createElement('optgroup');
+      group.label = catName;
+      for (const t of catTools) {
+        const opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = `${t.name} — ${(t.description || '').substring(0, 50)}`;
+        group.appendChild(opt);
+        categorized.add(t.name);
+      }
+      sel.appendChild(group);
+    }
+
+    // Any uncategorized tools go into "Other"
+    const uncategorized = allTools.filter(t => !categorized.has(t.name)).sort((a, b) => a.name.localeCompare(b.name));
+    if (uncategorized.length > 0) {
+      const group = document.createElement('optgroup');
+      group.label = '📦 Other';
+      for (const t of uncategorized) {
+        const opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = `${t.name} — ${(t.description || '').substring(0, 50)}`;
+        group.appendChild(opt);
+      }
+      sel.appendChild(group);
+    }
+
+    // Pre-load reference data
+    ensureRefData();
+  }
+
+  function filterDispatchTools(query) {
+    const sel = document.getElementById('bot-dispatch-tool');
+    if (!sel) return;
+    const q = query.toLowerCase().trim();
+    for (const optgroup of sel.querySelectorAll('optgroup')) {
+      let anyVisible = false;
+      for (const opt of optgroup.querySelectorAll('option')) {
+        const match = !q || opt.value.includes(q) || opt.textContent.toLowerCase().includes(q);
+        opt.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+      }
+      optgroup.style.display = anyVisible ? '' : 'none';
     }
   }
 
-  const QUICK_TOOL_TEMPLATES = {
-    produce_ships: '{\n  "shipDefinitionId": "main-centurion",\n  "quantity": 10\n}',
-    launch_fleet: '{\n  "targetPlanetId": "target_planet_id_here",\n  "ships": {\n    "main-centurion": 10\n  },\n  "mission": "ATTACK"\n}',
-    search_asteroids: '{}',
-    perform_scan: '{\n  "targetPlanetId": "target_planet_id_here",\n  "scanType": "SURFACE"\n}',
-    perform_wave_scan: '{\n  "targetCoordX": 55,\n  "targetCoordY": 2\n}',
-    build_construction: '{\n  "constructionId": "main-shield-generator"\n}',
-    start_research: '{\n  "researchId": "main-constructions"\n}',
-    repair_pds: '{\n  "constructionId": "main-laser-battery"\n}',
-    claim_missions: '{}',
-    change_government: '{\n  "governmentType": "democracy"\n}',
-    trade_resources: '{\n  "sourceResource": "metal",\n  "targetResource": "crystal",\n  "amount": 5000\n}',
-    send_message: '{\n  "recipientId": "player_or_planet_id",\n  "subject": "Hello",\n  "body": "Greetings from Pegasus Commander"\n}'
-  };
+  function toggleRawJsonMode() {
+    dispatchRawMode = !dispatchRawMode;
+    const form = document.getElementById('bot-dispatch-form');
+    const textarea = document.getElementById('bot-dispatch-args');
+    const btn = document.getElementById('btn-toggle-raw-json');
+
+    if (dispatchRawMode) {
+      // Switching to raw JSON — sync form values into textarea
+      const args = collectDispatchArgs();
+      textarea.value = JSON.stringify(args, null, 2);
+      form.style.display = 'none';
+      textarea.style.display = 'block';
+      btn.textContent = '🔧 Switch to Smart Form';
+    } else {
+      // Switching back to form — rebuild form from current tool selection
+      form.style.display = 'flex';
+      textarea.style.display = 'none';
+      btn.textContent = '📝 Switch to Raw JSON';
+      const toolName = document.getElementById('bot-dispatch-tool').value;
+      if (toolName) buildDispatchForm(toolName);
+    }
+  }
+
+  function buildRefDropdown(paramKey, items, idField, nameField, extraFields) {
+    let html = '<select id="dispatch-param-' + paramKey + '" class="form-control" style="font-size: 0.82rem;">';
+    html += '<option value="">-- Select --</option>';
+    for (const item of items) {
+      const id = item[idField] || item.id || item.definitionId || '';
+      const name = item[nameField] || item.name || id;
+      let label = name;
+      if (extraFields) {
+        const extras = extraFields.map(f => item[f]).filter(Boolean).join(', ');
+        if (extras) label += ' (' + extras + ')';
+      }
+      label += ' → ' + id;
+      html += '<option value="' + id + '">' + label + '</option>';
+    }
+    html += '</select>';
+    return html;
+  }
+
+  async function buildDispatchForm(toolName) {
+    const container = document.getElementById('bot-dispatch-form');
+    if (!container) return;
+    const t = allTools.find(x => x.name === toolName);
+    if (!t) {
+      container.innerHTML = '<span style="color: var(--text-dim); font-size: 0.82rem; font-family: var(--font-mono);">Select a command above to see its parameters...</span>';
+      return;
+    }
+
+    const schema = t.inputSchema || {};
+    const props = schema.properties || {};
+    const required = schema.required || [];
+    const keys = Object.keys(props);
+
+    // Show action/read badge
+    const badgeEl = document.getElementById('bot-dispatch-tool-badge');
+    if (badgeEl) {
+      const isAction = /build|start|cancel|produce|assign|change|trade|search|initiate|repair|launch|recall|perform|send|create|join|leave|accept|invite|kick|declare|decline|claim|set|delete|transfer/.test(toolName);
+      badgeEl.innerHTML = '<span class="badge ' + (isAction ? 'badge-action' : 'badge-read') + '" style="font-size: 0.72rem;">' +
+        (isAction ? '⚠️ ACTION (Consumes Quota)' : '✨ READ (Free / Unlimited)') + '</span>' +
+        '<span style="color: var(--text-dim); font-size: 0.72rem; margin-left: 0.5rem;">' + (t.description || '') + '</span>';
+    }
+
+    if (keys.length === 0) {
+      container.innerHTML = '<span style="color: var(--green); font-size: 0.85rem; font-family: var(--font-mono);">✅ This command takes no parameters. Ready to execute.</span>';
+      return;
+    }
+
+    await ensureRefData();
+    let html = '';
+
+    for (const k of keys) {
+      const p = props[k];
+      const isReq = required.includes(k);
+      const reqMark = isReq ? ' <strong style="color: var(--red);">*</strong>' : '';
+      const typeLabel = '<span style="color: var(--cyan);">(' + (p.type || 'any') + ')</span>';
+
+      html += '<div class="form-group" style="margin-bottom: 0;">';
+      html += '<label class="form-label" style="font-size: 0.78rem;">' + k + reqMark + ' ' + typeLabel + '</label>';
+
+      // Check for reference-data-populated dropdowns
+      if (k === 'constructionId' && refData.constructions.length) {
+        html += buildRefDropdown(k, refData.constructions, 'definitionId', 'name', ['category']);
+      } else if (k === 'shipDefinitionId' && refData.ships.length) {
+        html += buildRefDropdown(k, refData.ships, 'definitionId', 'name', ['class', 'faction']);
+      } else if (k === 'researchId' && refData.research.length) {
+        html += buildRefDropdown(k, refData.research, 'definitionId', 'name', ['area']);
+      } else if (p.enum && p.enum.length > 0) {
+        // Schema-defined enum
+        html += '<select id="dispatch-param-' + k + '" class="form-control" style="font-size: 0.82rem;">';
+        html += '<option value="">-- Select --</option>';
+        for (const v of p.enum) {
+          html += '<option value="' + v + '">' + v + '</option>';
+        }
+        html += '</select>';
+      } else if (KNOWN_ENUMS[k]) {
+        // Known enum from our mapping
+        html += '<select id="dispatch-param-' + k + '" class="form-control" style="font-size: 0.82rem;">';
+        html += '<option value="">-- Select --</option>';
+        for (const v of KNOWN_ENUMS[k]) {
+          html += '<option value="' + v + '">' + v + '</option>';
+        }
+        html += '</select>';
+      } else if (p.type === 'boolean') {
+        html += '<select id="dispatch-param-' + k + '" class="form-control" style="font-size: 0.82rem;">';
+        html += '<option value="false">false</option>';
+        html += '<option value="true">true</option>';
+        html += '</select>';
+      } else if (p.type === 'number' || p.type === 'integer') {
+        html += '<input type="number" id="dispatch-param-' + k + '" class="form-control" style="font-size: 0.82rem;" placeholder="' + (p.description || '') + '">';
+      } else if (p.type === 'object' || p.type === 'array') {
+        html += '<textarea id="dispatch-param-' + k + '" class="form-control" rows="2" style="font-family: var(--font-mono); font-size: 0.8rem; background: #030712; color: #a5f3fc;" placeholder="' + (p.description || 'JSON ' + p.type) + '"></textarea>';
+      } else {
+        html += '<input type="text" id="dispatch-param-' + k + '" class="form-control" style="font-size: 0.82rem;" placeholder="' + (p.description || '') + '">';
+      }
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  function collectDispatchArgs() {
+    const toolName = document.getElementById('bot-dispatch-tool').value;
+    if (dispatchRawMode) {
+      const raw = document.getElementById('bot-dispatch-args').value.trim();
+      try { return raw ? JSON.parse(raw) : {}; }
+      catch(e) { showToast('Invalid JSON: ' + e.message); return null; }
+    }
+
+    const t = allTools.find(x => x.name === toolName);
+    if (!t) return {};
+    const schema = t.inputSchema || {};
+    const props = schema.properties || {};
+    const args = {};
+
+    for (const k of Object.keys(props)) {
+      const el = document.getElementById('dispatch-param-' + k);
+      if (!el) continue;
+      const p = props[k];
+      let val = (el.tagName === 'TEXTAREA') ? el.value.trim() : el.value;
+
+      if (!val && val !== 0) continue; // skip empty optional fields
+
+      if (p.type === 'number' || p.type === 'integer') {
+        args[k] = Number(val);
+      } else if (p.type === 'boolean') {
+        args[k] = val === 'true';
+      } else if (p.type === 'object' || p.type === 'array') {
+        try { args[k] = JSON.parse(val); }
+        catch(e) { showToast('Invalid JSON in ' + k + ': ' + e.message); return null; }
+      } else {
+        args[k] = val;
+      }
+    }
+    return args;
+  }
 
   function onDispatchToolChange(toolName) {
-    const input = document.getElementById('bot-dispatch-args');
-    if (!input) return;
-    if (QUICK_TOOL_TEMPLATES[toolName]) {
-      input.value = QUICK_TOOL_TEMPLATES[toolName];
-      return;
-    }
-    const t = allTools.find(x => x.name === toolName);
-    if (t && t.inputSchema && t.inputSchema.properties) {
-      const sample = {};
-      for (let k of Object.keys(t.inputSchema.properties)) {
-        sample[k] = t.inputSchema.properties[k].type === 'number' ? 1 : "...";
-      }
-      input.value = JSON.stringify(sample, null, 2);
+    if (!dispatchRawMode) {
+      buildDispatchForm(toolName);
     } else {
-      input.value = '{}';
-    }
-  }
-
-  function setQuickArgs(preset) {
-    const sel = document.getElementById('bot-dispatch-tool');
-    const input = document.getElementById('bot-dispatch-args');
-    if (preset === 'empty') {
-      input.value = '{}';
-      return;
-    }
-    if (QUICK_TOOL_TEMPLATES[preset]) {
-      if (sel) sel.value = preset;
-      input.value = QUICK_TOOL_TEMPLATES[preset];
-      showToast(`Loaded preset template for ${preset}`);
+      // In raw mode, generate sample JSON
+      const input = document.getElementById('bot-dispatch-args');
+      const t = allTools.find(x => x.name === toolName);
+      if (t && t.inputSchema && t.inputSchema.properties) {
+        const sample = {};
+        for (let k of Object.keys(t.inputSchema.properties)) {
+          const p = t.inputSchema.properties[k];
+          if (p.type === 'number' || p.type === 'integer') sample[k] = 1;
+          else if (p.type === 'boolean') sample[k] = false;
+          else if (p.type === 'object') sample[k] = {};
+          else sample[k] = '...';
+        }
+        input.value = JSON.stringify(sample, null, 2);
+      } else {
+        input.value = '{}';
+      }
     }
   }
 
@@ -3568,18 +3820,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   async function executeBotCommandNow() {
     const tool = document.getElementById('bot-dispatch-tool').value;
-    const argsRaw = document.getElementById('bot-dispatch-args').value.trim();
     if (!tool) {
       showToast("Please select a command to execute");
       return;
     }
-    let args = {};
-    try {
-      args = argsRaw ? JSON.parse(argsRaw) : {};
-    } catch(e) {
-      showToast("Invalid JSON in arguments: " + e.message);
-      return;
-    }
+    const args = collectDispatchArgs();
+    if (args === null) return;
 
     const box = document.getElementById('bot-logs-box');
     box.textContent += `\n[${new Date().toLocaleTimeString()}] ⚡ Dispatching immediate order: ${tool}(${JSON.stringify(args)})\n`;
@@ -3609,18 +3855,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   async function queueBotCommandForTick() {
     const tool = document.getElementById('bot-dispatch-tool').value;
-    const argsRaw = document.getElementById('bot-dispatch-args').value.trim();
     if (!tool) {
       showToast("Please select a command to queue");
       return;
     }
-    let args = {};
-    try {
-      args = argsRaw ? JSON.parse(argsRaw) : {};
-    } catch(e) {
-      showToast("Invalid JSON in arguments: " + e.message);
-      return;
-    }
+    const args = collectDispatchArgs();
+    if (args === null) return;
 
     try {
       const res = await fetch('/api/bot/queue_action', {
@@ -3642,18 +3882,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   async function saveScheduledTask(schedMode) {
     const tool = document.getElementById('bot-dispatch-tool').value;
-    const argsRaw = document.getElementById('bot-dispatch-args').value.trim();
     if (!tool) {
       showToast("Please select a command to schedule");
       return;
     }
-    let args = {};
-    try {
-      args = argsRaw ? JSON.parse(argsRaw) : {};
-    } catch(e) {
-      showToast("Invalid JSON in arguments: " + e.message);
-      return;
-    }
+    const args = collectDispatchArgs();
+    if (args === null) return;
 
     let schedType = 'interval_ticks';
     let intervalTicks = 1;
@@ -3815,6 +4049,16 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     } catch(e) {}
   }
 
+  function summarizeArgs(args) {
+    if (!args || Object.keys(args).length === 0) return '';
+    const parts = [];
+    for (const [k, v] of Object.entries(args)) {
+      if (typeof v === 'object') parts.push(k + '=' + JSON.stringify(v));
+      else parts.push(k + '=' + v);
+    }
+    return parts.join(', ');
+  }
+
   function renderBotQueue(queue) {
     const list = document.getElementById('bot-queued-orders-list');
     if (!list) return;
@@ -3831,16 +4075,37 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       row.style.padding = '0.35rem 0.6rem';
       row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
       row.style.color = '#a5f3fc';
+      const argSummary = summarizeArgs(item.arguments);
       row.innerHTML = `
-        <div>
+        <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
           <span style="color: var(--yellow);">#${idx + 1}</span>
           <strong style="color: var(--cyan); margin-left: 0.3rem;">${item.tool}</strong>
-          <span style="color: var(--text-dim); margin-left: 0.5rem; font-size: 0.75rem;">${JSON.stringify(item.arguments || {})}</span>
+          ${argSummary ? '<span style="color: var(--text-dim); margin-left: 0.5rem; font-size: 0.72rem;">' + argSummary + '</span>' : ''}
         </div>
-        <span style="color: var(--text-dim); font-size: 0.72rem;">Queued at ${item.queued_at || 'now'}</span>
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <span style="color: var(--text-dim); font-size: 0.7rem; white-space: nowrap;">${item.queued_at || 'now'}</span>
+          <button class="btn-refresh" style="font-size: 0.68rem; padding: 0.15rem 0.4rem; color: #f87171; border-color: rgba(239,68,68,0.3);" onclick="deleteQueueItem(${idx})" title="Remove this order">✕</button>
+        </div>
       `;
       list.appendChild(row);
     });
+  }
+
+  async function deleteQueueItem(idx) {
+    try {
+      const res = await fetch('/api/bot/queue_delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index: idx })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Removed queued order #" + (idx + 1));
+        renderBotQueue(data.queue || []);
+      }
+    } catch(e) {
+      showToast("Error removing order: " + e.message);
+    }
   }
 
   async function clearBotQueue() {
@@ -3984,6 +4249,106 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
   }
 
+  // --- Priority Badge Picker ---
+  function buildPriorityPicker(type) {
+    // type is 'construction' or 'research'
+    const selectedContainer = document.getElementById('cfg-' + type + '-prio-selected');
+    const availableContainer = document.getElementById('cfg-' + type + '-prio-available');
+    const hiddenInput = document.getElementById('cfg-' + type + '-prio');
+    if (!selectedContainer || !availableContainer || !hiddenInput) return;
+
+    const currentIds = hiddenInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    const items = type === 'construction' ? refData.constructions : refData.research;
+
+    // If no ref data loaded yet, show a simple fallback
+    if (!items || items.length === 0) {
+      availableContainer.innerHTML = '<span style="color: var(--text-dim); font-size: 0.75rem;">Loading game data...</span>';
+      return;
+    }
+
+    // Render selected badges (ordered)
+    selectedContainer.innerHTML = '';
+    if (currentIds.length === 0) {
+      selectedContainer.innerHTML = '<span style="color: var(--text-dim); font-size: 0.75rem; font-family: var(--font-mono);">Click items below to add priorities...</span>';
+    }
+    currentIds.forEach((id, idx) => {
+      const item = items.find(i => (i.definitionId || i.id) === id);
+      const label = item ? (item.name || id) : id;
+      const chip = document.createElement('span');
+      chip.style.cssText = 'display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem; background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 4px; font-size: 0.72rem; color: #a5f3fc; cursor: default; font-family: var(--font-mono);';
+      chip.innerHTML = '<span style="color: var(--yellow); font-size: 0.68rem;">#' + (idx + 1) + '</span> ' + label;
+      // Move up button
+      if (idx > 0) {
+        const upBtn = document.createElement('span');
+        upBtn.textContent = '↑';
+        upBtn.style.cssText = 'cursor: pointer; color: var(--cyan); font-size: 0.7rem; margin-left: 0.1rem;';
+        upBtn.onclick = () => { movePriority(type, idx, idx - 1); };
+        chip.appendChild(upBtn);
+      }
+      // Move down button
+      if (idx < currentIds.length - 1) {
+        const downBtn = document.createElement('span');
+        downBtn.textContent = '↓';
+        downBtn.style.cssText = 'cursor: pointer; color: var(--cyan); font-size: 0.7rem;';
+        downBtn.onclick = () => { movePriority(type, idx, idx + 1); };
+        chip.appendChild(downBtn);
+      }
+      // Remove button
+      const removeBtn = document.createElement('span');
+      removeBtn.textContent = '×';
+      removeBtn.style.cssText = 'cursor: pointer; color: #f87171; font-weight: bold; font-size: 0.8rem; margin-left: 0.15rem;';
+      removeBtn.onclick = () => { removePriority(type, id); };
+      chip.appendChild(removeBtn);
+      selectedContainer.appendChild(chip);
+    });
+
+    // Render available badges (unselected)
+    availableContainer.innerHTML = '';
+    const remaining = items.filter(i => !currentIds.includes(i.definitionId || i.id));
+    if (remaining.length === 0) {
+      availableContainer.innerHTML = '<span style="color: var(--text-dim); font-size: 0.72rem;">All items added ✓</span>';
+    }
+    remaining.forEach(item => {
+      const id = item.definitionId || item.id || '';
+      const label = item.name || id;
+      const badge = document.createElement('span');
+      badge.style.cssText = 'display: inline-block; padding: 0.18rem 0.45rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; font-size: 0.72rem; color: var(--text-dim); cursor: pointer; font-family: var(--font-mono); transition: all 0.15s;';
+      badge.textContent = '+ ' + label;
+      badge.title = id;
+      badge.onmouseenter = () => { badge.style.borderColor = 'rgba(0, 229, 255, 0.4)'; badge.style.color = '#a5f3fc'; };
+      badge.onmouseleave = () => { badge.style.borderColor = 'rgba(255,255,255,0.12)'; badge.style.color = 'var(--text-dim)'; };
+      badge.onclick = () => { addPriority(type, id); };
+      availableContainer.appendChild(badge);
+    });
+  }
+
+  function addPriority(type, id) {
+    const input = document.getElementById('cfg-' + type + '-prio');
+    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!current.includes(id)) {
+      current.push(id);
+      input.value = current.join(', ');
+    }
+    buildPriorityPicker(type);
+  }
+
+  function removePriority(type, id) {
+    const input = document.getElementById('cfg-' + type + '-prio');
+    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    input.value = current.filter(x => x !== id).join(', ');
+    buildPriorityPicker(type);
+  }
+
+  function movePriority(type, fromIdx, toIdx) {
+    const input = document.getElementById('cfg-' + type + '-prio');
+    const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (fromIdx < 0 || toIdx < 0 || fromIdx >= current.length || toIdx >= current.length) return;
+    const item = current.splice(fromIdx, 1)[0];
+    current.splice(toIdx, 0, item);
+    input.value = current.join(', ');
+    buildPriorityPicker(type);
+  }
+
   function applyBotConfigToUI(c) {
     if (!c) return;
     document.getElementById('cfg-auto-claim').checked = c.auto_claim_missions ?? true;
@@ -4004,6 +4369,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const badge = document.getElementById('cfg-active-badge');
       if (badge) badge.textContent = `Profile: ${c.profile_name}`;
     }
+
+    // Build priority pickers after setting values
+    ensureRefData().then(() => {
+      buildPriorityPicker('construction');
+      buildPriorityPicker('research');
+    });
   }
 
   async function loadBotConfig() {
