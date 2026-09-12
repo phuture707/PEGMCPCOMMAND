@@ -13,3 +13,7 @@ __pycache__/
 # Distribution packages & temp archives
 dist/
 *.zip
+
+# Generated documentation artifacts (packaged into zip, kept as markdown in git)
+*.pdf
+*.html
