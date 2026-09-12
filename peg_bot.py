@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Pegasus Galaxy Autonomous Bot Engine (Cross-Platform)
-Runs 24/7 on Windows, Linux VPS, or Docker.
+Pegasus Galaxy Autonomous Bot Engine v0.2 (Cross-Platform)
+Runs 24/7 on macOS, Linux VPS, Docker, or Windows.
 Syncs to the 30-minute game ticks and automates colony development.
 """
 
@@ -436,7 +436,7 @@ class PegasusBot:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pegasus Galaxy Autonomous Bot")
+    parser = argparse.ArgumentParser(description="Pegasus Galaxy Autonomous Bot v0.2 (macOS / Linux / Windows)")
     parser.add_argument("--config", type=str, default=str(DEFAULT_CONFIG_PATH), help="Path to bot_config.json")
     parser.add_argument("--strategy", type=str, default=str(DEFAULT_STRATEGY_PATH), help="Path to bot_strategy.py")
     parser.add_argument("--once", action="store_true", help="Execute 1 tick cycle and exit")

@@ -759,7 +759,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pegasus Galaxy • MCP Control Hub</title>
+  <title>Pegasus Galaxy v0.2 • MCP Control Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1585,7 +1585,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     <div class="brand">
       <div class="logo-icon">🪐</div>
       <div>
-        <h1>Pegasus Galaxy</h1>
+        <h1>Pegasus Galaxy <span style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.15rem 0.45rem; vertical-align: middle; margin-left: 0.4rem; font-weight: 500; letter-spacing: 0.05em;">v0.2</span></h1>
         <div class="subtitle">Autonomous AI Agent & Human Command Hub</div>
       </div>
     </div>
@@ -2415,6 +2415,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       <div style="color: var(--text-dim); font-family: var(--font-mono);">Loading Game Codex & IDs...</div>
     </div>
   </div>
+
+  <!-- Footer -->
+  <footer style="text-align: center; padding: 1.5rem 0 2rem; color: var(--text-dim); font-size: 0.78rem; font-family: var(--font-mono); border-top: 1px solid rgba(255,255,255,0.06); margin-top: 2rem;">
+    <div>🌌 Pegasus Galaxy MCP Suite <strong style="color: var(--cyan);">v0.2</strong> • Cross-Platform (macOS / Linux / Windows)</div>
+    <div style="margin-top: 0.35rem;">GitHub: <a href="https://github.com/phuture707/PEGMCPCOMMAND" target="_blank" style="color: var(--cyan); text-decoration: none;">phuture707/PEGMCPCOMMAND</a> • 67 Live MCP Tools • Streamable HTTP</div>
+  </footer>
 </div>
 
 <!-- Toast notification -->
@@ -4795,11 +4801,11 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, open_browser:
     display_host = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
     url = f"http://{display_host}:{port}"
     print("=" * 60)
-    print("🌌 PEGASUS GALAXY MCP CONTROL HUB GUI")
+    print("🌌 PEGASUS GALAXY MCP CONTROL HUB GUI (v0.2)")
     print(f"🚀 Server running at: http://{host}:{port}")
     if host == "0.0.0.0":
         print("🌐 Remote VPS Mode: Accessible from any device with network access to this server")
-    print("⚡ Real-time Telemetry • 67 MCP Commands • Ship Codex")
+    print("⚡ Real-time Telemetry • 67 MCP Commands • Cross-Platform")
     print("Press Ctrl+C in terminal to stop.")
     print("=" * 60)
 

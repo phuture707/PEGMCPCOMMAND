@@ -1,8 +1,10 @@
-# 🌌 Pegasus Galaxy MCP Suite — Complete User & Operations Guide
+# 🌌 Pegasus Galaxy MCP Suite v0.2 — Complete User & Operations Guide
 
-Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
+Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.2**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
 
+[![Suite Version](https://img.shields.io/badge/Version-0.2-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blueviolet)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-brightgreen)](https://python.org)
 
@@ -12,15 +14,18 @@ Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite**. This packa
 
 ## 📑 Table of Contents
 1. [Official Repository & Installation](#-official-github-repository)
-2. [Quickstart (3-Step Setup)](#-quickstart-3-step-setup)
-3. [Suite Architecture & Components](#-suite-architecture--components)
-4. [Tool 1: Web Control Hub (`peg_gui.py`)](#-tool-1-web-control-hub-peg_guipy)
-5. [Tool 2: Autonomous Game Bot (`peg_bot.py`)](#-tool-2-autonomous-game-bot-peg_botpy)
-6. [Tool 3: Terminal CLI Inspector (`peg_tool.py`)](#-tool-3-terminal-cli-inspector-peg_toolpy)
-7. [Tool 4: Python Client SDK (`peg_client.py`)](#-tool-4-python-client-sdk-peg_clientpy)
-8. [Strategy Profiles & Custom Python Scripts](#-strategy-profiles--custom-python-scripts)
-9. [24/7 Cloud & VPS Deployment Guide](#-247-cloud--vps-deployment-guide)
-10. [Troubleshooting & FAQ](#-troubleshooting--faq)
+2. [Running Locally: Web GUI + Local Bot on PC/Mac](#-running-locally-web-gui--local-bot-on-pcmac)
+3. [Quickstart Setup (macOS, Linux & Windows)](#-quickstart-setup)
+4. [Dual-Environment & Git Deployment Workflow](#-dual-environment--git-deployment-workflow)
+5. [Suite Architecture & Components](#-suite-architecture--components)
+6. [Tool 1: Web Control Hub (`peg_gui.py`)](#-tool-1-web-control-hub-peg_guipy)
+7. [Tool 2: Autonomous Game Bot (`peg_bot.py`)](#-tool-2-autonomous-game-bot-peg_botpy)
+8. [Tool 3: Terminal CLI Inspector (`peg_tool.py`)](#-tool-3-terminal-cli-inspector-peg_toolpy)
+9. [Tool 4: Python Client SDK (`peg_client.py`)](#-tool-4-python-client-sdk-peg_clientpy)
+10. [Strategy Profiles & Custom Python Scripts](#-strategy-profiles--custom-python-scripts)
+11. [24/7 Cloud & VPS Deployment Guide](#-247-cloud--vps-deployment-guide)
+12. [Official Game IDs Reference (Buildings, Tech & Ships)](#-official-game-ids-reference-buildings-tech--ships)
+13. [Troubleshooting & FAQ](#-troubleshooting--faq)
 
 ---
 
@@ -37,19 +42,53 @@ cd PEGMCPCOMMAND
 
 ---
 
-## ⚡ Quickstart (3-Step Setup)
+## 💻 Running Locally: Web GUI + Local Bot on PC/Mac
+
+**You do NOT need a remote VPS or server to automate Pegasus Galaxy.** 
+
+You can run both the **interactive Web GUI** and the **autonomous Bot** simultaneously on your local computer (macOS, Windows, or Linux) whenever your PC is on.
+
+### How Local Execution Works:
+* **Option 1 (All-in-One via Browser — Recommended)**:
+  1. Launch `python peg_gui.py` (or `python3 peg_gui.py` on Mac).
+  2. In your browser, open the **🤖 Bot Studio** tab.
+  3. Click **"Start Bot Process"**. 
+  4. The GUI will spawn `peg_bot.py` locally as a background process, show its active PID badge, and stream its live evaluation logs directly into the embedded console!
+  5. You can tweak rules, add building priorities, or edit `bot_strategy.py` right from your browser, and the local bot will immediately apply them on the next 30-minute tick.
+* **Option 2 (Two Terminal Windows)**:
+  1. **Terminal 1**: Run `python peg_gui.py` to keep your visual dashboard active.
+  2. **Terminal 2**: Run `python peg_bot.py` to watch the autonomous tick loop execute in real time.
+  3. Both share the local `bot_config.json`, `bot_state.json`, and `bot.log` files seamlessly.
+
+You only need an external cloud VPS if you want the bot to continue advancing your empire 24/7 while your computer is turned off.
+
+---
+
+## ⚡ Quickstart Setup
 
 ### Step 1: Install Python Dependencies
-Ensure Python 3.10+ is installed, then run:
-```bash
-pip install -r requirements.txt
-```
+
+The suite requires Python 3.10+ and works seamlessly on **macOS (Intel & Apple Silicon M1/M2/M3/M4)**, **Linux (Ubuntu, Debian, Fedora)**, and **Windows (10/11)**.
+
+* **On macOS / Linux:**
+  ```bash
+  python3 -m venv venv
+  source venv/bin/activate
+  pip install -r requirements.txt
+  ```
+
+* **On Windows (PowerShell / Command Prompt):**
+  ```powershell
+  python -m venv venv
+  venv\Scripts\activate
+  pip install -r requirements.txt
+  ```
 
 ### Step 2: Configure Your Personal Access Token
 1. Copy the sample environment file:
    ```bash
-   cp .env.example .env     # Linux / macOS
-   copy .env.example .env   # Windows
+   cp .env.example .env      # macOS / Linux
+   copy .env.example .env    # Windows
    ```
 2. Open `.env` in any text editor and paste your personal access token (PAT):
    ```env
@@ -59,9 +98,73 @@ pip install -r requirements.txt
 
 ### Step 3: Launch the Web Dashboard
 ```bash
-python peg_gui.py
+python3 peg_gui.py          # macOS / Linux
+python peg_gui.py           # Windows
 ```
-Your default browser will automatically open **`http://localhost:7890`**.
+Your default web browser will automatically open **`http://localhost:7890`**.
+
+---
+
+## 🔄 Dual-Environment & Git Deployment Workflow
+
+### Developing Locally While PC is On, Then Pushing to 24/7 VPS
+This is the ultimate setup: play and tune locally, then push your strategy to run on a 24/7 cloud server while you sleep.
+
+```
+┌────────────────────────────────────────┐       git push        ┌──────────────────────────────────────┐
+│  LOCAL PC / Mac (While Computer is On) │ ────────────────────> │      24/7 CLOUD VPS (Always-On)      │
+│  • Play in GUI & run local Bot         │                       │  • Runs pegasus-bot in background    │
+│  • Test new strategies & build orders  │ <──────────────────── │  • Evaluates every 30-min game tick  │
+│  • Use dry-run & 1-tick test cycles    │       git pull        │  • Advances empire while PC is off   │
+└────────────────────────────────────────┘                       └──────────────────────────────────────┘
+```
+
+#### Phase 1: Local Tuning & Play (PC or Mac is Running)
+1. Launch `python peg_gui.py` on your computer.
+2. Monitor your colony telemetry, manage fleet launches, and queue actions in the 7-tab GUI.
+3. In the **🤖 Bot Studio** tab:
+   - Adjust building upgrade priorities or tech research order using the interactive badge pickers.
+   - Edit custom Python code in `bot_strategy.py` or try out preset templates (`armada_factory.py`, `fortress_turtle.py`, `economic_boom.py`).
+   - Use the **Step 1 Tick Cycle** button or dry-run mode to verify your logic without wasting actions.
+   - Click **Start Bot Process** to run the bot locally on your machine while your PC is awake.
+
+#### Phase 2: Committing and Pushing to Git
+When you are ready to push your strategy improvements to your repository so your 24/7 VPS can take over:
+```bash
+# 1. Check which strategy/config files you modified
+git status
+
+# 2. Stage your updated strategy files and configurations
+git add bot_config.json bot_strategy.py custom_strategies/ config_profiles/
+
+# 3. Commit your changes with a clear summary
+git commit -m "Tune armada production and shield defense priorities"
+
+# 4. Push to your GitHub repository
+git push origin main
+```
+
+> [!IMPORTANT]
+> **Safety & Privacy**: Your Personal Access Token (`.env`), runtime state (`bot_state.json`), local execution logs (`bot.log`), and local scratchpad memory (`bot_memory.json`) are **strictly excluded** by `.gitignore`. Pushing your strategy code will **never** leak your token or overwrite server-specific runtime logs.
+
+#### Phase 3: Pulling on Your 24/7 Cloud VPS
+When you turn off or put your PC/Mac to sleep, your VPS continues managing your empire around the clock:
+```bash
+# 1. SSH into your VPS
+ssh root@YOUR_VPS_IP
+
+# 2. Navigate to your installation directory
+cd /opt/peg-mcp
+
+# 3. Pull the latest strategy code you pushed from your PC
+git pull
+
+# 4. Restart the bot background service to reload the updated strategy
+sudo systemctl restart pegasus-bot
+
+# 5. Follow live bot evaluation logs
+journalctl -u pegasus-bot -f
+```
 
 ---
 
@@ -69,12 +172,13 @@ Your default browser will automatically open **`http://localhost:7890`**.
 
 ```
 pegasus-mcp-suite/
-├── peg_gui.py              # Interactive sci-fi web control dashboard & Bot Studio
-├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot
-├── peg_tool.py             # Rich terminal CLI inspector & command runner
+├── peg_gui.py              # Interactive sci-fi web control dashboard & Bot Studio v0.2
+├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.2
+├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.2
 ├── peg_client.py           # Core Python MCP client SDK (JSON-RPC / Streamable HTTP)
 ├── bot_config.json         # Active Layer 1 automation rules & priorities
 ├── bot_strategy.py         # Active Layer 2 Python strategy hook (live-reloaded)
+├── bot_memory.json         # Local persistent key-value memory scratchpad
 ├── config_profiles/        # Library of named automation profiles (.json)
 │   ├── Default Economy.json
 │   ├── Fortress Defense.json
@@ -87,8 +191,9 @@ pegasus-mcp-suite/
 ├── Dockerfile              # Containerized deployment definition
 ├── pegasus-bot.service     # Linux systemd service for 24/7 autonomous bot
 ├── pegasus-gui.service     # Linux systemd service for 24/7 web dashboard
-├── requirements.txt        # Python package dependencies
+├── requirements.txt        # Python package dependencies (httpx, rich, python-dotenv)
 ├── .env.example            # Sample credentials file
+├── README.md               # Quickstart and feature overview
 └── INSTRUCTIONS.md         # Complete user and operations manual
 ```
 
@@ -96,52 +201,58 @@ pegasus-mcp-suite/
 
 ## 🌐 Tool 1: Web Control Hub (`peg_gui.py`)
 
-A full-featured, zero-external-frontend-dependency web application styled with a cyber/sci-fi space aesthetic. It runs on Python's built-in threaded HTTP server.
+A full-featured, zero-external-frontend-dependency web application styled with a cyber/sci-fi space aesthetic. Runs natively on macOS, Linux, and Windows.
 
 ### How to Run:
-* **Local Desktop Mode** (auto-launches browser):
+* **Local Desktop Mode** (auto-launches default browser):
   ```bash
-  python peg_gui.py
+  python3 peg_gui.py        # macOS / Linux
+  python peg_gui.py         # Windows
   ```
 * **Headless / VPS Server Mode** (accessible remotely):
   ```bash
-  python peg_gui.py --host 0.0.0.0 --port 7890 --no-browser
+  python3 peg_gui.py --host 0.0.0.0 --port 7890 --no-browser
   ```
 
-### Dashboard Tabs & Features:
+### The 7 Dashboard Tabs & Features:
 1. **📊 Mission Control**:
    - **Colony Telemetry**: Real-time metal, crystal, eonium reserves, and net production rates.
    - **Tick Countdown Clock**: Synchronized with Pegasus Galaxy server 30-minute ticks.
-   - **Player Rank & Civilization Intel**: Population allocation, level, and race traits.
+   - **Player Rank & Civilization Intel**: Population allocation, level, score, and race traits.
    - **Active Construction & Research Progress**: Visual progress bars and completion timers.
    - **Fleet Tracker**: Incoming and outgoing space fleets with coordinates and ETAs.
    - **Quota Guard Meter**: Tracks modifying actions used during the current tick window.
 2. **🛠️ Command Hub (All 67 Tools)**:
    - Searchable, categorized command palette (*Colony, Military, Social, Meta, Memory*).
-   - Dynamic form generator: reads the tool parameter JSON schemas and renders inputs.
+   - Dynamic form generator: reads parameter schemas and renders validated inputs.
    - Safety badges: distinguishes between safe `[READ]` queries and quota-consuming `[ACTION]` commands.
 3. **🎯 Quests & Missions**:
    - Live quest tracker for story missions, daily objectives, and achievements.
    - **"Claim All Rewards"**: Single-click button to collect all completed rewards in one batch.
 4. **🚀 Hangar & Ship Codex**:
    - Ships categorized side-by-side by race (**Vanguard**, **Synthara**, **Ashkari**).
-   - Filterable by combat class (**Light**, **Medium**, **Heavy**, **Special**).
+   - Filterable by combat class (**Light**, **Medium**, **Heavy**, **Special**, **Transport**, **Mining**).
    - Deep combat metrics: Armor, Direct Firepower, EMP Damage, Sublight Speed, Fuel Burn/Capacity, and Cargo capacity.
    - **Planetary Defense Structures (PDS)**: Live defense status showing active health points (HP), level, damage state, and base weapon stats.
-5. **🧠 Agent Memory**:
-   - Persistent key-value memory scratchpad for recording intelligence, diplomatic notes, or target coordinates.
-6. **🤖 Bot Studio**:
-   - Start, stop, and monitor the autonomous bot daemon directly from your browser.
-   - **Layer 1 Automation Rules**: Configure auto-claim, auto-repair, auto-build, auto-research, and action safety caps. Load and save named profiles to `config_profiles/`.
-   - **Layer 2 Python Strategy Hook**: Edit custom Python strategy code in an embedded dark-theme editor. Save scripts to `custom_strategies/` and deploy them to `bot_strategy.py` with 1 click (live reloads on the next tick).
-   - **Specific Command Dispatcher & Task Scheduler**: Queue any of the 67 commands to run immediately, on the next tick, or on recurring tick intervals (every N ticks).
+5. **📚 Game Codex & IDs Reference**:
+   - Live catalog of all 24 constructions, 12 research technologies, and 35 ship hull designs.
+   - Click-to-copy badges and instant **"⚡ Queue in Bot"** injection directly into the Bot Studio dispatcher.
+6. **🤖 Bot Studio (v0.2 Overhaul)**:
+   - Start, stop, step (1-tick test run), and monitor the local autonomous bot daemon directly from your browser.
+   - **Smart Parameter Forms**: Select any tool to render typed controls; game object IDs auto-populate from live server data.
+   - **Interactive Priority Pickers**: Clickable chips for construction and research queues with `↑` `↓` reordering and `×` removal.
+   - **Task Scheduler**: Schedule recurring tasks (every N ticks) or queue orders for next tick.
+   - **Individual Queue Deletion**: Remove staged orders one-by-one with human-readable argument summaries.
+   - **In-Browser Python Editor**: Write custom code for `bot_strategy.py` with 1-click deploy.
    - **Live Log Streamer**: Real-time console showing tick evaluations, server responses, and decisions.
+7. **🧠 Bot Memory**:
+   - Persistent key-value memory scratchpad backed by local `bot_memory.json` storage.
 
 ---
 
 ## 🤖 Tool 2: Autonomous Game Bot (`peg_bot.py`)
 
-A robust, 24/7 background worker engineered to never waste a game tick.
+A robust background worker engineered to never waste a game tick. Works identically on macOS, Linux VPS, or Windows.
 
 ### Core Philosophy:
 * **Tick Synchronization**: The bot queries the server for `get_tick_info()`, calculates the exact seconds remaining in the current 30-minute game cycle, and sleeps until the new tick fires.
@@ -152,51 +263,58 @@ A robust, 24/7 background worker engineered to never waste a game tick.
 
 ### Command-Line Arguments:
 ```bash
-# Run 24/7 background daemon
-python peg_bot.py
+# Run continuous background daemon locally or on VPS
+python3 peg_bot.py
 
 # Run a single tick evaluation and exit immediately (ideal for testing or cron jobs)
-python peg_bot.py --once
+python3 peg_bot.py --once
 
 # Dry-run mode: evaluate logic and log decisions without executing modifying actions
-python peg_bot.py --once --dry-run
+python3 peg_bot.py --once --dry-run
 
 # Specify custom configuration or strategy paths
-python peg_bot.py --config custom_config.json --strategy custom_strategy.py
+python3 peg_bot.py --config custom_config.json --strategy custom_strategy.py
 ```
 
 ---
 
 ## 💻 Tool 3: Terminal CLI Inspector (`peg_tool.py`)
 
-A command-line tool equipped with Rich formatting for terminal enthusiasts, SSH sessions, and script automation.
+A command-line tool equipped with Rich formatting for terminal enthusiasts, macOS Terminal / iTerm2, SSH sessions, and script automation.
 
 ### Commands Reference:
 ```bash
 # 1. Print full colony telemetry dashboard (resources, tick timer, buildings, fleets)
-python peg_tool.py
+python3 peg_tool.py
 
 # 2. List all 67 tools with argument descriptions
-python peg_tool.py --tools
+python3 peg_tool.py --tools
 
-# 3. Check quests, achievements, and completed mission rewards
-python peg_tool.py --missions
+# 3. Inspect official Game IDs (Constructions, Research, Ships)
+python3 peg_tool.py --reference
+python3 peg_tool.py --reference constructions
+python3 peg_tool.py --reference ships
+python3 peg_tool.py --reference research
 
-# 4. Call any MCP tool with optional JSON arguments
-python peg_tool.py --call get_player_rank
-python peg_tool.py --call list_construction_options
-python peg_tool.py --call build_construction --args '{"constructionId": "main-metal-mine"}'
-python peg_tool.py --call get_leaderboard --args '{"limit": 10}'
+# 4. Check quests, achievements, and completed mission rewards
+python3 peg_tool.py --missions
 
-# 5. List and inspect MCP resources
-python peg_tool.py --resources
-python peg_tool.py --read pegasus://ship/definitions
-python peg_tool.py --read pegasus://construction/definitions
+# 5. Call any MCP tool with optional JSON arguments
+python3 peg_tool.py --call get_player_rank
+python3 peg_tool.py --call list_construction_options
+python3 peg_tool.py --call build_construction --args '{"constructionId": "main-metal-mine"}'
+python3 peg_tool.py --call produce_ships --args '{"shipDefinitionId": "main-vanguard-centurion", "quantity": 10}'
+python3 peg_tool.py --call get_leaderboard --args '{"limit": 10}'
 
-# 6. Read game rules and mechanics
-python peg_tool.py --rules overview
-python peg_tool.py --rules combat
-python peg_tool.py --rules constructions
+# 6. List and inspect MCP resources
+python3 peg_tool.py --resources
+python3 peg_tool.py --read pegasus://ship/definitions
+python3 peg_tool.py --read pegasus://construction/definitions
+
+# 7. Read game rules and mechanics
+python3 peg_tool.py --rules overview
+python3 peg_tool.py --rules combat
+python3 peg_tool.py --rules constructions
 ```
 
 ---
@@ -220,9 +338,14 @@ print(f"Current Tick: {tick.get('currentTick')}, Seconds Remaining: {tick.get('s
 planet = client.get_planet_status()
 print(f"Planet Name: {planet.get('name')}")
 
-# Call any arbitrary tool
+# Call any arbitrary tool (with automatic retry on transient 500s)
 res = client.call_tool("get_planet_ships")
 print(f"Ships in hangar: {res}")
+
+# Local agent memory persistence
+client.call_tool("set_memory", {"key": "primary_target", "value": "55:2:8"})
+target = client.call_tool("get_memory", {"key": "primary_target"})
+print(f"Target from memory: {target}")
 
 # Close connection when finished
 client.close()
@@ -239,33 +362,18 @@ Rules are saved as clean JSON files inside `config_profiles/`. Three presets are
 * **Armada War**: Focuses on shipyard infrastructure and heavy manufacturing facilities.
 
 ### 2. Layer 2: Custom Python Hooks (`custom_strategies/`)
-Custom scripts reside in `custom_strategies/`. When a script is activated, it is copied to `bot_strategy.py` and reloaded live every tick.
-
-Sample Strategy Hook Structure:
-```python
-def on_tick(client, state, config, logger):
-    logger("🚀 Executing custom strategy hook...")
-    planet = state.get("planet", {}).get("data", {})
-    resources = planet.get("resources", {})
-    
-    # Access your Layer 1 rules via the 'config' argument
-    max_actions = config.get("max_actions_per_tick", 8)
-    
-    # Write your own custom logic
-    if resources.get("metal", 0) > 100000:
-        logger("Surplus metal detected! Launching specialized action...")
-```
+Custom scripts reside in `custom_strategies/`. When a script is activated, it is copied to `bot_strategy.py` and reloaded live every tick without bot restart.
 
 ---
 
-## ☁️ 24/7 Cloud & VPS Deployment Guide
+## ☁️ 24/7 Cloud & VPS Deployment Guide (Optional)
 
 You can run the suite indefinitely on any cheap Linux VPS (e.g. Hetzner, DigitalOcean, Linode, AWS EC2, Ubuntu/Debian).
 
 ### Automated 1-Click VPS Setup:
 1. Transfer the suite folder to your VPS:
    ```bash
-   scp -r pegasus-mcp-suite root@YOUR_VPS_IP:/opt/peg-mcp
+   scp -r PEGMCPCOMMAND root@YOUR_VPS_IP:/opt/peg-mcp
    ```
 2. SSH into your VPS:
    ```bash
@@ -297,7 +405,7 @@ Then open `http://localhost:7890` on your desktop browser. It connects directly 
 
 ## 📚 Official Game IDs Reference (Buildings, Tech & Ships)
 
-Whenever queuing actions in `bot_config.json`, writing custom strategies in `custom_strategies/`, or issuing direct MCP commands via GUI or CLI (`peg_tool.py`), you must use the exact server identifier strings:
+Whenever queuing actions in `bot_config.json`, writing custom strategies in `custom_strategies/`, or issuing direct MCP commands via GUI or CLI (`peg_tool.py`), use the exact server identifier strings:
 
 ### 🏗️ Constructions (`constructionId`) — 24 Buildings
 Used with: `build_construction`, `cancel_construction`, and `repair_pds`
@@ -392,20 +500,28 @@ Used with: `produce_ships` (`{"shipDefinitionId": "...", "quantity": 10}`) and `
 | `main-synthara-crystal-borer` | Crystal Borer | Synthara | Miner | 9,000 | 4,500 | 2,000 |
 | `main-synthara-void-harvester` | Void Harvester | Synthara | Miner | 45,000 | 22,000 | 11,000 |
 
-*(Tip: In the GUI Dashboard, open the **📚 Game Codex & IDs** tab to filter and copy any ID with one click, or use `python peg_tool.py --reference` in the terminal!)*
+*(Tip: In the GUI Dashboard, open the **📚 Game Codex & IDs** tab to filter and copy any ID with one click, or use `python3 peg_tool.py --reference` in the terminal!)*
 
 ---
 
 ## ❓ Troubleshooting & FAQ
 
+* **Can I run the Web GUI and the Bot locally at the same time on my PC / Mac?**
+  * *Yes!* You can launch `peg_gui.py` and click **"Start Bot Process"** directly inside the Bot Studio tab. The GUI spawns the local bot as a child process and streams its live logs right into your browser. Alternatively, open two terminal windows and run `python peg_gui.py` in one and `python peg_bot.py` in the other.
+* **Does it work on macOS?**
+  * *Yes*. Full macOS support is verified for both Intel and Apple Silicon (M1/M2/M3/M4). Subprocess detachment, terminal formatting, paths, and automatic browser launch operate natively.
+* **Do I need a cloud VPS?**
+  * *No*. A VPS is only needed if you want the bot to keep running around the clock while your computer is turned off. While your computer is running, running everything locally is 100% functional.
+* **Can I run the bot locally while my PC/Mac is on, then deploy to a VPS?**
+  * *Yes*. See the [Dual-Environment & Git Deployment Workflow](#-dual-environment--git-deployment-workflow) section above. You can test and refine your strategy locally, `git push` to your repository, and `git pull` on your VPS so the bot advances your colony 24/7 while your computer is powered off.
+* **Are my API token and logs exposed in Git?**
+  * *No*. `.env`, `bot.log`, `bot_state.json`, and `bot_memory.json` are listed in `.gitignore` and remain strictly local to each machine.
 * **Issue: "Token is missing or invalid"**
   * *Fix*: Ensure your `.env` file contains `PEGASUS_PAT=pg_pat_...`. Verify the token in your Pegasus Galaxy settings.
 * **Issue: "Action Quota Exceeded"**
   * *Fix*: The game enforces an action quota per 30-minute tick. Adjust `max_actions_per_tick` in `bot_config.json` (or in GUI Bot Studio) to a lower number (e.g., 5-8).
 * **Issue: "Port 7890 is already in use"**
-  * *Fix*: Specify a different port using `python peg_gui.py --port 8080`.
-* **Issue: Can I run both GUI and Bot at the same time?**
-  * *Yes*. In fact, the GUI Bot Studio has built-in buttons to start, stop, and monitor the bot daemon seamlessly.
+  * *Fix*: Specify a different port using `python3 peg_gui.py --port 8080`.
 
 ---
-*Developed for the Pegasus Galaxy interstellar commander community.*
+*Developed for the Pegasus Galaxy interstellar commander community • Version 0.2*\n
