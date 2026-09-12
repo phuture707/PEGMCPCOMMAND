@@ -22,7 +22,8 @@ pip3 install --upgrade pip httpx rich
 APP_DIR="/opt/peg-mcp"
 sudo mkdir -p "$APP_DIR"
 echo "Copying files to $APP_DIR..."
-sudo cp -r peg_client.py peg_bot.py peg_gui.py bot_strategy.py bot_config.json config_profiles custom_strategies .env "$APP_DIR/" || true
+sudo cp -r peg_client.py peg_bot.py peg_gui.py peg_tool.py bot_strategy.py bot_config.json requirements.txt INSTRUCTIONS.md README.md config_profiles custom_strategies "$APP_DIR/" || true
+if [ -f ".env" ]; then sudo cp .env "$APP_DIR/" || true; fi
 
 # 4. Install systemd services
 if [ -f "pegasus-bot.service" ]; then
