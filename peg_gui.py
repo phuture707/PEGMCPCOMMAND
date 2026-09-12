@@ -315,7 +315,7 @@ class PegasusHandler(BaseHTTPRequestHandler):
         if url_path == "/api/memory":
             try:
                 keys = mcp_client.list_memory_keys()
-                self._send_json(keys)
+                self._send_json({"success": True, "keys": keys})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return

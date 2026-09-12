@@ -161,6 +161,15 @@ class PegasusMCPClient:
             if "message" in args and "body" not in args:
                 args["body"] = args.pop("message")
 
+        # Local memory tool interception — these don't exist on the server
+        if tool_name == "get_memory":
+            val = self.get_memory(args.get("key", ""))
+            return {"success": True, "key": args.get("key"), "value": val}
+        elif tool_name == "set_memory":
+            return self.set_memory(args.get("key", ""), args.get("value", ""))
+        elif tool_name == "list_memory_keys":
+            return {"success": True, "keys": self.list_memory_keys()}
+
         params = {
             "name": tool_name,
             "arguments": args,
