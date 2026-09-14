@@ -1,8 +1,8 @@
-# 🌌 Pegasus Galaxy MCP Suite v0.2 — Web GUI, Bot Engine & CLI Inspector
+# 🌌 Pegasus Galaxy MCP Suite v0.3 — Web GUI, Bot Engine, Combat Simulator & CLI Inspector
 
-A production-ready Python client, interactive web control dashboard, and autonomous bot suite for [Pegasus Galaxy](https://pegasus-galaxy.net/mcp), connected via Model Context Protocol (MCP 2025-03-26 Streamable HTTP).
+A production-ready Python client, interactive web control dashboard, multi-fleet battle simulator, and autonomous bot suite for [Pegasus Galaxy](https://pegasus-galaxy.net/mcp), connected via Model Context Protocol (MCP 2025-03-26 Streamable HTTP).
 
-[![Suite Version](https://img.shields.io/badge/Version-0.2-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![Suite Version](https://img.shields.io/badge/Version-0.3-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blueviolet)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
@@ -22,6 +22,21 @@ You can run everything **100% locally** on your personal computer (macOS, Window
    - **Method A (Easiest — 1 Click from GUI)**: Inside `peg_gui.py`, switch to the **🤖 Bot Studio** tab and click **"Start Bot Process"**. The GUI automatically spawns `peg_bot.py` as a local background worker on your PC/Mac, tracks its live process PID, and streams its decision log directly into your browser console.
    - **Method B (Dual Terminal)**: Run `python3 peg_gui.py` in Terminal 1 for visual control, and `python3 peg_bot.py` in Terminal 2 for direct command-line output. Both share the same configuration (`bot_config.json`) and state files.
 3. **Deploy to a VPS only when you want to**: A remote VPS is completely optional — you only need it if you want the bot to continue advancing your empire 24/7 while your desktop computer is powered off or asleep.
+
+---
+
+## ⚔️ What's New in v0.3
+
+- **Tactical Battle Simulator & Coalition Calculator (Tab 8)**:
+  - **Multi-Fleet Coalitions**: Support for multiple attacking and defending fleets simultaneously. Add, remove, rename, and individually enable/disable fleets in simulation calculations.
+  - **Live Coalition Telemetry**: Real-time aggregate counters for active fleets, total ship counts, firepower estimation, armor, cargo capacity, and asteroid hauling capacity.
+  - **Comprehensive Scan Type Ingestion**: Ingests all combat-capable scan types (`FLEET_COMPOSITION_SCAN`, `MILITARY_SCAN`, `DEEP_SCAN`, `INCOMING_SCAN`) from scan history.
+  - **Planetary Intelligence Resolution**: Automatically resolves coordinates, planet ownership, and defense structures across multiple scans for focused scans lacking direct coordinates.
+  - **Accurate PDS Ground Structure Modeling**: Isolates ground defense batteries (`pds-...`) from ship manifests, modeling them strictly as planetary defense structures with live level multipliers.
+  - **Interactive Scan Chooser & Visual Picker**:
+    - Inline quick-add dropdown (`📡 Add from Scan...`) directly in Attacker and Defender headers.
+    - Full visual scan browser modal (`🔍 Browse Scans`) with search filtering, scan type badges, ship breakdowns, and 1-click fleet deployment.
+  - **Tactical Role Inversion**: Instant 1-click roster swap between Planetary Assault and Home Base Defense modes.
 
 ---
 

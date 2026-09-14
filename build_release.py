@@ -239,13 +239,13 @@ def build_docs():
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pegasus Galaxy MCP Suite v0.2 — {doc_name}</title>
+  <title>Pegasus Galaxy MCP Suite v0.3 — {doc_name}</title>
   <style>{CSS}</style>
 </head>
 <body>
   <div class="doc-container">
     <div class="doc-badge-bar">
-      <span>🌌 Pegasus Galaxy MCP Suite v0.2</span>
+      <span>🌌 Pegasus Galaxy MCP Suite v0.3</span>
       <span>•</span>
       <span>{doc_name} Documentation</span>
     </div>
@@ -282,7 +282,9 @@ def build_zip():
         "peg_gui.py",
         "peg_bot.py",
         "peg_tool.py",
+        "peg_combat.py",
         "peg_client.py",
+        "game_rules.json",
         "bot_config.json",
         "bot_strategy.py",
         "requirements.txt",

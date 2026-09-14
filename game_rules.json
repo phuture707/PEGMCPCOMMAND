@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "data": {
+    "overview": "Pegasus Galaxy is a multiplayer space strategy game. Players manage planets, build constructions, research technologies, produce ships, and engage in fleet combat.",
+    "resources": "There are three resources: Metal (metal), Crystal (crystal), and Eonium (eonium). Resources are produced by miners each tick. Trade rates apply a 30% loss.",
+    "construction": "Constructions are built on your planet. Each construction has levels. Only one construction can be in progress at a time. Builders contribute points each tick.",
+    "research": "Research unlocks new technologies and ship types. Each research has levels. Only one research can be in progress at a time. Researchers contribute points each tick.",
+    "military": "Ships are produced at your planet. Fleets can be launched with missions: attack, defend, transport, or blockade. Fleet travel time depends on distance.",
+    "scanning": "Wave scans reveal information about target planets and require an Amplifier construction (higher levels unlock more scan types) plus eonium. Types: SURFACE_SCAN (coords, population, asteroids), RESOURCE_SCAN (resources, production), FLEET_COMPOSITION_SCAN (docked fleet), MILITARY_SCAN (docked + named + in-transit fleets), NEWS_SCAN (score, value, xp), INFRASTRUCTURE_SCAN (constructions), RESEARCH_SCAN (research levels), DEEP_SCAN (everything), and INCOMING_SCAN (fleets inbound to the target). Cloaked ships are hidden except on the top-tier DEEP_SCAN.",
+    "alliances": "Players can form alliances. Alliance members share scan intelligence and can coordinate attacks. Each alliance has a leader who manages membership.",
+    "scoring": "Score is calculated based on constructions, research, ships, and resources. The leaderboard shows all players ranked by score.",
+    "ticks": "The game advances in ticks. Each tick, resources are mined, constructions/research progress, fleets move, and combat resolves. Tick duration varies."
+  }
+}

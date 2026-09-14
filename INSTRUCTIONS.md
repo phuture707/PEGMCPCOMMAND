@@ -1,8 +1,8 @@
-# 🌌 Pegasus Galaxy MCP Suite v0.2 — Complete User & Operations Guide
+# 🌌 Pegasus Galaxy MCP Suite v0.3 — Complete User & Operations Guide
 
-Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.2**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
+Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.3**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
 
-[![Suite Version](https://img.shields.io/badge/Version-0.2-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![Suite Version](https://img.shields.io/badge/Version-0.3-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blueviolet)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
@@ -172,10 +172,12 @@ journalctl -u pegasus-bot -f
 
 ```
 pegasus-mcp-suite/
-├── peg_gui.py              # Interactive sci-fi web control dashboard & Bot Studio v0.2
-├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.2
-├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.2
+├── peg_gui.py              # Interactive sci-fi web control dashboard, Bot Studio & Combat Simulator v0.3
+├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.3
+├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.3
+├── peg_combat.py           # Tactical combat simulator & multi-fleet coalition battle engine v0.3
 ├── peg_client.py           # Core Python MCP client SDK (JSON-RPC / Streamable HTTP)
+├── game_rules.json         # Official rules, tech modifiers, ship definitions & scan mechanics
 ├── bot_config.json         # Active Layer 1 automation rules & priorities
 ├── bot_strategy.py         # Active Layer 2 Python strategy hook (live-reloaded)
 ├── bot_memory.json         # Local persistent key-value memory scratchpad
@@ -214,7 +216,7 @@ A full-featured, zero-external-frontend-dependency web application styled with a
   python3 peg_gui.py --host 0.0.0.0 --port 7890 --no-browser
   ```
 
-### The 7 Dashboard Tabs & Features:
+### The 8 Dashboard Tabs & Features:
 1. **📊 Mission Control**:
    - **Colony Telemetry**: Real-time metal, crystal, eonium reserves, and net production rates.
    - **Tick Countdown Clock**: Synchronized with Pegasus Galaxy server 30-minute ticks.
@@ -247,6 +249,13 @@ A full-featured, zero-external-frontend-dependency web application styled with a
    - **Live Log Streamer**: Real-time console showing tick evaluations, server responses, and decisions.
 7. **🧠 Bot Memory**:
    - Persistent key-value memory scratchpad backed by local `bot_memory.json` storage.
+8. **⚔️ Battle Simulator & Coalition Calculator (v0.3)**:
+   - **Multi-Fleet Coalitions**: Build and simulate coalitions of multiple attacking and defending fleets simultaneously. Add, remove, rename, and individually toggle fleets in combat calculations.
+   - **Live Telemetry & Capacity Aggregates**: Calculates total coalition firepower, armor, cargo capacity, and asteroid capture capacity in real time.
+   - **Comprehensive Scan Type Ingestion**: Ingests all combat-capable scan types (`FLEET_COMPOSITION_SCAN`, `MILITARY_SCAN`, `DEEP_SCAN`, `INCOMING_SCAN`) from your scan history.
+   - **Planetary Intelligence Resolution**: Automatically resolves coordinates and ownership across multiple scans for focused fleet scans. Ground PDS structures (`Laser Battery`, `Missile Silo`, `Ion Cannon`, `Shield Generator`) are parsed directly from scan records and applied strictly to base planet defenses.
+   - **Interactive Scan Chooser**: Choose scans directly from the inline dropdown (`📡 Add from Scan...`) or browse with the visual Scan Picker Modal (`🔍 Browse Scans`) with live search filtering and 1-click addition.
+   - **Planetary Assault & Home Defense Modes**: 1-click role inversion swaps rosters and applies your empire's live PDS levels when defending.
 
 ---
 

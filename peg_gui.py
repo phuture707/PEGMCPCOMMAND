@@ -28,6 +28,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         pass
 
 from peg_client import PegasusMCPClient, PegasusMCPError
+import peg_combat
 
 DEFAULT_PORT = 7890
 BASE_DIR = Path(__file__).parent.resolve()
@@ -312,6 +313,183 @@ class PegasusHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
 
+        # Combat Simulator Endpoints (GET)
+        if url_path == "/api/combat/attacker_fleets":
+            try:
+                active_fleets_resp = mcp_client.call_tool("list_active_fleets") or {}
+                planet_ships_resp = mcp_client.call_tool("get_planet_ships") or {}
+
+                fleets = active_fleets_resp.get("data", []) if isinstance(active_fleets_resp, dict) else []
+                raw_hangar = planet_ships_resp.get("data", {}) if isinstance(planet_ships_resp, dict) else {}
+                hangar = {}
+                if isinstance(raw_hangar, dict):
+                    hangar = {k: int(v) for k, v in raw_hangar.items() if isinstance(v, (int, float))}
+                elif isinstance(raw_hangar, list):
+                    for item in raw_hangar:
+                        if isinstance(item, dict):
+                            sid = item.get("shipDefinitionId") or item.get("id")
+                            qty = item.get("quantity") or item.get("count", 1)
+                            if sid:
+                                hangar[sid] = hangar.get(sid, 0) + int(qty)
+
+                # Query Home Defense info (PDS, research, resources, asteroids)
+                home_pds = {}
+                try:
+                    pds_resp = mcp_client.call_tool("list_pds") or {}
+                    pds_list = pds_resp.get("data", []) if isinstance(pds_resp, dict) else []
+                    for p in pds_list:
+                        name = p.get("name")
+                        lvl = p.get("currentLevel", 1)
+                        if name:
+                            home_pds[name] = lvl
+                except Exception:
+                    pass
+
+                home_research = {"Hulls": 0, "ShipTechnology": 0, "PDS": 0}
+                try:
+                    res_resp = mcp_client.call_tool("get_planet_research") or {}
+                    res_list = res_resp.get("data", []) if isinstance(res_resp, dict) else []
+                    for r in res_list:
+                        r_name = r.get("name", "")
+                        lvl = r.get("currentLevel", 0)
+                        if r_name == "Hulls":
+                            home_research["Hulls"] = lvl
+                        elif r_name == "Ship Technology":
+                            home_research["ShipTechnology"] = lvl
+                        elif r_name == "PDS":
+                            home_research["PDS"] = lvl
+                except Exception:
+                    pass
+
+                home_resources = {"metal": 0, "crystal": 0, "eonium": 0}
+                home_asteroids = {"metalRoids": 0, "crystalRoids": 0, "eoniumRoids": 0}
+                coords = "Unknown"
+                try:
+                    p_status = mcp_client.get_planet_status() or {}
+                    p_data = p_status.get("data", {}) if isinstance(p_status, dict) else {}
+                    home_resources["metal"] = p_data.get("metal", 0)
+                    home_resources["crystal"] = p_data.get("crystal", 0)
+                    home_resources["eonium"] = p_data.get("eonium", 0)
+                    coords = p_data.get("coords", "Unknown")
+                    ast_cnt = p_data.get("asteroidCount", 0)
+                    # Even split if breakdown not given
+                    home_asteroids = {
+                        "metalRoids": ast_cnt // 3,
+                        "crystalRoids": ast_cnt // 3,
+                        "eoniumRoids": ast_cnt - (2 * (ast_cnt // 3))
+                    }
+                except Exception:
+                    pass
+
+                home_defense = {
+                    "pds": home_pds,
+                    "research": home_research,
+                    "resources": home_resources,
+                    "asteroids": home_asteroids,
+                    "coords": coords,
+                    "hangarShips": hangar
+                }
+
+                self._send_json({
+                    "success": True,
+                    "namedFleets": fleets,
+                    "hangarShips": hangar,
+                    "homeDefense": home_defense
+                })
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, status=500)
+            return
+
+        if url_path == "/api/combat/scan_targets":
+            try:
+                scans_resp = mcp_client.call_tool("get_scan_history", {"limit": 100}) or {}
+                scans = scans_resp.get("data", []) if isinstance(scans_resp, dict) else []
+
+                # Build planetary metadata lookup from all scans in history
+                planet_meta = {}
+                for s in scans:
+                    pid = s.get("targetPlanetId") or s.get("planetId")
+                    if not pid:
+                        continue
+                    if pid not in planet_meta:
+                        planet_meta[pid] = {"coords": "", "owner": "", "pds": {}, "research": {}, "resources": {}, "asteroids": {}}
+                    r_raw = s.get("result", {})
+                    if isinstance(r_raw, str):
+                        try:
+                            r = json.loads(r_raw)
+                        except Exception:
+                            r = {}
+                    elif isinstance(r_raw, dict):
+                        r = r_raw
+                    else:
+                        r = {}
+                    if r.get("coords") and not planet_meta[pid]["coords"]:
+                        planet_meta[pid]["coords"] = r["coords"]
+                    if r.get("ownerPlayerId") and not planet_meta[pid]["owner"]:
+                        planet_meta[pid]["owner"] = r["ownerPlayerId"]
+                    if r.get("constructions") and not planet_meta[pid]["pds"]:
+                        pds = {}
+                        for cn in r.get("constructions", []):
+                            name = cn.get("name", "")
+                            if any(k in name.lower() for k in ["laser", "missile", "ion", "shield", "sensor"]):
+                                pds[name] = cn.get("level", 0)
+                        if pds:
+                            planet_meta[pid]["pds"] = pds
+                    if r.get("research") and not planet_meta[pid]["research"]:
+                        res_tech = {}
+                        for res_item in r.get("research", []):
+                            rn = res_item.get("name", "")
+                            if any(k in rn.lower() for k in ["hull", "pds", "ship tech", "engineering"]):
+                                res_tech[rn] = res_item.get("level", 0)
+                        if res_tech:
+                            planet_meta[pid]["research"] = res_tech
+                    if r.get("metal") is not None and not planet_meta[pid]["resources"]:
+                        planet_meta[pid]["resources"] = {
+                            "metal": int(r.get("metal", 0)),
+                            "crystal": int(r.get("crystal", 0)),
+                            "eonium": int(r.get("eonium", 0))
+                        }
+                    if r.get("asteroids") and not planet_meta[pid]["asteroids"]:
+                        planet_meta[pid]["asteroids"] = r.get("asteroids")
+
+                # Filter all scans that contain fleet, military, or docked ships data
+                fleet_scan_types = {"DEEP_SCAN", "MILITARY_SCAN", "FLEET_COMPOSITION_SCAN", "INCOMING_SCAN"}
+                fleet_scans = []
+                for s in scans:
+                    if s.get("status") != "success":
+                        continue
+                    st = s.get("scanType", "")
+                    if st in fleet_scan_types:
+                        fleet_scans.append(s)
+                    else:
+                        res_str = s.get("result", "")
+                        if isinstance(res_str, dict):
+                            if "ships" in res_str or "namedFleets" in res_str or "fleets" in res_str:
+                                fleet_scans.append(s)
+                        elif isinstance(res_str, str) and ('"ships"' in res_str or '"namedFleets"' in res_str or '"fleets"' in res_str):
+                            fleet_scans.append(s)
+
+                seen_scans = set()
+                targets = []
+                for s in fleet_scans:
+                    t_id = s.get("targetPlanetId") or s.get("planetId")
+                    tick = s.get("tick", 0)
+                    st = s.get("scanType", "UNKNOWN")
+                    # Deduplicate duplicate entries from the same tick and scan type on the same target
+                    scan_key = (t_id, tick, st)
+                    if scan_key in seen_scans:
+                        continue
+                    seen_scans.add(scan_key)
+
+                    parsed = peg_combat.parse_scan_record(s, planet_lookup=planet_meta)
+                    if parsed:
+                        targets.append(parsed)
+
+                self._send_json({"success": True, "targets": targets})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, status=500)
+            return
+
         if url_path == "/api/memory":
             try:
                 keys = mcp_client.list_memory_keys()
@@ -443,6 +621,37 @@ class PegasusHandler(BaseHTTPRequestHandler):
             try:
                 content = mcp_client.read_resource(uri)
                 self._send_json({"success": True, "content": content})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, status=500)
+            return
+
+        # Combat Simulator Endpoint (POST)
+        if url_path == "/api/combat/simulate":
+            try:
+                atk_fleet = payload.get("attackerFleet", {})
+                def_fleet = payload.get("defenderFleet", {})
+                atk_fleets = payload.get("attackerFleets")
+                def_fleets = payload.get("defenderFleets")
+                def_pds = payload.get("defenderPds", {})
+                atk_res = payload.get("attackerResearch", {})
+                def_res = payload.get("defenderResearch", {})
+                def_resources = payload.get("defenderResources", {})
+                def_asteroids = payload.get("defenderAsteroids", {})
+                max_rounds = int(payload.get("maxRounds", 1))
+
+                sim_result = peg_combat.simulate_combat(
+                    attacker_fleet=atk_fleet,
+                    defender_fleet=def_fleet,
+                    defender_pds=def_pds,
+                    attacker_research=atk_res,
+                    defender_research=def_res,
+                    defender_resources=def_resources,
+                    defender_asteroids=def_asteroids,
+                    max_rounds=max_rounds,
+                    attacker_fleets=atk_fleets,
+                    defender_fleets=def_fleets
+                )
+                self._send_json({"success": True, "result": sim_result})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
@@ -759,7 +968,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pegasus Galaxy v0.2 • MCP Control Hub</title>
+  <title>Pegasus Galaxy v0.3 • MCP Control Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -959,6 +1168,30 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       border-bottom-color: transparent;
       background: var(--bg-panel);
       box-shadow: inset 0 2px 0 var(--cyan);
+    }
+
+    .sim-mode-btn {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      padding: 0.4rem 0.9rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sim-mode-btn:hover {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      background: rgba(0,229,255,0.08);
+    }
+    .sim-mode-btn.active {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      background: rgba(0,229,255,0.15);
+      box-shadow: 0 0 12px rgba(0,229,255,0.25);
     }
 
     .tab-content { display: none; }
@@ -1585,7 +1818,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     <div class="brand">
       <div class="logo-icon">🪐</div>
       <div>
-        <h1>Pegasus Galaxy <span style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.15rem 0.45rem; vertical-align: middle; margin-left: 0.4rem; font-weight: 500; letter-spacing: 0.05em;">v0.2</span></h1>
+        <h1>Pegasus Galaxy <span style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.15rem 0.45rem; vertical-align: middle; margin-left: 0.4rem; font-weight: 500; letter-spacing: 0.05em;">v0.3</span></h1>
         <div class="subtitle">Autonomous AI Agent & Human Command Hub</div>
       </div>
     </div>
@@ -1603,13 +1836,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   <!-- Navigation Tabs -->
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Mission Control</button>
-    <button class="tab-btn" onclick="switchTab('commands')">🛠️ Command Hub (67 Tools)</button>
-    <button class="tab-btn" onclick="switchTab('missions')">🎯 Quests & Missions</button>
-    <button class="tab-btn" onclick="switchTab('ships')">🚀 Hangar & Ship Codex</button>
-    <button class="tab-btn" onclick="switchTab('reference')">📚 Game Codex & IDs</button>
-    <button class="tab-btn" onclick="switchTab('bot')">🤖 Bot Studio</button>
-    <button class="tab-btn" onclick="switchTab('memory')">🧠 Bot Memory</button>
+    <button class="tab-btn active" onclick="switchTab('dashboard', this)">📊 Mission Control</button>
+    <button class="tab-btn" onclick="switchTab('commands', this)">🛠️ Command Hub (67 Tools)</button>
+    <button class="tab-btn" onclick="switchTab('missions', this)">🎯 Quests & Missions</button>
+    <button class="tab-btn" onclick="switchTab('ships', this)">🚀 Hangar & Ship Codex</button>
+    <button class="tab-btn" onclick="switchTab('reference', this)">📚 Game Codex & IDs</button>
+    <button class="tab-btn" onclick="switchTab('bot', this)">🤖 Bot Studio</button>
+    <button class="tab-btn" onclick="switchTab('memory', this)">🧠 Bot Memory</button>
+    <button class="tab-btn" onclick="switchTab('battlecalc', this)">⚔️ Battle Simulator</button>
   </div>
 
   <!-- TAB 1: Mission Control Dashboard -->
@@ -2398,10 +2632,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <input type="text" id="ref-search-input" class="form-control" placeholder="🔍 Search by name, ID, category, or description..." style="flex: 1; min-width: 260px;" oninput="renderReferenceTab()">
         
         <div style="display: flex; gap: 0.35rem;">
-          <button class="tab-btn active" id="ref-sub-all" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('ALL')">All (71)</button>
-          <button class="tab-btn" id="ref-sub-constructions" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('CONSTRUCTIONS')">🏗️ Constructions (24)</button>
-          <button class="tab-btn" id="ref-sub-research" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('RESEARCH')">🔬 Research (12)</button>
-          <button class="tab-btn" id="ref-sub-ships" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('SHIPS')">🚀 Ships (35)</button>
+          <button class="cat-pill active" id="ref-sub-all" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('ALL')">All (71)</button>
+          <button class="cat-pill" id="ref-sub-constructions" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('CONSTRUCTIONS')">🏗️ Constructions (24)</button>
+          <button class="cat-pill" id="ref-sub-research" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('RESEARCH')">🔬 Research (12)</button>
+          <button class="cat-pill" id="ref-sub-ships" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="setRefCategory('SHIPS')">🚀 Ships (35)</button>
         </div>
       </div>
 
@@ -2416,11 +2650,229 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- TAB 8: Battle Simulator & Fleet Calculator -->
+  <div id="tab-battlecalc" class="tab-content">
+    <div class="panel" style="margin-bottom: 1.5rem;">
+      <div class="panel-header">
+        <div class="panel-title">⚔️ Interstellar Fleet Battle Simulator</div>
+        <span class="badge badge-warning">Simulated Combat Sandbox</span>
+      </div>
+      <p style="color: var(--text-dim); margin-bottom: 1rem; font-size: 0.92rem; line-height: 1.5;">
+        Simulate tactical fleet engagements between your active named fleets and enemy targets extracted automatically from live fleet scans (Deep Scans, Military Scans, and Fleet Scans). Accurately predicts initiative firing order, target class prioritization, planetary shield absorption, EMP disruption, and plunder capacity.
+      </p>
+      <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-right: 0.25rem;">Simulation Mode:</div>
+          <button id="sim-mode-assault-btn" class="sim-mode-btn active" onclick="setSimulationMode('assault')">
+            ⚔️ Planetary Assault (User Attacks Enemy)
+          </button>
+          <button id="sim-mode-defense-btn" class="sim-mode-btn" onclick="setSimulationMode('defense')">
+            🛡️ Home Base Defense (Enemy Attacks User)
+          </button>
+          <button class="btn-refresh" onclick="swapSimulatorSides()" title="Swap Attacker and Defender Sides" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; margin-left: 0.25rem;">
+            ⇄ Swap Sides
+          </button>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+          <button class="btn-primary" onclick="loadCombatSimulator()" style="padding: 0.4rem 1rem; font-size: 0.85rem;">
+            🔄 Refresh Fleets & Scans
+          </button>
+          <span id="combat-status-badge" style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-dim);">
+            Ready to simulate.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two-Column Army Setup Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+      
+      <!-- ATTACKER PANEL (Cyan Accent) -->
+      <div class="panel" style="border-top: 3px solid var(--cyan);">
+        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div class="panel-title" id="sim-atk-title" style="color: var(--cyan);">🚀 Attacker Forces (Coalition Fleets)</div>
+            <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">Multi-attacker coalition • Toggle, add, or edit fleets</div>
+          </div>
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: var(--cyan); border-color: rgba(0,229,255,0.4);" onclick="addAttackerFleet()">
+              + Add Fleet
+            </button>
+            <select id="sim-atk-add-scan-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 220px; border-color: rgba(128,216,255,0.4); color: #80d8ff; background: rgba(0,229,255,0.06);" onchange="onQuickAddScanSelect('atk', this)">
+              <option value="">📡 Add from Scan...</option>
+            </select>
+            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #80d8ff; border-color: rgba(128,216,255,0.4);" onclick="openScanPickerModal('atk')" title="Browse all scanned fleets to pick from">
+              🔍 Browse Scans
+            </button>
+          </div>
+        </div>
+
+        <div id="sim-atk-fleet-summary" style="background: rgba(0,229,255,0.05); border: 1px solid rgba(0,229,255,0.2); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; font-family: var(--font-mono); font-size: 0.82rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+            <span>Active Fleets: <strong id="sim-atk-active-fleets-count" style="color: var(--cyan);">0</strong></span>
+            <span>Total Ships: <strong id="sim-atk-total-ships" style="color: var(--cyan);">0</strong></span>
+            <span>Est. Firepower: <strong id="sim-atk-total-dmg" style="color: var(--green);">0</strong></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+            <span>Total Armor: <strong id="sim-atk-total-armor" style="color: var(--yellow);">0</strong></span>
+            <span>Cargo Capacity: <strong id="sim-atk-total-cargo" style="color: var(--text-main);">0</strong></span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>Asteroid Cargo: <strong id="sim-atk-total-roids-cap" style="color: #69f0ae;">0 roids</strong></span>
+          </div>
+        </div>
+
+        <!-- Research Tech -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+          <div class="form-group">
+            <label style="font-size: 0.8rem; color: var(--text-dim);">Hulls Tech (+5% Armor/lvl):</label>
+            <input type="number" id="sim-atk-hulls" class="form-control" min="0" max="10" value="5">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.8rem; color: var(--text-dim);">Ship Tech Lvl:</label>
+            <input type="number" id="sim-atk-shiptech" class="form-control" min="0" max="10" value="5">
+          </div>
+        </div>
+
+        <!-- Multi-Fleet Cards Container -->
+        <div id="sim-atk-fleets-container" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="color: var(--text-dim); font-size: 0.85rem; font-style: italic;">Loading attacker fleets...</div>
+        </div>
+      </div>
+
+      <!-- DEFENDER PANEL (Red Accent) -->
+      <div class="panel" style="border-top: 3px solid #ff5252;">
+        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div class="panel-title" id="sim-def-title" style="color: #ff5252;">🛡️ Defender Target (Enemy Planet & Coalition)</div>
+            <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">Planet garrison + allied defender fleets</div>
+          </div>
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #ff5252; border-color: rgba(255,82,82,0.4);" onclick="addDefenderFleet()">
+              + Add Fleet
+            </button>
+            <select id="sim-def-add-scan-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 220px; border-color: rgba(255,138,128,0.4); color: #ff8a80; background: rgba(255,82,82,0.06);" onchange="onQuickAddScanSelect('def', this)">
+              <option value="">📡 Add from Scan...</option>
+            </select>
+            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #ff8a80; border-color: rgba(255,138,128,0.4);" onclick="openScanPickerModal('def')" title="Browse all scanned fleets to pick from">
+              🔍 Browse Scans
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 0.35rem;">
+            Select Scanned Target Planet:
+          </label>
+          <select id="sim-def-target" class="form-control" onchange="onTargetPlanetChange()" style="width: 100%;">
+            <option value="">Loading scans...</option>
+          </select>
+        </div>
+
+        <div id="sim-def-scan-details" style="background: rgba(255,82,82,0.06); border: 1px solid rgba(255,82,82,0.25); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; font-family: var(--font-mono); font-size: 0.82rem; display: none;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+            <span>Target: <strong id="sim-def-coords" style="color: #ff5252;">Unknown</strong></span>
+            <span>Type: <strong id="sim-def-type" style="color: var(--cyan);">---</strong></span>
+            <span>Scan Tick: <strong id="sim-def-tick">---</strong></span>
+          </div>
+          <div style="color: var(--text-dim); font-size: 0.78rem; margin-bottom: 0.25rem;">
+            Scanned Resources: <span id="sim-def-res-badge" style="color: var(--cyan);">0 Metal • 0 Crystal • 0 Eonium</span>
+          </div>
+          <div style="color: var(--text-dim); font-size: 0.78rem;">
+            Scanned Asteroids: <span id="sim-def-roids-badge" style="color: #69f0ae;">0 Metal • 0 Crystal • 0 Eonium</span>
+          </div>
+        </div>
+
+        <!-- PDS Planetary Defenses (Scattered only on Defended Base Planet) -->
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div>
+              <span style="font-size: 0.82rem; font-weight: 600; color: #ff5252; text-transform: uppercase; letter-spacing: 0.05em;">
+                Planetary Defense Structures (PDS)
+              </span>
+              <div style="font-size: 0.72rem; color: var(--text-dim);">Fixed base defenses on planet only — not shared with allied fleets</div>
+            </div>
+            <button class="btn-refresh" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" onclick="applyUserPdsToDefender()" title="Load your own live PDS levels">
+              🛡️ Load My PDS
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.82rem;">
+            <label style="display: flex; align-items: center; gap: 0.4rem;">
+              <input type="checkbox" id="sim-pds-shield-chk" checked>
+              <span>🛡️ Shield Gen (Lvl <input type="number" id="sim-pds-shield-lvl" value="2" min="1" max="5" style="width: 38px; padding: 0.1rem; background: var(--bg-space); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px;">)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem;">
+              <input type="checkbox" id="sim-pds-ion-chk" checked>
+              <span>⚡ Ion Cannon (Lvl <input type="number" id="sim-pds-ion-lvl" value="2" min="1" max="5" style="width: 38px; padding: 0.1rem; background: var(--bg-space); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px;">)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem;">
+              <input type="checkbox" id="sim-pds-silo-chk" checked>
+              <span>🚀 Missile Silo (Lvl <input type="number" id="sim-pds-silo-lvl" value="2" min="1" max="5" style="width: 38px; padding: 0.1rem; background: var(--bg-space); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px;">)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem;">
+              <input type="checkbox" id="sim-pds-laser-chk" checked>
+              <span>🔴 Laser Batt (Lvl <input type="number" id="sim-pds-laser-lvl" value="2" min="1" max="5" style="width: 38px; padding: 0.1rem; background: var(--bg-space); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px;">)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Multi-Fleet Cards Container -->
+        <div id="sim-def-fleets-container" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="color: var(--text-dim); font-size: 0.85rem; font-style: italic;">Loading defender fleets...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTION BAR -->
+    <div style="background: rgba(10, 20, 36, 0.9); border: 1px solid var(--border-glow); border-radius: 8px; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <span style="font-size: 0.9rem; font-weight: 600;">Max Combat Rounds:</span>
+        <select id="sim-max-rounds" class="form-control" style="width: 80px;">
+          <option value="1" selected>1</option>
+          <option value="3">3</option>
+          <option value="6">6</option>
+          <option value="10">10</option>
+        </select>
+      </div>
+
+      <button class="btn-primary" onclick="runBattleSimulation()" style="padding: 0.75rem 2.2rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.05em; background: linear-gradient(135deg, #00e5ff 0%, #0077b6 100%); box-shadow: 0 0 15px rgba(0,229,255,0.4);">
+        ⚡ RUN BATTLE SIMULATION
+      </button>
+    </div>
+
+    <!-- SIMULATION RESULTS (DASHBOARD) -->
+    <div id="sim-results-container" style="display: none;"></div>
+  </div>
+
   <!-- Footer -->
   <footer style="text-align: center; padding: 1.5rem 0 2rem; color: var(--text-dim); font-size: 0.78rem; font-family: var(--font-mono); border-top: 1px solid rgba(255,255,255,0.06); margin-top: 2rem;">
-    <div>🌌 Pegasus Galaxy MCP Suite <strong style="color: var(--cyan);">v0.2</strong> • Cross-Platform (macOS / Linux / Windows)</div>
+    <div>🌌 Pegasus Galaxy MCP Suite <strong style="color: var(--cyan);">v0.3</strong> • Cross-Platform (macOS / Linux / Windows)</div>
     <div style="margin-top: 0.35rem;">GitHub: <a href="https://github.com/phuture707/PEGMCPCOMMAND" target="_blank" style="color: var(--cyan); text-decoration: none;">phuture707/PEGMCPCOMMAND</a> • 67 Live MCP Tools • Streamable HTTP</div>
   </footer>
+</div>
+
+<!-- Scan Fleet Picker Modal -->
+<div id="sim-scan-picker-modal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(5, 7, 15, 0.85); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1.5rem;" onclick="if(event.target === this) closeScanPickerModal()">
+  <div style="background: #0f1322; border: 1px solid rgba(0,229,255,0.3); border-radius: 8px; width: 100%; max-width: 720px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8);" onclick="event.stopPropagation()">
+    <div style="padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div id="sim-picker-title" style="font-size: 1.05rem; font-weight: 700; color: var(--cyan); display: flex; align-items: center; gap: 0.5rem;">
+          📡 Choose a Scanned Fleet to Add
+        </div>
+        <div id="sim-picker-subtitle" style="font-size: 0.78rem; color: var(--text-dim); margin-top: 0.2rem;">
+          Select any scanned garrison or fleet from your recent intel to deploy into the coalition
+        </div>
+      </div>
+      <button class="btn-refresh" style="font-size: 1.2rem; padding: 0.2rem 0.6rem; line-height: 1;" onclick="closeScanPickerModal()">✕</button>
+    </div>
+
+    <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
+      <input type="text" id="sim-picker-search" class="form-control" placeholder="🔍 Filter by coords (e.g. 8:1:4), scan type (e.g. military, fleet), or ship..." style="font-size: 0.85rem;" oninput="renderScanPickerList()">
+    </div>
+
+    <div id="sim-picker-list" style="overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
+    </div>
+  </div>
 </div>
 
 <!-- Toast notification -->
@@ -2525,21 +2977,33 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     showToast("Quota tracker reset to 0 for current tick");
   }
 
-  function switchTab(tabId) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    
-    event.currentTarget.classList.add('active');
-    document.getElementById('tab-' + tabId).classList.add('active');
+  function switchTab(tabId, btn) {
+    try {
+      document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      const activeBtn = btn || (typeof event !== 'undefined' && event && event.currentTarget) || document.querySelector(`.tabs .tab-btn[onclick*="'${tabId}'"]`);
+      if (activeBtn) activeBtn.classList.add('active');
 
-    // Auto-refresh when switching back to Mission Control!
-    if (tabId === 'dashboard') refreshDashboard();
-    if (tabId === 'commands' && allTools.length === 0) loadTools();
-    if (tabId === 'missions') loadMissions();
-    if (tabId === 'ships') loadShipsAndPds();
-    if (tabId === 'reference') loadReferenceTab();
-    if (tabId === 'bot') loadBotStudio();
-    if (tabId === 'memory') loadMemory();
+      const targetTab = document.getElementById('tab-' + tabId);
+      if (targetTab) targetTab.classList.add('active');
+    } catch(err) {
+      console.error("DOM tab activation error:", err);
+    }
+
+    // Auto-refresh when switching tabs (wrapped in try-catch so failure in one never blocks tab display)
+    try {
+      if (tabId === 'dashboard') refreshDashboard();
+      if (tabId === 'commands' && allTools.length === 0) loadTools();
+      if (tabId === 'missions') loadMissions();
+      if (tabId === 'ships') loadShipsAndPds();
+      if (tabId === 'reference') loadReferenceTab();
+      if (tabId === 'bot') loadBotStudio();
+      if (tabId === 'memory') loadMemory();
+      if (tabId === 'battlecalc') loadCombatSimulator();
+    } catch(err) {
+      console.error("Tab data loading error for " + tabId + ":", err);
+    }
   }
 
   // --- Telemetry & Dashboard ---
@@ -4255,6 +4719,25 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
   }
 
+  async function ensureRefData() {
+    if (!refData.constructions.length && !refData.research.length && !refData.ships.length) {
+      try {
+        const res = await fetch('/api/reference');
+        const json = await res.json();
+        if (json.success) {
+          refData = {
+            constructions: json.constructions || [],
+            research: json.research || [],
+            ships: json.ships || []
+          };
+        }
+      } catch (e) {
+        console.error("Error loading reference data:", e);
+      }
+    }
+    return refData;
+  }
+
   // --- Priority Badge Picker ---
   function buildPriorityPicker(type) {
     // type is 'construction' or 'research'
@@ -4781,6 +5264,1595 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     // Auto-refresh telemetry every 30 seconds
     setInterval(refreshDashboard, 30000);
   };
+
+// =========================================================================
+// =========================================================================
+  // ⚔️ BATTLE SIMULATOR & FLEET CALCULATOR SYSTEM (MULTI-FLEET COALITIONS)
+  // =========================================================================
+  let simAttackerData = { namedFleets: [], hangarShips: {} };
+  let simScanTargets = [];
+  let currentTargetScan = null;
+  let currentSimMode = 'assault';
+  let homeDefenseData = null;
+  let simAttackerFleets = [];
+  let simDefenderFleets = [];
+  let simFleetSeq = 1;
+
+  function formatScanType(type) {
+    if (!type) return 'Scan';
+    if (type === 'DEEP_SCAN') return 'Deep Scan';
+    if (type === 'MILITARY_SCAN') return 'Military Scan';
+    if (type === 'FLEET_COMPOSITION_SCAN') return 'Fleet Scan';
+    if (type === 'INCOMING_SCAN') return 'Incoming Scan';
+    if (type === 'SURFACE_SCAN') return 'Surface Scan';
+    return type.replace('_SCAN', '').replace(/_/g, ' ');
+  }
+
+  async function loadCombatSimulator() {
+    const badge = document.getElementById('combat-status-badge');
+    badge.textContent = 'Fetching fleets & scans...';
+
+    try {
+      await ensureRefData();
+
+      // 1. Fetch attacker fleets + home defense
+      const atkRes = await fetch('/api/combat/attacker_fleets');
+      const atkJson = await atkRes.json();
+      if (atkJson.success) {
+        simAttackerData = atkJson;
+        homeDefenseData = atkJson.homeDefense || null;
+      }
+
+      // 2. Fetch fleet & planetary scan targets
+      const scanRes = await fetch('/api/combat/scan_targets');
+      const scanJson = await scanRes.json();
+      if (scanJson.success) {
+        simScanTargets = scanJson.targets || [];
+        populateScanTargetsDropdown();
+      }
+
+      // Initialize default attacker fleet if none exists
+      if (simAttackerFleets.length === 0) {
+        initDefaultAttackerFleet();
+      }
+
+      // Initialize default defender fleet if none exists
+      if (simDefenderFleets.length === 0) {
+        initDefaultDefenderFleet();
+      }
+
+      renderAllFleetCards('atk');
+      renderAllFleetCards('def');
+      recalcCoalitionSummary('atk');
+
+      const totalFleets = (simAttackerData.namedFleets || []).length;
+      badge.textContent = `Ready (${totalFleets} fleet(s), ${simScanTargets.length} scan(s) loaded).`;
+    } catch (e) {
+      console.error("Combat simulator load error:", e);
+      badge.textContent = 'Error loading combat data: ' + e.message;
+    }
+  }
+
+  function initDefaultAttackerFleet() {
+    let ships = {};
+    let name = 'Primary Assault Fleet';
+    let sourceVal = '__custom__';
+
+    if (simAttackerData.namedFleets && simAttackerData.namedFleets.length > 0) {
+      const f = simAttackerData.namedFleets[0];
+      ships = Object.assign({}, f.ships || {});
+      name = f.name || 'Primary Assault Fleet';
+      sourceVal = 'fleet_0';
+    } else if (simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0) {
+      ships = Object.assign({}, simAttackerData.hangarShips);
+      name = 'Home Planet Hangar';
+      sourceVal = '__hangar__';
+    } else {
+      ships = { 'main-vanguard-striker': 100 };
+    }
+
+    simAttackerFleets = [{
+      id: 'atk_' + (simFleetSeq++),
+      side: 'atk',
+      name: name,
+      enabled: true,
+      sourceVal: sourceVal,
+      ships: ships
+    }];
+  }
+
+  function initDefaultDefenderFleet() {
+    let ships = {};
+    let name = 'Planet Garrison';
+    let sourceVal = '__garrison__';
+
+    if (currentTargetScan && currentTargetScan.garrisonShips && Object.keys(currentTargetScan.garrisonShips).length > 0) {
+      ships = Object.assign({}, currentTargetScan.garrisonShips);
+    } else {
+      ships = { 'main-ashkari-fang': 100 };
+      sourceVal = '__custom__';
+    }
+
+    simDefenderFleets = [{
+      id: 'def_' + (simFleetSeq++),
+      side: 'def',
+      name: name,
+      enabled: true,
+      sourceVal: sourceVal,
+      ships: ships
+    }];
+  }
+
+  function setSimulationMode(mode) {
+    currentSimMode = mode;
+    const assaultBtn = document.getElementById('sim-mode-assault-btn');
+    const defenseBtn = document.getElementById('sim-mode-defense-btn');
+
+    if (mode === 'defense') {
+      if (assaultBtn) assaultBtn.classList.remove('active');
+      if (defenseBtn) defenseBtn.classList.add('active');
+
+      const atkTitle = document.getElementById('sim-atk-title');
+      const defTitle = document.getElementById('sim-def-title');
+      if (atkTitle) { atkTitle.textContent = '🚀 Attacking Forces (Enemy Coalition Fleets)'; atkTitle.style.color = '#ff5252'; }
+      if (defTitle) { defTitle.textContent = '🛡️ Defender Base (Your Empire Garrison & PDS)'; defTitle.style.color = 'var(--cyan)'; }
+
+      applyUserPdsToDefender();
+
+      if (homeDefenseData && homeDefenseData.hangarShips && simDefenderFleets.length > 0) {
+        simDefenderFleets[0].ships = Object.assign({}, homeDefenseData.hangarShips);
+        simDefenderFleets[0].name = 'Home Planet Garrison';
+        simDefenderFleets[0].sourceVal = '__home_hangar__';
+        renderAllFleetCards('def');
+      }
+
+      showToast('Switched to Home Defense Mode (Enemy attacking your base & PDS)');
+    } else {
+      if (assaultBtn) assaultBtn.classList.add('active');
+      if (defenseBtn) defenseBtn.classList.remove('active');
+
+      const atkTitle = document.getElementById('sim-atk-title');
+      const defTitle = document.getElementById('sim-def-title');
+      if (atkTitle) { atkTitle.textContent = '🚀 Attacker Forces (Coalition Fleets)'; atkTitle.style.color = 'var(--cyan)'; }
+      if (defTitle) { defTitle.textContent = '🛡️ Defender Target (Enemy Planet & Garrison)'; defTitle.style.color = '#ff5252'; }
+
+      if (currentTargetScan) {
+        const pds = currentTargetScan.pds || {};
+        setControlValue('sim-pds-shield-chk', 'checked', !!pds['Shield Generator']);
+        if (pds['Shield Generator']) document.getElementById('sim-pds-shield-lvl').value = pds['Shield Generator'];
+        setControlValue('sim-pds-ion-chk', 'checked', !!pds['Ion Cannon']);
+        if (pds['Ion Cannon']) document.getElementById('sim-pds-ion-lvl').value = pds['Ion Cannon'];
+        setControlValue('sim-pds-silo-chk', 'checked', !!pds['Missile Silo']);
+        if (pds['Missile Silo']) document.getElementById('sim-pds-silo-lvl').value = pds['Missile Silo'];
+        setControlValue('sim-pds-laser-chk', 'checked', !!pds['Laser Battery']);
+        if (pds['Laser Battery']) document.getElementById('sim-pds-laser-lvl').value = pds['Laser Battery'];
+      }
+
+      showToast('Switched to Planetary Assault Mode (You attacking enemy target)');
+    }
+  }
+
+  function swapSimulatorSides() {
+    const tmp = simAttackerFleets;
+    simAttackerFleets = simDefenderFleets;
+    simDefenderFleets = tmp;
+
+    simAttackerFleets.forEach(f => { f.side = 'atk'; });
+    simDefenderFleets.forEach(f => { f.side = 'def'; });
+
+    renderAllFleetCards('atk');
+    renderAllFleetCards('def');
+    recalcCoalitionSummary('atk');
+
+    const newMode = currentSimMode === 'assault' ? 'defense' : 'assault';
+    currentSimMode = newMode;
+    const assaultBtn = document.getElementById('sim-mode-assault-btn');
+    const defenseBtn = document.getElementById('sim-mode-defense-btn');
+
+    if (newMode === 'defense') {
+      if (assaultBtn) assaultBtn.classList.remove('active');
+      if (defenseBtn) defenseBtn.classList.add('active');
+      const atkTitle = document.getElementById('sim-atk-title');
+      const defTitle = document.getElementById('sim-def-title');
+      if (atkTitle) { atkTitle.textContent = '🚀 Attacking Forces (Enemy Coalition Fleets)'; atkTitle.style.color = '#ff5252'; }
+      if (defTitle) { defTitle.textContent = '🛡️ Defender Base (Your Empire Garrison & PDS)'; defTitle.style.color = 'var(--cyan)'; }
+      applyUserPdsToDefender();
+    } else {
+      if (assaultBtn) assaultBtn.classList.add('active');
+      if (defenseBtn) defenseBtn.classList.remove('active');
+      const atkTitle = document.getElementById('sim-atk-title');
+      const defTitle = document.getElementById('sim-def-title');
+      if (atkTitle) { atkTitle.textContent = '🚀 Attacker Forces (Coalition Fleets)'; atkTitle.style.color = 'var(--cyan)'; }
+      if (defTitle) { defTitle.textContent = '🛡️ Defender Target (Enemy Planet & Garrison)'; defTitle.style.color = '#ff5252'; }
+    }
+
+    showToast('Sides inverted! Rosters and roles swapped.');
+  }
+
+  function applyUserPdsToDefender() {
+    const pds = (homeDefenseData && homeDefenseData.pds) ? homeDefenseData.pds : {
+      'Shield Generator': 5,
+      'Laser Battery': 3,
+      'Missile Silo': 3,
+      'Ion Cannon': 3
+    };
+
+    setControlValue('sim-pds-shield-chk', 'checked', true);
+    document.getElementById('sim-pds-shield-lvl').value = pds['Shield Generator'] || 5;
+
+    setControlValue('sim-pds-ion-chk', 'checked', true);
+    document.getElementById('sim-pds-ion-lvl').value = pds['Ion Cannon'] || 3;
+
+    setControlValue('sim-pds-silo-chk', 'checked', true);
+    document.getElementById('sim-pds-silo-lvl').value = pds['Missile Silo'] || 3;
+
+    setControlValue('sim-pds-laser-chk', 'checked', true);
+    document.getElementById('sim-pds-laser-lvl').value = pds['Laser Battery'] || 3;
+
+    showToast('Loaded your live Planetary Defense Structures (PDS)');
+  }
+
+  function setControlValue(id, prop, val) {
+    const el = document.getElementById(id);
+    if (el) el[prop] = val;
+  }
+
+  function addAttackerFleet(presetVal) {
+    const newIdx = simAttackerFleets.length + 1;
+    let initialShips = { 'main-vanguard-striker': 100 };
+    let initialName = `Attacker Fleet ${newIdx}`;
+    let sourceVal = presetVal || '__custom__';
+
+    if (presetVal && presetVal.startsWith('scan_')) {
+      const parts = presetVal.split('_');
+      const tIdx = parseInt(parts[1], 10);
+      const target = (simScanTargets || [])[tIdx];
+      if (target) {
+        const coords = target.coords || `Target ${tIdx + 1}`;
+        const typeLabel = formatScanType(target.scanType);
+        if (parts[2] === 'garrison') {
+          initialShips = Object.assign({}, target.garrisonShips || {});
+          initialName = `[${typeLabel}] Garrison [${coords}]`;
+        } else if (parts[2] === 'nf') {
+          const nfIdx = parseInt(parts[3], 10);
+          const nf = (target.namedFleets || [])[nfIdx];
+          if (nf) {
+            initialShips = Object.assign({}, nf.ships || {});
+            initialName = `${nf.name || 'Fleet'} [${coords}]`;
+          }
+        }
+      }
+    }
+
+    simAttackerFleets.push({
+      id: 'atk_' + (simFleetSeq++),
+      side: 'atk',
+      name: initialName,
+      enabled: true,
+      sourceVal: sourceVal,
+      ships: initialShips
+    });
+    renderAllFleetCards('atk');
+    recalcCoalitionSummary('atk');
+    showToast(`Added ${initialName}`);
+  }
+
+  function addDefenderFleet(presetVal) {
+    const newIdx = simDefenderFleets.length + 1;
+    let initialShips = { 'main-ashkari-fang': 100 };
+    let initialName = `Defender Fleet ${newIdx}`;
+    let sourceVal = presetVal || '__custom__';
+
+    if (presetVal && presetVal.startsWith('scan_')) {
+      const parts = presetVal.split('_');
+      const tIdx = parseInt(parts[1], 10);
+      const target = (simScanTargets || [])[tIdx];
+      if (target) {
+        const coords = target.coords || `Target ${tIdx + 1}`;
+        const typeLabel = formatScanType(target.scanType);
+        if (parts[2] === 'garrison') {
+          initialShips = Object.assign({}, target.garrisonShips || {});
+          initialName = `[${typeLabel}] Garrison [${coords}]`;
+        } else if (parts[2] === 'nf') {
+          const nfIdx = parseInt(parts[3], 10);
+          const nf = (target.namedFleets || [])[nfIdx];
+          if (nf) {
+            initialShips = Object.assign({}, nf.ships || {});
+            initialName = `${nf.name || 'Fleet'} [${coords}]`;
+          }
+        }
+      }
+    }
+
+    simDefenderFleets.push({
+      id: 'def_' + (simFleetSeq++),
+      side: 'def',
+      name: initialName,
+      enabled: true,
+      sourceVal: sourceVal,
+      ships: initialShips
+    });
+    renderAllFleetCards('def');
+    showToast(`Added ${initialName}`);
+  }
+
+  let currentPickerSide = 'atk';
+
+  function openScanPickerModal(side) {
+    currentPickerSide = side || 'atk';
+    const modal = document.getElementById('sim-scan-picker-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('sim-picker-title');
+    if (titleEl) {
+      if (currentPickerSide === 'atk') {
+        titleEl.textContent = '🚀 Choose a Scanned Fleet to Add to Attacker Coalition';
+        titleEl.style.color = 'var(--cyan)';
+      } else {
+        titleEl.textContent = '🛡️ Choose a Scanned Fleet to Add to Defender Forces';
+        titleEl.style.color = '#ff5252';
+      }
+    }
+
+    const searchInput = document.getElementById('sim-picker-search');
+    if (searchInput) searchInput.value = '';
+
+    renderScanPickerList('');
+    modal.style.display = 'flex';
+  }
+
+  function closeScanPickerModal() {
+    const modal = document.getElementById('sim-scan-picker-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function renderScanPickerList(query) {
+    const container = document.getElementById('sim-picker-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const q = (query !== undefined ? query : (document.getElementById('sim-picker-search')?.value || '')).trim().toLowerCase();
+
+    if (!simScanTargets || simScanTargets.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 2rem;">No fleet scans found in scan history.</div>';
+      return;
+    }
+
+    let matchCount = 0;
+
+    simScanTargets.forEach((t, tIdx) => {
+      const typeLabel = formatScanType(t.scanType);
+      const coords = t.coords || `Target ${tIdx + 1}`;
+      const tick = t.tick ? `Tick ${t.tick}` : '';
+      const owner = (t.owner && t.owner !== 'Unknown') ? t.owner : '';
+      const gShips = t.garrisonShips || {};
+      const gTotal = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const namedFleets = t.namedFleets || [];
+
+      // Check search match
+      const searchHaystack = `${typeLabel} ${coords} ${tick} ${owner} ${Object.keys(gShips).join(' ')} ${namedFleets.map(f => f.name + ' ' + Object.keys(f.ships||{}).join(' ')).join(' ')}`.toLowerCase();
+      if (q && !searchHaystack.includes(q)) {
+        return;
+      }
+      matchCount++;
+
+      // Scan target card
+      const card = document.createElement('div');
+      card.style.background = 'rgba(255,255,255,0.03)';
+      card.style.border = '1px solid rgba(255,255,255,0.08)';
+      card.style.borderRadius = '6px';
+      card.style.padding = '0.75rem';
+
+      // Card Header
+      const hdr = document.createElement('div');
+      hdr.style.display = 'flex';
+      hdr.style.justifyContent = 'space-between';
+      hdr.style.alignItems = 'center';
+      hdr.style.marginBottom = '0.5rem';
+      hdr.style.flexWrap = 'wrap';
+      hdr.style.gap = '0.4rem';
+
+      const typeBadgeColor = t.scanType === 'FLEET_COMPOSITION_SCAN' ? '#80d8ff' : (t.scanType === 'MILITARY_SCAN' ? '#ffd600' : 'var(--cyan)');
+      hdr.innerHTML = `
+        <div>
+          <span style="display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; background: rgba(255,255,255,0.08); color: ${typeBadgeColor}; border: 1px solid ${typeBadgeColor}40; margin-right: 0.4rem;">
+            ${typeLabel}
+          </span>
+          <strong style="color: #fff; font-size: 0.9rem;">Planet [${coords}]</strong>
+          <span style="color: var(--text-dim); font-size: 0.78rem; margin-left: 0.4rem;">(${tick}${owner ? ' • ' + owner : ''})</span>
+        </div>
+      `;
+      card.appendChild(hdr);
+
+      // Section: Garrison
+      if (gTotal > 0 || namedFleets.length === 0) {
+        const gRow = document.createElement('div');
+        gRow.style.display = 'flex';
+        gRow.style.justifyContent = 'space-between';
+        gRow.style.alignItems = 'center';
+        gRow.style.padding = '0.4rem 0.6rem';
+        gRow.style.background = 'rgba(0,0,0,0.2)';
+        gRow.style.borderRadius = '4px';
+        gRow.style.marginBottom = '0.4rem';
+
+        const shipNames = Object.entries(gShips).slice(0, 4).map(([sid, cnt]) => `${cnt}x ${sid.replace('main-', '').replace(/-/g, ' ')}`).join(', ');
+        const extraShips = Object.keys(gShips).length > 4 ? ` +${Object.keys(gShips).length - 4} more` : '';
+
+        gRow.innerHTML = `
+          <div>
+            <div style="font-weight: 600; font-size: 0.82rem; color: #fff;">🏛️ Planet Garrison (${gTotal.toLocaleString()} ships)</div>
+            <div style="font-size: 0.74rem; color: var(--text-dim);">${shipNames || 'No ships'}${extraShips}</div>
+          </div>
+          <button class="btn-refresh" style="padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: ${currentPickerSide === 'atk' ? 'var(--cyan)' : '#ff5252'}; border-color: ${currentPickerSide === 'atk' ? 'rgba(0,229,255,0.4)' : 'rgba(255,82,82,0.4)'}; white-space: nowrap;" onclick="pickScanFleet('scan_${tIdx}_garrison')">
+            + Add to ${currentPickerSide === 'atk' ? 'Attacker' : 'Defender'}
+          </button>
+        `;
+        card.appendChild(gRow);
+      }
+
+      // Section: Named Fleets
+      namedFleets.forEach((nf, nfIdx) => {
+        const nfShips = nf.ships || {};
+        const nfTotal = Object.values(nfShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+        const shipNames = Object.entries(nfShips).slice(0, 4).map(([sid, cnt]) => `${cnt}x ${sid.replace('main-', '').replace(/-/g, ' ')}`).join(', ');
+        const extraShips = Object.keys(nfShips).length > 4 ? ` +${Object.keys(nfShips).length - 4} more` : '';
+
+        const nfRow = document.createElement('div');
+        nfRow.style.display = 'flex';
+        nfRow.style.justifyContent = 'space-between';
+        nfRow.style.alignItems = 'center';
+        nfRow.style.padding = '0.4rem 0.6rem';
+        nfRow.style.background = 'rgba(0,0,0,0.2)';
+        nfRow.style.borderRadius = '4px';
+        nfRow.style.marginBottom = '0.4rem';
+
+        nfRow.innerHTML = `
+          <div>
+            <div style="font-weight: 600; font-size: 0.82rem; color: #fff;">🚀 Fleet "${nf.name || 'Unnamed'}" (${nfTotal.toLocaleString()} ships) [${nf.status || 'DOCKED'}]</div>
+            <div style="font-size: 0.74rem; color: var(--text-dim);">${shipNames || 'No ships'}${extraShips}</div>
+          </div>
+          <button class="btn-refresh" style="padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: ${currentPickerSide === 'atk' ? 'var(--cyan)' : '#ff5252'}; border-color: ${currentPickerSide === 'atk' ? 'rgba(0,229,255,0.4)' : 'rgba(255,82,82,0.4)'}; white-space: nowrap;" onclick="pickScanFleet('scan_${tIdx}_nf_${nfIdx}')">
+            + Add to ${currentPickerSide === 'atk' ? 'Attacker' : 'Defender'}
+          </button>
+        `;
+        card.appendChild(nfRow);
+      });
+
+      container.appendChild(card);
+    });
+
+    if (matchCount === 0) {
+      container.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 2rem;">No scans matching "${escapeHtml(q)}".</div>`;
+    }
+  }
+
+  function pickScanFleet(presetVal) {
+    if (currentPickerSide === 'atk') {
+      addAttackerFleet(presetVal);
+    } else {
+      addDefenderFleet(presetVal);
+    }
+    closeScanPickerModal();
+  }
+
+  function quickAddFleetFromScan(side) {
+    openScanPickerModal(side);
+  }
+
+  function populateQuickScanAddDropdowns() {
+    ['atk', 'def'].forEach(side => {
+      const sel = document.getElementById(`sim-${side}-add-scan-select`);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">📡 Add from Scan...</option>';
+
+      if (!simScanTargets || simScanTargets.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.disabled = true;
+        opt.textContent = 'No fleet scans in history';
+        sel.appendChild(opt);
+        return;
+      }
+
+      simScanTargets.forEach((t, tIdx) => {
+        const typeLabel = formatScanType(t.scanType);
+        const coords = t.coords || `Target ${tIdx + 1}`;
+        const gShips = t.garrisonShips || {};
+        const gTotal = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+
+        // Garrison option
+        const gOpt = document.createElement('option');
+        gOpt.value = `scan_${tIdx}_garrison`;
+        gOpt.textContent = `[${typeLabel}] [${coords}] Garrison (${gTotal.toLocaleString()} ships)`;
+        sel.appendChild(gOpt);
+
+        // Named fleets options
+        (t.namedFleets || []).forEach((nf, nfIdx) => {
+          const nfTotal = Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+          const nfOpt = document.createElement('option');
+          nfOpt.value = `scan_${tIdx}_nf_${nfIdx}`;
+          nfOpt.textContent = `[${typeLabel}] [${coords}] Fleet "${nf.name || 'Unnamed'}" (${nfTotal.toLocaleString()} ships)`;
+          sel.appendChild(nfOpt);
+        });
+      });
+    });
+  }
+
+  function onQuickAddScanSelect(side, selectEl) {
+    const val = selectEl.value;
+    if (!val) return;
+    if (side === 'atk') {
+      addAttackerFleet(val);
+    } else {
+      addDefenderFleet(val);
+    }
+    selectEl.value = '';
+  }
+
+  function removeFleet(side, fleetId) {
+    if (side === 'atk') {
+      simAttackerFleets = simAttackerFleets.filter(f => f.id !== fleetId);
+      renderAllFleetCards('atk');
+      recalcCoalitionSummary('atk');
+    } else {
+      simDefenderFleets = simDefenderFleets.filter(f => f.id !== fleetId);
+      renderAllFleetCards('def');
+    }
+    showToast('Fleet removed');
+  }
+
+  function onFleetToggle(side, fleetId, isChecked) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    if (!fleet) return;
+    fleet.enabled = isChecked;
+
+    const card = document.getElementById(`fleet-card-${fleetId}`);
+    if (card) {
+      if (isChecked) {
+        card.style.opacity = '1';
+        card.style.borderColor = (side === 'atk') ? 'rgba(0,229,255,0.3)' : 'rgba(255,82,82,0.3)';
+        const lbl = card.querySelector('.fleet-status-label');
+        if (lbl) { lbl.textContent = 'Active'; lbl.style.color = 'var(--green)'; }
+      } else {
+        card.style.opacity = '0.55';
+        card.style.borderColor = 'rgba(255,255,255,0.06)';
+        const lbl = card.querySelector('.fleet-status-label');
+        if (lbl) { lbl.textContent = 'Disabled (Excluded)'; lbl.style.color = 'var(--text-dim)'; }
+      }
+    }
+    if (side === 'atk') recalcCoalitionSummary('atk');
+  }
+
+  function onFleetNameChange(side, fleetId, newName) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    if (fleet) {
+      fleet.name = newName.trim() || (side === 'atk' ? 'Attacker Fleet' : 'Defender Fleet');
+    }
+  }
+
+  function onFleetPresetChange(side, fleetId, presetVal) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    if (!fleet) return;
+
+    fleet.sourceVal = presetVal;
+    let newShips = {};
+    let suggestedName = '';
+
+    if (presetVal === '__custom__') {
+      return;
+    } else if (presetVal.startsWith('scan_')) {
+      const parts = presetVal.split('_');
+      const tIdx = parseInt(parts[1], 10);
+      const target = (simScanTargets || [])[tIdx];
+      if (target) {
+        const coords = target.coords || `Target ${tIdx + 1}`;
+        const typeLabel = formatScanType(target.scanType);
+        if (parts[2] === 'garrison') {
+          newShips = Object.assign({}, target.garrisonShips || {});
+          suggestedName = `[${typeLabel}] Garrison [${coords}]`;
+        } else if (parts[2] === 'nf') {
+          const nfIdx = parseInt(parts[3], 10);
+          const nf = (target.namedFleets || [])[nfIdx];
+          if (nf) {
+            newShips = Object.assign({}, nf.ships || {});
+            suggestedName = `${nf.name || 'Fleet'} [${coords}]`;
+          }
+        }
+      }
+    } else if (presetVal.startsWith('fleet_') || presetVal.startsWith('myfleet_')) {
+      const idx = parseInt(presetVal.replace('myfleet_', '').replace('fleet_', ''), 10);
+      const nf = (simAttackerData.namedFleets || [])[idx];
+      if (nf) {
+        newShips = Object.assign({}, nf.ships || {});
+        suggestedName = nf.name || `Empire Fleet ${idx + 1}`;
+      }
+    } else if (presetVal === '__hangar__' || presetVal === '__my_hangar__' || presetVal === '__home_hangar__') {
+      const h = (simAttackerData && simAttackerData.hangarShips) ? simAttackerData.hangarShips : (homeDefenseData ? homeDefenseData.hangarShips : {});
+      newShips = Object.assign({}, h || {});
+      suggestedName = 'Home Planet Hangar';
+    } else if (presetVal === '__garrison__') {
+      if (currentTargetScan) {
+        newShips = Object.assign({}, currentTargetScan.garrisonShips || {});
+        suggestedName = `Garrison [${currentTargetScan.coords || 'Target'}]`;
+      }
+    } else if (presetVal.startsWith('nf_')) {
+      const idx = parseInt(presetVal.split('_')[1], 10);
+      if (currentTargetScan && currentTargetScan.namedFleets) {
+        const nf = currentTargetScan.namedFleets[idx];
+        if (nf) {
+          newShips = Object.assign({}, nf.ships || {});
+          suggestedName = `${nf.name || 'Fleet'} [${currentTargetScan.coords || 'Target'}]`;
+        }
+      }
+    }
+
+    if (suggestedName) {
+      fleet.name = suggestedName;
+      const nameEl = document.getElementById(`fleet-name-${fleetId}`);
+      if (nameEl) nameEl.value = fleet.name;
+    }
+
+    fleet.ships = newShips;
+
+    const container = document.getElementById(`fleet-ships-${fleetId}`);
+    if (container) {
+      renderFleetShipRows(container, fleet, side);
+    }
+    updateFleetSubtotal(fleetId, side);
+    if (side === 'atk') recalcCoalitionSummary('atk');
+  }
+
+  function addShipToFleet(side, fleetId) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    if (!fleet) return;
+
+    const shipList = (typeof refData !== 'undefined' && refData && refData.ships && refData.ships.length > 0) ? refData.ships : [];
+    const defaultShip = shipList.length > 0 ? shipList[0].id : (side === 'atk' ? 'main-vanguard-striker' : 'main-ashkari-fang');
+
+    let shipToAdd = defaultShip;
+    for (const s of shipList) {
+      if (!fleet.ships[s.id]) {
+        shipToAdd = s.id;
+        break;
+      }
+    }
+
+    fleet.ships[shipToAdd] = 100;
+    const container = document.getElementById(`fleet-ships-${fleetId}`);
+    if (container) {
+      renderFleetShipRows(container, fleet, side);
+    }
+    updateFleetSubtotal(fleetId, side);
+    if (side === 'atk') recalcCoalitionSummary('atk');
+  }
+
+  function removeShipFromFleet(side, fleetId, shipId) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    if (!fleet) return;
+
+    delete fleet.ships[shipId];
+    const container = document.getElementById(`fleet-ships-${fleetId}`);
+    if (container) {
+      renderFleetShipRows(container, fleet, side);
+    }
+    updateFleetSubtotal(fleetId, side);
+    if (side === 'atk') recalcCoalitionSummary('atk');
+  }
+
+  function onShipRowChange(side, fleetId, oldShipId, newShipId, newCount) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    if (!fleet) return;
+
+    if (oldShipId !== newShipId) {
+      delete fleet.ships[oldShipId];
+    }
+    if (newCount > 0) {
+      fleet.ships[newShipId] = newCount;
+    } else {
+      delete fleet.ships[newShipId];
+    }
+
+    updateFleetSubtotal(fleetId, side);
+    if (side === 'atk') recalcCoalitionSummary('atk');
+  }
+
+  function renderAllFleetCards(side) {
+    const container = document.getElementById(`sim-${side}-fleets-container`);
+    if (!container) return;
+    container.innerHTML = '';
+
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    if (list.length === 0) {
+      container.innerHTML = `
+        <div style="color: var(--text-dim); font-size: 0.85rem; font-style: italic; padding: 1.25rem; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px;">
+          No fleets configured. Click <strong>"+ Add ${side === 'atk' ? 'Attacker' : 'Defender'} Fleet"</strong> above to deploy forces.
+        </div>`;
+      return;
+    }
+
+    list.forEach((fleet, idx) => {
+      container.appendChild(buildFleetCardElement(fleet, side, idx));
+    });
+  }
+
+  function buildFleetCardElement(fleet, side, idx) {
+    const card = document.createElement('div');
+    card.id = `fleet-card-${fleet.id}`;
+    card.style.background = fleet.enabled ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.3)';
+    card.style.border = `1px solid ${fleet.enabled ? (side === 'atk' ? 'rgba(0,229,255,0.25)' : 'rgba(255,82,82,0.25)') : 'rgba(255,255,255,0.06)'}`;
+    card.style.borderRadius = '6px';
+    card.style.padding = '0.75rem';
+    card.style.transition = 'all 0.2s ease';
+    if (!fleet.enabled) {
+      card.style.opacity = '0.55';
+    }
+
+    // Top Header: Toggle Checkbox, Editable Name, Delete button
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+    header.style.gap = '0.5rem';
+    header.style.marginBottom = '0.6rem';
+    header.style.flexWrap = 'wrap';
+
+    const toggleLabel = document.createElement('label');
+    toggleLabel.style.display = 'flex';
+    toggleLabel.style.alignItems = 'center';
+    toggleLabel.style.gap = '0.35rem';
+    toggleLabel.style.cursor = 'pointer';
+    toggleLabel.style.fontSize = '0.82rem';
+    toggleLabel.style.fontWeight = '700';
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = fleet.enabled;
+    chk.onchange = (e) => onFleetToggle(side, fleet.id, e.target.checked);
+
+    const statusText = document.createElement('span');
+    statusText.className = 'fleet-status-label';
+    statusText.textContent = fleet.enabled ? 'Active' : 'Disabled (Excluded)';
+    statusText.style.color = fleet.enabled ? 'var(--green)' : 'var(--text-dim)';
+
+    toggleLabel.appendChild(chk);
+    toggleLabel.appendChild(statusText);
+
+    const nameInput = document.createElement('input');
+    nameInput.id = `fleet-name-${fleet.id}`;
+    nameInput.type = 'text';
+    nameInput.className = 'form-control';
+    nameInput.value = fleet.name;
+    nameInput.style.flex = '1';
+    nameInput.style.minWidth = '130px';
+    nameInput.style.fontSize = '0.85rem';
+    nameInput.style.fontWeight = '600';
+    nameInput.style.padding = '0.2rem 0.5rem';
+    nameInput.onchange = (e) => onFleetNameChange(side, fleet.id, e.target.value);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-refresh';
+    delBtn.innerHTML = '🗑️ Remove';
+    delBtn.style.color = '#ff5252';
+    delBtn.style.fontSize = '0.78rem';
+    delBtn.style.padding = '0.2rem 0.5rem';
+    delBtn.onclick = () => removeFleet(side, fleet.id);
+
+    header.appendChild(toggleLabel);
+    header.appendChild(nameInput);
+    header.appendChild(delBtn);
+    card.appendChild(header);
+
+    // Preset selector row
+    const presetRow = document.createElement('div');
+    presetRow.style.display = 'flex';
+    presetRow.style.gap = '0.5rem';
+    presetRow.style.alignItems = 'center';
+    presetRow.style.marginBottom = '0.5rem';
+
+    const presetLabel = document.createElement('span');
+    presetLabel.style.fontSize = '0.75rem';
+    presetLabel.style.color = 'var(--text-dim)';
+    presetLabel.style.whiteSpace = 'nowrap';
+    presetLabel.textContent = 'Load Preset:';
+
+    const presetSel = document.createElement('select');
+    presetSel.className = 'form-control';
+    presetSel.style.fontSize = '0.78rem';
+    presetSel.style.padding = '0.2rem 0.4rem';
+    presetSel.style.flex = '1';
+    populatePresetOptions(presetSel, side, fleet.sourceVal);
+    presetSel.onchange = (e) => onFleetPresetChange(side, fleet.id, e.target.value);
+
+    presetRow.appendChild(presetLabel);
+    presetRow.appendChild(presetSel);
+    card.appendChild(presetRow);
+
+    // Ships list container
+    const shipsContainer = document.createElement('div');
+    shipsContainer.id = `fleet-ships-${fleet.id}`;
+    shipsContainer.style.display = 'flex';
+    shipsContainer.style.flexDirection = 'column';
+    shipsContainer.style.gap = '0.35rem';
+    shipsContainer.style.marginBottom = '0.5rem';
+    card.appendChild(shipsContainer);
+
+    renderFleetShipRows(shipsContainer, fleet, side);
+
+    // Footer: Add Ship button & Subtotal text
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'space-between';
+    footer.style.alignItems = 'center';
+    footer.style.borderTop = '1px solid rgba(255,255,255,0.06)';
+    footer.style.paddingTop = '0.4rem';
+
+    const addShipBtn = document.createElement('button');
+    addShipBtn.className = 'btn-refresh';
+    addShipBtn.style.padding = '0.15rem 0.5rem';
+    addShipBtn.style.fontSize = '0.75rem';
+    addShipBtn.textContent = '+ Add Ship';
+    addShipBtn.onclick = () => addShipToFleet(side, fleet.id);
+
+    const subtotal = document.createElement('span');
+    subtotal.id = `fleet-subtotal-${fleet.id}`;
+    subtotal.style.fontSize = '0.75rem';
+    subtotal.style.fontFamily = 'var(--font-mono)';
+    subtotal.style.color = 'var(--text-dim)';
+
+    footer.appendChild(addShipBtn);
+    footer.appendChild(subtotal);
+    card.appendChild(footer);
+
+    setTimeout(() => updateFleetSubtotal(fleet.id, side), 0);
+    return card;
+  }
+
+  function populatePresetOptions(sel, side, currentVal) {
+    sel.innerHTML = '';
+
+    // 1. Custom Manifest
+    const customOpt = document.createElement('option');
+    customOpt.value = '__custom__';
+    customOpt.textContent = '✏️ Custom Manifest';
+    if (currentVal === '__custom__') customOpt.selected = true;
+    sel.appendChild(customOpt);
+
+    // 2. Your Empire Forces (Available on both Attacker and Defender sides)
+    const empireGrp = document.createElement('optgroup');
+    empireGrp.label = '🏰 Your Empire Forces';
+
+    const myFleets = (simAttackerData && simAttackerData.namedFleets) ? simAttackerData.namedFleets : [];
+    myFleets.forEach((f, idx) => {
+      const fTotal = Object.values(f.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const opt = document.createElement('option');
+      opt.value = `fleet_${idx}`;
+      opt.textContent = `Fleet "${f.name || 'Unnamed'}" (${fTotal.toLocaleString()} ships) [${f.status || 'ACTIVE'}]`;
+      if (currentVal === opt.value) opt.selected = true;
+      empireGrp.appendChild(opt);
+    });
+
+    const myHangar = (simAttackerData && simAttackerData.hangarShips) ? simAttackerData.hangarShips : (homeDefenseData ? homeDefenseData.hangarShips : {});
+    const hangarTotal = Object.values(myHangar || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    const hangarOpt = document.createElement('option');
+    hangarOpt.value = '__hangar__';
+    hangarOpt.textContent = `🏠 Home Planet Hangar (${hangarTotal.toLocaleString()} ships)`;
+    if (currentVal === '__hangar__' || currentVal === '__my_hangar__' || currentVal === '__home_hangar__') hangarOpt.selected = true;
+    empireGrp.appendChild(hangarOpt);
+
+    sel.appendChild(empireGrp);
+
+    // 3. Recent Scanned Planets & Fleets (Available on BOTH Attacker and Defender sides!)
+    if (simScanTargets && simScanTargets.length > 0) {
+      simScanTargets.forEach((t, tIdx) => {
+        const coords = t.coords || `Target ${tIdx + 1}`;
+        const tick = t.tick ? `Tick ${t.tick}` : '';
+        const owner = (t.owner && t.owner !== 'Unknown') ? ` • ${t.owner}` : '';
+        const typeLabel = formatScanType(t.scanType);
+        const scanGrp = document.createElement('optgroup');
+        scanGrp.label = `📡 [${typeLabel}] [${coords}] (${tick}${owner})`;
+
+        // Planet garrison / docked ships
+        const gShips = t.garrisonShips || {};
+        const gTotal = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+        if (gTotal > 0 || (t.namedFleets || []).length === 0) {
+          const gOpt = document.createElement('option');
+          gOpt.value = `scan_${tIdx}_garrison`;
+          gOpt.textContent = `Planet Garrison (${gTotal.toLocaleString()} ships)`;
+          if (currentVal === gOpt.value || (side === 'def' && tIdx === 0 && currentVal === '__garrison__')) {
+            gOpt.selected = true;
+          }
+          scanGrp.appendChild(gOpt);
+        }
+
+        // Named fleets at scanned planet
+        (t.namedFleets || []).forEach((nf, nfIdx) => {
+          const nfTotal = Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+          const nfOpt = document.createElement('option');
+          nfOpt.value = `scan_${tIdx}_nf_${nfIdx}`;
+          nfOpt.textContent = `Fleet "${nf.name || 'Unnamed'}" (${nfTotal.toLocaleString()} ships)`;
+          if (currentVal === nfOpt.value || (side === 'def' && tIdx === 0 && currentVal === `nf_${nfIdx}`)) {
+            nfOpt.selected = true;
+          }
+          scanGrp.appendChild(nfOpt);
+        });
+
+        sel.appendChild(scanGrp);
+      });
+    }
+  }
+
+  function renderFleetShipRows(container, fleet, side) {
+    container.innerHTML = '';
+    const entries = Object.entries(fleet.ships || {});
+    if (entries.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-dim); font-size: 0.8rem; font-style: italic; padding: 0.25rem 0;">No ships in fleet. Click "+ Add Ship" below.</div>';
+      return;
+    }
+
+    entries.forEach(([shipId, count]) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '0.4rem';
+      row.style.alignItems = 'center';
+      row.style.background = 'rgba(255,255,255,0.02)';
+      row.style.padding = '0.25rem 0.4rem';
+      row.style.borderRadius = '4px';
+      row.style.border = '1px solid rgba(255,255,255,0.05)';
+
+      const sel = document.createElement('select');
+      sel.className = 'form-control';
+      sel.style.flex = '1';
+      sel.style.fontSize = '0.8rem';
+      sel.style.padding = '0.2rem 0.4rem';
+
+      const shipList = (typeof refData !== 'undefined' && refData && refData.ships && refData.ships.length > 0) ? refData.ships : [];
+      if (shipList.length > 0) {
+        shipList.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = `${s.name} (${s.category || s.shipClass || 'Ship'})`;
+          if (s.id === shipId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.value = shipId;
+        opt.textContent = shipId;
+        opt.selected = true;
+        sel.appendChild(opt);
+      }
+
+      const countInput = document.createElement('input');
+      countInput.type = 'number';
+      countInput.className = 'form-control';
+      countInput.value = count;
+      countInput.min = '1';
+      countInput.style.width = '80px';
+      countInput.style.fontSize = '0.8rem';
+      countInput.style.padding = '0.2rem 0.4rem';
+
+      sel.onchange = () => {
+        const newId = sel.value;
+        const cnt = parseInt(countInput.value, 10) || 1;
+        onShipRowChange(side, fleet.id, shipId, newId, cnt);
+      };
+
+      countInput.onchange = () => {
+        const cnt = parseInt(countInput.value, 10) || 0;
+        onShipRowChange(side, fleet.id, shipId, sel.value, cnt);
+      };
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-refresh';
+      delBtn.innerHTML = '×';
+      delBtn.style.color = '#ff5252';
+      delBtn.style.padding = '0.15rem 0.4rem';
+      delBtn.style.fontSize = '0.85rem';
+      delBtn.onclick = () => removeShipFromFleet(side, fleet.id, shipId);
+
+      row.appendChild(sel);
+      row.appendChild(countInput);
+      row.appendChild(delBtn);
+      container.appendChild(row);
+    });
+  }
+
+  function updateFleetSubtotal(fleetId, side) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    const fleet = list.find(f => f.id === fleetId);
+    const subtotalEl = document.getElementById(`fleet-subtotal-${fleetId}`);
+    if (!fleet || !subtotalEl) return;
+
+    const totalShips = Object.values(fleet.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    const shipList = (typeof refData !== 'undefined' && refData && refData.ships) ? refData.ships : [];
+    const shipMap = {};
+    shipList.forEach(s => { shipMap[s.id] = s; });
+
+    let totalDmg = 0;
+    for (const [sId, qty] of Object.entries(fleet.ships || {})) {
+      const s = shipMap[sId];
+      if (s) totalDmg += (s.damage || 0) * qty;
+    }
+
+    subtotalEl.textContent = `${totalShips.toLocaleString()} ships • Est. ${totalDmg > 0 ? totalDmg.toLocaleString() : '0'} Dmg`;
+  }
+
+  function recalcCoalitionSummary(side) {
+    if (side !== 'atk') return;
+    const activeFleets = simAttackerFleets.filter(f => f.enabled);
+    const totalActiveCount = activeFleets.length;
+    const totalShips = activeFleets.reduce((sum, f) => {
+      return sum + Object.values(f.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    }, 0);
+
+    const activeFleetsCountEl = document.getElementById('sim-atk-active-fleets-count');
+    if (activeFleetsCountEl) activeFleetsCountEl.textContent = `${totalActiveCount} / ${simAttackerFleets.length}`;
+
+    const totalShipsEl = document.getElementById('sim-atk-total-ships');
+    if (totalShipsEl) totalShipsEl.textContent = totalShips.toLocaleString();
+
+    let totalDmg = 0;
+    let totalArmor = 0;
+    let totalCargo = 0;
+    let totalRoidsCap = 0;
+
+    const shipList = (typeof refData !== 'undefined' && refData && refData.ships) ? refData.ships : [];
+    const shipMap = {};
+    shipList.forEach(s => { shipMap[s.id] = s; });
+
+    activeFleets.forEach(f => {
+      for (const [sId, qty] of Object.entries(f.ships || {})) {
+        const s = shipMap[sId];
+        if (s) {
+          totalDmg += (s.damage || 0) * qty;
+          totalArmor += (s.armor || 0) * qty;
+          totalCargo += (s.resourceCapacity || 0) * qty;
+          totalRoidsCap += (s.asteroidCapacity || 0) * qty;
+        }
+      }
+    });
+
+    const dmgEl = document.getElementById('sim-atk-total-dmg');
+    if (dmgEl) dmgEl.textContent = totalDmg > 0 ? totalDmg.toLocaleString() : '---';
+    const armorEl = document.getElementById('sim-atk-total-armor');
+    if (armorEl) armorEl.textContent = totalArmor > 0 ? totalArmor.toLocaleString() : '---';
+    const cargoEl = document.getElementById('sim-atk-total-cargo');
+    if (cargoEl) cargoEl.textContent = totalCargo > 0 ? totalCargo.toLocaleString() : '---';
+    const roidsCapEl = document.getElementById('sim-atk-total-roids-cap');
+    if (roidsCapEl) roidsCapEl.textContent = totalRoidsCap > 0 ? `${totalRoidsCap.toLocaleString()} roids` : '0 roids';
+  }
+
+  function collectFleetsData(side) {
+    const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
+    return list.map(f => {
+      const cleanShips = {};
+      for (const [sId, cnt] of Object.entries(f.ships || {})) {
+        const n = parseInt(cnt, 10);
+        if (n > 0) cleanShips[sId] = n;
+      }
+      return {
+        id: f.id,
+        name: f.name || (side === 'atk' ? 'Attacker Fleet' : 'Defender Fleet'),
+        enabled: !!f.enabled,
+        ships: cleanShips
+      };
+    });
+  }
+
+  function populateScanTargetsDropdown() {
+    const sel = document.getElementById('sim-def-target');
+    sel.innerHTML = '<option value="">-- Select Scanned Enemy Target / Fleet --</option>';
+
+    if (simScanTargets.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '__none__';
+      opt.textContent = 'No fleet scans found in scan history';
+      sel.appendChild(opt);
+      return;
+    }
+
+    simScanTargets.forEach((t, idx) => {
+      const typeLabel = formatScanType(t.scanType);
+      const fleetCount = (t.namedFleets || []).length;
+      const shipCount = Object.values(t.garrisonShips || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const pdsCount = Object.keys(t.pds || {}).length;
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = `[${typeLabel}] Planet [${t.coords || '?'}] (Tick ${t.tick || '?'}) — ${shipCount.toLocaleString()} Garrison Ships, ${fleetCount} Fleets${pdsCount > 0 ? `, ${pdsCount} PDS` : ''}`;
+      if (idx === 0) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    const customOpt = document.createElement('option');
+    customOpt.value = '__custom__';
+    customOpt.textContent = '✏️ Custom Enemy Defense';
+    sel.appendChild(customOpt);
+
+    onTargetPlanetChange();
+    populateQuickScanAddDropdowns();
+  }
+
+  function onTargetPlanetChange() {
+    const selVal = document.getElementById('sim-def-target').value;
+    const scanCard = document.getElementById('sim-def-scan-details');
+
+    if (selVal === '' || selVal === '__custom__' || selVal === '__none__') {
+      currentTargetScan = null;
+      if (scanCard) scanCard.style.display = 'none';
+      renderAllFleetCards('def');
+      return;
+    }
+
+    const idx = parseInt(selVal, 10);
+    currentTargetScan = simScanTargets[idx];
+    if (!currentTargetScan) return;
+
+    if (scanCard) scanCard.style.display = 'block';
+    const coordsEl = document.getElementById('sim-def-coords');
+    if (coordsEl) coordsEl.textContent = currentTargetScan.coords || 'Unknown';
+    const typeEl = document.getElementById('sim-def-type');
+    if (typeEl) typeEl.textContent = formatScanType(currentTargetScan.scanType);
+    const tickEl = document.getElementById('sim-def-tick');
+    if (tickEl) tickEl.textContent = currentTargetScan.tick || '---';
+
+    const res = currentTargetScan.resources || {};
+    const resBadge = document.getElementById('sim-def-res-badge');
+    if (resBadge) {
+      if (res.metal || res.crystal || res.eonium) {
+        resBadge.textContent = `${(res.metal || 0).toLocaleString()} Metal • ${(res.crystal || 0).toLocaleString()} Crystal • ${(res.eonium || 0).toLocaleString()} Eonium`;
+      } else {
+        resBadge.textContent = 'Not included in this scan type';
+      }
+    }
+
+    const roids = currentTargetScan.asteroids || {};
+    const roidsBadge = document.getElementById('sim-def-roids-badge');
+    if (roidsBadge) {
+      if (roids.metalRoids || roids.crystalRoids || roids.eoniumRoids) {
+        roidsBadge.textContent = `${(roids.metalRoids || 0).toLocaleString()} Metal • ${(roids.crystalRoids || 0).toLocaleString()} Crystal • ${(roids.eoniumRoids || 0).toLocaleString()} Eonium`;
+      } else {
+        roidsBadge.textContent = 'Not included in this scan type';
+      }
+    }
+
+    // Set PDS checkboxes and levels from scan (applied strictly to planet garrison only)
+    const pds = currentTargetScan.pds || {};
+    setControlValue('sim-pds-shield-chk', 'checked', !!pds['Shield Generator']);
+    if (pds['Shield Generator']) document.getElementById('sim-pds-shield-lvl').value = pds['Shield Generator'];
+
+    setControlValue('sim-pds-ion-chk', 'checked', !!pds['Ion Cannon']);
+    if (pds['Ion Cannon']) document.getElementById('sim-pds-ion-lvl').value = pds['Ion Cannon'];
+
+    setControlValue('sim-pds-silo-chk', 'checked', !!pds['Missile Silo']);
+    if (pds['Missile Silo']) document.getElementById('sim-pds-silo-lvl').value = pds['Missile Silo'];
+
+    setControlValue('sim-pds-laser-chk', 'checked', !!pds['Laser Battery']);
+    if (pds['Laser Battery']) document.getElementById('sim-pds-laser-lvl').value = pds['Laser Battery'];
+
+    // Update defender fleet presets
+    if (simDefenderFleets.length > 0 && (simDefenderFleets[0].sourceVal === '__garrison__' || simDefenderFleets[0].sourceVal === '__custom__')) {
+      simDefenderFleets[0].ships = Object.assign({}, currentTargetScan.garrisonShips || {});
+      const typeLabel = formatScanType(currentTargetScan.scanType);
+      simDefenderFleets[0].name = `[${typeLabel}] Garrison [${currentTargetScan.coords || 'Target'}]`;
+      simDefenderFleets[0].sourceVal = '__garrison__';
+    }
+
+    renderAllFleetCards('def');
+  }
+
+  async function runBattleSimulation() {
+    const statusBadge = document.getElementById('combat-status-badge');
+    const resultsContainer = document.getElementById('sim-results-container');
+    statusBadge.textContent = 'Simulating combat engagements...';
+    resultsContainer.style.display = 'none';
+
+    const atkFleets = collectFleetsData('atk');
+    const defFleets = collectFleetsData('def');
+
+    const totalActiveAtkShips = atkFleets.filter(f => f.enabled).reduce((tot, f) => {
+      return tot + Object.values(f.ships).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    }, 0);
+
+    if (totalActiveAtkShips === 0) {
+      showToast('Please enable at least one attacking fleet with ships');
+      statusBadge.textContent = 'Simulation halted: No active attacking ships.';
+      return;
+    }
+
+    // Collect PDS settings (applies strictly to base planet only)
+    const pds = {};
+    if (document.getElementById('sim-pds-shield-chk').checked) {
+      pds['Shield Generator'] = parseInt(document.getElementById('sim-pds-shield-lvl').value, 10) || 1;
+    }
+    if (document.getElementById('sim-pds-ion-chk').checked) {
+      pds['Ion Cannon'] = parseInt(document.getElementById('sim-pds-ion-lvl').value, 10) || 1;
+    }
+    if (document.getElementById('sim-pds-silo-chk').checked) {
+      pds['Missile Silo'] = parseInt(document.getElementById('sim-pds-silo-lvl').value, 10) || 1;
+    }
+    if (document.getElementById('sim-pds-laser-chk').checked) {
+      pds['Laser Battery'] = parseInt(document.getElementById('sim-pds-laser-lvl').value, 10) || 1;
+    }
+
+    let atkResearch = {
+      Hulls: parseInt(document.getElementById('sim-atk-hulls').value, 10) || 0,
+      ShipTechnology: parseInt(document.getElementById('sim-atk-shiptech').value, 10) || 0
+    };
+    let defResearch = { Hulls: 5, PDS: 5 };
+    let defResources = {};
+    let defAsteroids = {};
+
+    if (currentSimMode === 'defense' && homeDefenseData) {
+      defResearch = homeDefenseData.research || { Hulls: 5, PDS: 5 };
+      defResources = homeDefenseData.resources || {};
+      defAsteroids = homeDefenseData.asteroids || {};
+      if (currentTargetScan && currentTargetScan.research) {
+        atkResearch = currentTargetScan.research;
+      }
+    } else {
+      defResearch = currentTargetScan ? currentTargetScan.research : { Hulls: 5, PDS: 5 };
+      defResources = currentTargetScan ? currentTargetScan.resources : {};
+      defAsteroids = currentTargetScan ? (currentTargetScan.asteroids || {}) : {};
+    }
+
+    const payload = {
+      attackerFleets: atkFleets,
+      defenderFleets: defFleets,
+      defenderPds: pds,
+      attackerResearch: atkResearch,
+      defenderResearch: defResearch,
+      defenderResources: defResources,
+      defenderAsteroids: defAsteroids,
+      maxRounds: parseInt(document.getElementById('sim-max-rounds').value, 10) || 1
+    };
+
+    try {
+      const res = await fetch('/api/combat/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      statusBadge.textContent = `Simulation completed in ${data.result.rounds} rounds.`;
+      renderSimResults(data.result);
+    } catch (e) {
+      statusBadge.textContent = 'Simulation error: ' + e.message;
+      showToast('Simulation failed: ' + e.message);
+    }
+  }
+
+  function renderSimResults(res) {
+    const container = document.getElementById('sim-results-container');
+    container.style.display = 'block';
+
+    const isUserDefender = (currentSimMode === 'defense');
+    const isAttackerWin = res.outcome === 'attacker';
+    const isDefenderWin = res.outcome === 'defender';
+
+    const isUserVictory = (isUserDefender && isDefenderWin) || (!isUserDefender && isAttackerWin);
+    const isUserDefeat = (isUserDefender && isAttackerWin) || (!isUserDefender && isDefenderWin);
+
+    const bannerColor = isUserVictory ? 'var(--green)' : (isUserDefeat ? '#ff5252' : '#ffb74d');
+    const bannerBg = isUserVictory ? 'rgba(0,255,170,0.08)' : (isUserDefeat ? 'rgba(255,82,82,0.08)' : 'rgba(255,183,77,0.08)');
+    const bannerBorder = isUserVictory ? 'rgba(0,255,170,0.3)' : (isUserDefeat ? 'rgba(255,82,82,0.3)' : 'rgba(255,183,77,0.3)');
+
+    let bannerHeadline = res.outcomeDetail;
+    if (isUserDefender) {
+      if (isDefenderWin) {
+        bannerHeadline = 'HOME BASE DEFENSE VICTORIOUS! Planetary Garrison Repelled the Invaders';
+      } else if (isAttackerWin) {
+        bannerHeadline = 'PLANETARY DEFENSE BREACHED! Invading Fleet Overwhelmed Garrison';
+      }
+    }
+
+    let adviceHtml = (res.tacticalAdvice || []).map(a => `<div style="margin-bottom: 0.35rem;">${escapeHtml(a)}</div>`).join('');
+
+    // Per-Fleet Casualty Breakdown Rows
+    let fleetRowsHtml = '';
+    const atkFleetsRes = (res.attacker && res.attacker.fleets) ? res.attacker.fleets : [];
+    const defFleetsRes = (res.defender && res.defender.fleets) ? res.defender.fleets : [];
+
+    atkFleetsRes.forEach(f => {
+      const statusBadge = f.enabled 
+        ? '<span class="badge badge-info" style="font-size: 0.7rem;">Active</span>' 
+        : '<span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-dim); font-size: 0.7rem;">Disabled (0 Losses)</span>';
+      fleetRowsHtml += `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="padding: 0.5rem 0.75rem;"><span style="color: var(--cyan); font-weight: 700;">[Attacker]</span> <strong>${escapeHtml(f.name)}</strong></td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${statusBadge}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${f.totalStart.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center; color: ${f.totalLost > 0 ? '#ff5252' : 'var(--text-dim)'}; font-weight: 600;">-${f.totalLost.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center; color: var(--green); font-weight: 600;">${f.totalSurvived.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${f.lossPercent}%</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--text-dim);">${(f.valueLost?.total || 0).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    defFleetsRes.forEach(f => {
+      const isPds = f.isPds;
+      const sideLabel = isPds ? '<span style="color: #ffd54f; font-weight: 700;">[Planet PDS]</span>' : '<span style="color: #ff5252; font-weight: 700;">[Defender]</span>';
+      const statusBadge = f.enabled 
+        ? '<span class="badge badge-warning" style="font-size: 0.7rem;">Active</span>' 
+        : '<span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-dim); font-size: 0.7rem;">Disabled (0 Losses)</span>';
+      fleetRowsHtml += `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="padding: 0.5rem 0.75rem;">${sideLabel} <strong>${escapeHtml(f.name)}</strong></td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${statusBadge}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${f.totalStart.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center; color: ${f.totalLost > 0 ? '#ff5252' : 'var(--text-dim)'}; font-weight: 600;">-${f.totalLost.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center; color: var(--green); font-weight: 600;">${f.totalSurvived.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${f.lossPercent}%</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--text-dim);">${(f.valueLost?.total || 0).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    // Side-by-side casualty rows
+    let casualtiesHtml = '';
+    const allUnitIds = Array.from(new Set([...Object.keys(res.attacker.startCounts), ...Object.keys(res.defender.startCounts)]));
+
+    allUnitIds.forEach(uId => {
+      const isAtk = uId in res.attacker.startCounts;
+      const sideLabel = isAtk 
+        ? (isUserDefender ? '<span style="color: #ff5252;">[Enemy Attacker]</span>' : '<span style="color: var(--cyan);">[Your Fleet]</span>')
+        : (isUserDefender ? '<span style="color: var(--cyan);">[Your Defense]</span>' : '<span style="color: #ff5252;">[Enemy Defender]</span>');
+      const sideData = isAtk ? res.attacker : res.defender;
+      const start = sideData.startCounts[uId] || 0;
+      const lost = sideData.lostCounts[uId] || 0;
+      const survived = sideData.survivedCounts[uId] || 0;
+
+      casualtiesHtml += `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="padding: 0.5rem 0.75rem;">${sideLabel} <strong>${escapeHtml(uId.replace('main-', '').replace(/-/g, ' '))}</strong></td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center;">${start.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center; color: ${lost > 0 ? '#ff5252' : 'var(--text-dim)'}; font-weight: 600;">-${lost.toLocaleString()}</td>
+          <td style="padding: 0.5rem 0.75rem; text-align: center; color: var(--green); font-weight: 600;">${survived.toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    // Round replay accordion
+    let roundsLogHtml = '';
+    (res.roundDetails || []).forEach(rd => {
+      const events = (rd.events || []).map(e => {
+        let icon = '•';
+        let color = '#cbd5e1';
+        if (e.includes('Shield Aura') || e.includes('Planetary Shield')) {
+          color = '#80d8ff';
+        } else if (e.includes('Siege Barrier')) {
+          color = '#ffd54f';
+        } else if (e.includes('Disruption Field') || e.includes('EMP')) {
+          color = '#b388ff';
+        } else if (e.includes('destroyed')) {
+          color = '#ff8a80';
+        }
+        return `<li style="margin-bottom: 0.35rem; color: ${color}; line-height: 1.4;">${escapeHtml(e)}</li>`;
+      }).join('');
+
+      const killsCount = (rd.actions || []).reduce((sum, a) => sum + (a.shipsDestroyed || 0), 0);
+      const empCount = (rd.actions || []).reduce((sum, a) => sum + (a.shipsEmped || 0), 0);
+
+      roundsLogHtml += `
+        <details open style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; padding: 0.75rem;">
+          <summary style="font-weight: 700; color: var(--cyan); cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
+            <span>⚔️ Combat Round ${rd.roundNumber}</span>
+            <span style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-dim);">
+              ${killsCount > 0 ? `<span style="color: #ff5252; margin-right: 0.5rem;">${killsCount.toLocaleString()} destroyed</span>` : ''}
+              ${empCount > 0 ? `<span style="color: #b388ff; margin-right: 0.5rem;">${empCount.toLocaleString()} EMP disabled</span>` : ''}
+              <span>Shield: ${rd.shieldRemainingHP ? rd.shieldRemainingHP.toLocaleString() + ' HP' : '0 HP'}</span>
+            </span>
+          </summary>
+          <div style="margin-top: 0.75rem; max-height: 240px; overflow-y: auto; padding-right: 0.35rem;">
+            <ul style="margin: 0; padding-left: 1.25rem; font-family: var(--font-mono); font-size: 0.8rem;">
+              ${events || '<li style="color: var(--text-dim);">No significant damage dealt.</li>'}
+            </ul>
+          </div>
+        </details>
+      `;
+    });
+
+    const roidsStolen = res.asteroidsStolen || { metalRoids: 0, crystalRoids: 0, eoniumRoids: 0, total: 0 };
+    const scoreChange = res.scoreChange || { attacker: 0, defender: 0 };
+    const atkScoreClass = scoreChange.attacker >= 0 ? 'var(--green)' : '#ff5252';
+    const atkScoreSign = scoreChange.attacker >= 0 ? '+' : '';
+    const defScoreClass = scoreChange.defender >= 0 ? 'var(--green)' : '#ff5252';
+    const defScoreSign = scoreChange.defender >= 0 ? '+' : '';
+
+    container.innerHTML = `
+      <!-- OUTCOME BANNER -->
+      <div style="background: ${bannerBg}; border: 1px solid ${bannerBorder}; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; text-align: center;">
+        <div style="font-size: 1.6rem; font-weight: 900; color: ${bannerColor}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
+          ${isUserVictory ? '🏆 ' : (isUserDefeat ? '💀 ' : '⚖️ ')}${escapeHtml(bannerHeadline)}
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 0.95rem; color: var(--text-dim); margin-bottom: 1rem;">
+          Simulation concluded after <strong>${res.rounds}</strong> combat rounds. Tactical dominance score: <strong style="color: ${bannerColor};">${Math.round(res.dominance * 100)}%</strong>
+        </div>
+
+        <!-- DOMINANCE BAR GAUGE -->
+        <div style="height: 10px; background: rgba(255,82,82,0.4); border-radius: 5px; overflow: hidden; max-width: 600px; margin: 0 auto;">
+          <div style="height: 100%; width: ${Math.round(res.dominance * 100)}%; background: var(--cyan);"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; max-width: 600px; margin: 0.35rem auto 0; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">
+          <span>Attacker Advantage (${Math.round(res.dominance * 100)}%)</span>
+          <span>Defender Advantage (${100 - Math.round(res.dominance * 100)}%)</span>
+        </div>
+      </div>
+
+      <!-- 6-CARD BALANCE METRICS STRIP -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="panel" style="padding: 1rem; text-align: center;">
+          <div style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase;">Attacker Losses</div>
+          <div style="font-size: 1.3rem; font-weight: 800; color: ${res.attacker.totalLost > 0 ? '#ff5252' : 'var(--green)'}; margin: 0.25rem 0;">
+            ${res.attacker.totalLost.toLocaleString()} ships (${res.attacker.lossPercent}%)
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);">
+            -${(res.attacker.valueLost.total || 0).toLocaleString()} net value
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 1rem; text-align: center;">
+          <div style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase;">Defender Losses</div>
+          <div style="font-size: 1.3rem; font-weight: 800; color: ${res.defender.totalLost > 0 ? 'var(--green)' : 'var(--text-dim)'}; margin: 0.25rem 0;">
+            ${res.defender.totalLost.toLocaleString()} ships (${res.defender.lossPercent}%)
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);">
+            -${(res.defender.valueLost.total || 0).toLocaleString()} net value
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 1rem; text-align: center;">
+          <div style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase;">Projected Salvage</div>
+          <div style="font-size: 1.3rem; font-weight: 800; color: var(--cyan); margin: 0.25rem 0;">
+            +${(res.salvage.total || 0).toLocaleString()}
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);">
+            ${res.salvage.metal.toLocaleString()} M • ${res.salvage.crystal.toLocaleString()} C • ${res.salvage.eonium.toLocaleString()} E
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 1rem; text-align: center;">
+          <div style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase;">Estimated Plunder</div>
+          <div style="font-size: 1.3rem; font-weight: 800; color: var(--yellow); margin: 0.25rem 0;">
+            ${(res.plunder.total || 0).toLocaleString()}
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);">
+            Cargo Cap: ${(res.attacker.cargoCapacity || 0).toLocaleString()}
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 1rem; text-align: center; border-top: 2px solid #69f0ae;">
+          <div style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase;">Asteroids Stolen</div>
+          <div style="font-size: 1.3rem; font-weight: 800; color: #69f0ae; margin: 0.25rem 0;">
+            ${roidsStolen.total.toLocaleString()} roids
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);">
+            ${roidsStolen.metalRoids} M • ${roidsStolen.crystalRoids} C • ${roidsStolen.eoniumRoids} E
+          </div>
+        </div>
+
+        <div class="panel" style="padding: 1rem; text-align: center; border-top: 2px solid var(--purple);">
+          <div style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase;">Predicted Score Δ</div>
+          <div style="font-size: 1.3rem; font-weight: 800; color: ${atkScoreClass}; margin: 0.25rem 0;">
+            ${atkScoreSign}${scoreChange.attacker.toLocaleString()}
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-dim); font-family: var(--font-mono);">
+            Defender: <span style="color: ${defScoreClass};">${defScoreSign}${scoreChange.defender.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COALITION FLEETS CASUALTY BREAKDOWN -->
+      <div class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-header">
+          <div class="panel-title">👥 Coalition Fleets Casualty Breakdown</div>
+          <span class="badge badge-info">${atkFleetsRes.length} Atk Fleet(s) • ${defFleetsRes.length} Def Fleet(s)</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.85rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02);">
+                <th style="padding: 0.6rem 0.75rem; text-align: left;">Fleet / Force</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Status</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Initial Force</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Destroyed</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Survivors</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Loss %</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: right;">Net Value Lost</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${fleetRowsHtml || '<tr><td colspan="7" style="text-align: center; padding: 1rem; color: var(--text-dim);">No fleet breakdown data available.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PREDICTED SCORE & ROID THEFT IMPACT BREAKDOWN PANEL -->
+      <div class="panel" style="margin-bottom: 1.5rem; background: rgba(187,134,252,0.03); border-left: 4px solid var(--purple);">
+        <div class="panel-header" style="margin-bottom: 0.5rem;">
+          <div class="panel-title" style="font-size: 0.95rem; color: #d8b4fe;">📈 Projected Score Dynamics & Asteroid Seizure Breakdown</div>
+          <span class="badge" style="background: rgba(187,134,252,0.15); color: #d8b4fe;">Score Economy Model</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; font-size: 0.85rem; font-family: var(--font-mono);">
+          <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 0.75rem;">
+            <div style="font-weight: 700; color: var(--cyan); margin-bottom: 0.35rem;">🚀 Attacker Score Impact: <span style="color: ${atkScoreClass};">${atkScoreSign}${scoreChange.attacker.toLocaleString()} pts</span></div>
+            <div style="color: var(--text-dim); line-height: 1.6; font-size: 0.8rem;">
+              • Ships Lost Penalty: <span style="color: #ff5252;">${(scoreChange.attackerBreakdown?.shipsLostPenalty || 0).toLocaleString()} pts</span><br>
+              • Salvage Recovery: <span style="color: var(--cyan);">+${(scoreChange.attackerBreakdown?.salvageBonus || 0).toLocaleString()} pts</span><br>
+              • Resource Plunder: <span style="color: var(--yellow);">+${(scoreChange.attackerBreakdown?.plunderBonus || 0).toLocaleString()} pts</span><br>
+              • Asteroids Captured: <span style="color: #69f0ae;">+${(scoreChange.attackerBreakdown?.asteroidsBonus || 0).toLocaleString()} pts</span> (${roidsStolen.total} × 500)
+            </div>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 0.75rem;">
+            <div style="font-weight: 700; color: #ff5252; margin-bottom: 0.35rem;">🛡️ Defender Score Impact: <span style="color: ${defScoreClass};">${defScoreSign}${scoreChange.defender.toLocaleString()} pts</span></div>
+            <div style="color: var(--text-dim); line-height: 1.6; font-size: 0.8rem;">
+              • Ships Lost Penalty: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.shipsLostPenalty || 0).toLocaleString()} pts</span><br>
+              • Resources Plundered: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.plunderPenalty || 0).toLocaleString()} pts</span><br>
+              • Asteroids Seized: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.asteroidsPenalty || 0).toLocaleString()} pts</span> (-${roidsStolen.total} roids)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TACTICAL ADVICE -->
+      <div class="panel" style="margin-bottom: 1.5rem; background: rgba(0,229,255,0.03); border-left: 4px solid var(--cyan);">
+        <div class="panel-header" style="margin-bottom: 0.5rem;">
+          <div class="panel-title" style="font-size: 0.95rem;">💡 Fleet Commander Tactical Debrief</div>
+        </div>
+        <div style="font-size: 0.88rem; line-height: 1.5;">
+          ${adviceHtml}
+        </div>
+      </div>
+
+      <!-- DETAILED CASUALTY TABLE -->
+      <div class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-header">
+          <div class="panel-title">📊 Unit Casualties & Survivor Manifest</div>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.85rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02);">
+                <th style="padding: 0.6rem 0.75rem; text-align: left;">Unit Name</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Initial Force</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Destroyed</th>
+                <th style="padding: 0.6rem 0.75rem; text-align: center;">Survivors</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${casualtiesHtml}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ROUND-BY-ROUND COMBAT REPLAY LOG -->
+      <div class="panel" style="margin-bottom: 2rem;">
+        <div class="panel-header">
+          <div class="panel-title">📜 Round-by-Round Engagement Replay</div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <span class="badge badge-info">${res.rounds} Round(s)</span>
+            <span style="font-size: 0.75rem; color: var(--text-dim); font-family: var(--font-mono);">Scrollable Telemetry</span>
+          </div>
+        </div>
+        <div style="max-height: 480px; overflow-y: auto; padding-right: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          ${roundsLogHtml}
+        </div>
+      </div>
+    `;
+
+    // Scroll to results smoothly
+    container.scrollIntoView({ behavior: 'smooth' });
+  }
 </script>
 
 </body>
@@ -4801,7 +6873,7 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, open_browser:
     display_host = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
     url = f"http://{display_host}:{port}"
     print("=" * 60)
-    print("🌌 PEGASUS GALAXY MCP CONTROL HUB GUI (v0.2)")
+    print("🌌 PEGASUS GALAXY MCP CONTROL HUB GUI (v0.3)")
     print(f"🚀 Server running at: http://{host}:{port}")
     if host == "0.0.0.0":
         print("🌐 Remote VPS Mode: Accessible from any device with network access to this server")
