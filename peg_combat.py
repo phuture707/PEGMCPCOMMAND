@@ -955,6 +955,8 @@ def parse_scan_record(scan_raw: Any, planet_lookup: Optional[Dict[str, Any]] = N
         "createdAt": created_at,
         "scanType": scan_type,
         "scanId": scan_id,
+        "status": scan_raw.get("status", "success"),
+        "isBlocked": (scan_raw.get("status") == "blocked"),
     }
 
 

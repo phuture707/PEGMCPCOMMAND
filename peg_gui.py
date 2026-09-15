@@ -181,6 +181,19 @@ def get_bot_logs(max_lines: int = 100) -> str:
         return f"Error reading logs: {e}"
 
 
+def log_to_bot_log(msg: str):
+    """Appends a timestamped log entry to bot.log so immediate manual actions are persisted."""
+    log_file = BASE_DIR / "bot.log"
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted = f"[{now_str}] {msg}\n"
+    print(formatted, end="", flush=True)
+    try:
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(formatted)
+    except Exception:
+        pass
+
+
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in separate threads for snappy UI."""
     daemon_threads = True
@@ -452,14 +465,15 @@ class PegasusHandler(BaseHTTPRequestHandler):
                     if r.get("asteroids") and not planet_meta[pid]["asteroids"]:
                         planet_meta[pid]["asteroids"] = r.get("asteroids")
 
-                # Filter all scans that contain fleet, military, or docked ships data
+                # Filter all scans that contain fleet, military, or docked ships data (or blocked scans)
                 fleet_scan_types = {"DEEP_SCAN", "MILITARY_SCAN", "FLEET_COMPOSITION_SCAN", "INCOMING_SCAN"}
                 fleet_scans = []
                 for s in scans:
-                    if s.get("status") != "success":
+                    is_blocked = (s.get("status") == "blocked")
+                    if not is_blocked and s.get("status") != "success":
                         continue
                     st = s.get("scanType", "")
-                    if st in fleet_scan_types:
+                    if st in fleet_scan_types or is_blocked:
                         fleet_scans.append(s)
                     else:
                         res_str = s.get("result", "")
@@ -606,10 +620,35 @@ class PegasusHandler(BaseHTTPRequestHandler):
 
             try:
                 result = mcp_client.call_tool(tool_name, args)
-                self._send_json({"success": True, "result": result})
+                # Check if result indicates a blocked action (e.g. Wave Distorter) or error
+                is_blocked = False
+                if isinstance(result, dict):
+                    if result.get("status") == "blocked" or (isinstance(result.get("data"), dict) and result["data"].get("status") == "blocked"):
+                        is_blocked = True
+
+                if is_blocked:
+                    log_to_bot_log(f"⚠️ [Immediate Order: {tool_name}] BLOCKED by planetary defenses (Wave Distorter) | args: {json.dumps(args)}")
+                elif isinstance(result, dict) and (result.get("isError") or result.get("success") is False):
+                    err_msg = result.get("error") or result.get("message") or "Action returned error"
+                    log_to_bot_log(f"❌ [Immediate Order: {tool_name}] FAILED: {err_msg} | args: {json.dumps(args)}")
+                else:
+                    if tool_name in ("perform_scan", "perform_wave_scan"):
+                        stype = args.get("scanType", "SCAN")
+                        tpid = args.get("targetPlanetId") or args.get("coords") or "target"
+                        log_to_bot_log(f"✅ [Immediate Order: {tool_name}] COMPLETED: {stype} on {tpid}")
+                    elif tool_name == "launch_fleet":
+                        mission = args.get("mission", "FLEET_MISSION")
+                        tpid = args.get("targetPlanetId") or args.get("coords") or "target"
+                        log_to_bot_log(f"🚀 [Immediate Order: launch_fleet] COMPLETED: {mission} toward {tpid}")
+                    else:
+                        log_to_bot_log(f"✅ [Immediate Order: {tool_name}] COMPLETED successfully")
+
+                self._send_json({"success": True, "result": result, "blocked": is_blocked})
             except PegasusMCPError as e:
+                log_to_bot_log(f"❌ [Immediate Order: {tool_name}] FAILED: {str(e)} | args: {json.dumps(args)}")
                 self._send_json({"success": False, "error": str(e), "code": e.code, "data": e.data}, status=400)
             except Exception as e:
+                log_to_bot_log(f"❌ [Immediate Order: {tool_name}] EXCEPTION: {str(e)} | args: {json.dumps(args)}")
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
 
@@ -2781,6 +2820,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <div style="color: var(--text-dim); font-size: 0.78rem;">
             Scanned Asteroids: <span id="sim-def-roids-badge" style="color: #69f0ae;">0 Metal • 0 Crystal • 0 Eonium</span>
           </div>
+          <div id="sim-def-blocked-banner" style="display: none; margin-top: 0.5rem; padding: 0.45rem 0.7rem; border-radius: 4px; background: rgba(234, 179, 8, 0.15); border: 1px solid var(--yellow); color: var(--yellow); font-size: 0.8rem;">
+            ⚠️ <strong>Wave Distorter Active:</strong> This scan was blocked by enemy planetary defenses (Tick <span id="sim-def-blocked-tick">---</span>). No fleet or structural intel was retrieved. Send an EMP wave or espionage probe to disable distorters.
+          </div>
         </div>
 
         <!-- PDS Planetary Defenses (Scattered only on Defended Base Planet) -->
@@ -3289,17 +3331,30 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const outputEl = document.getElementById('output-box');
       const outText = JSON.stringify(data.result || data, null, 2);
       
-      if (outText.includes('The table does not have the specified index')) {
+      const isBlocked = data.blocked || data.result?.status === 'blocked' || data.result?.data?.status === 'blocked';
+      if (isBlocked) {
+        outputEl.innerHTML = `<span style="color: var(--yellow); font-weight: 700;">⚠️ Wave Distorter / Planetary Defense Interference:</span>\n` +
+          `<span style="color: var(--text-dim);">This scan or action was blocked by enemy planetary defenses (Wave Distorter). No intel was retrieved.</span>\n\n` +
+          escapeHtml(outText);
+        showToast(`⚠️ ${selectedTool.name} was BLOCKED by planetary defenses!`);
+      } else if (outText.includes('The table does not have the specified index')) {
         outputEl.innerHTML = `<span style="color: var(--yellow); font-weight: 700;">⚠️ Pegasus Galaxy Server-Side Database Issue:</span>\n` +
           `<span style="color: var(--text-dim);">The game server's AWS DynamoDB database is missing a Global Secondary Index (GSI) for this query on their backend.</span>\n\n` +
           escapeHtml(outText);
         showToast("Server returned DynamoDB index error (game server issue)");
       } else {
         outputEl.textContent = outText;
-        if (!data.error && data.result?.success !== false) {
+        if (!data.error && data.result?.success !== false && !data.result?.isError) {
           recordQuotaUsage(selectedTool.name);
+          showToast(`Executed ${selectedTool.name} successfully!`);
+        } else {
+          showToast(`❌ ${selectedTool.name} returned error`);
         }
-        showToast(`Executed ${selectedTool.name} successfully!`);
+      }
+
+      // If a scan was performed, auto-refresh combat simulator scan targets immediately
+      if (selectedTool.name.toLowerCase().includes('scan')) {
+        loadCombatSimulator();
       }
     } catch (e) {
       document.getElementById('output-box').textContent = "Execution error: " + e.message;
@@ -4309,14 +4364,28 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       });
       const data = await res.json();
       recordQuotaUsage(tool);
-      if (data.success) {
+
+      // Immediately refresh server logs in UI so bot.log entry is reflected
+      await fetchBotLogs();
+
+      const isBlocked = data.blocked || data.result?.status === 'blocked' || data.result?.data?.status === 'blocked';
+      if (isBlocked) {
+        showToast(`⚠️ ${tool} was BLOCKED by planetary defenses!`);
+        box.textContent += `⚠️ [BLOCKED]: Order was blocked by enemy planetary defenses (Wave Distorter).\n`;
+      } else if (data.success && !data.result?.isError && data.result?.success !== false) {
         showToast(`✅ ${tool} executed successfully!`);
         box.textContent += `✅ [Result]: ` + JSON.stringify(data.result, null, 2) + `\n`;
       } else {
-        showToast(`❌ Error: ${data.error}`);
-        box.textContent += `❌ [Error]: ${data.error}\n`;
+        const errMsg = data.error || data.result?.error || 'Action failed';
+        showToast(`❌ Error: ${errMsg}`);
+        box.textContent += `❌ [Error]: ${errMsg}\n`;
       }
       box.scrollTop = box.scrollHeight;
+
+      // If a scan was performed, auto-refresh combat simulator targets immediately
+      if (tool.toLowerCase().includes('scan')) {
+        loadCombatSimulator();
+      }
     } catch(e) {
       showToast("Failed to execute: " + e.message);
       box.textContent += `❌ [Exception]: ${e.message}\n`;
@@ -5664,6 +5733,20 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       `;
       card.appendChild(hdr);
 
+      if (t.status === 'blocked' || t.isBlocked) {
+        const blockedRow = document.createElement('div');
+        blockedRow.style.padding = '0.4rem 0.6rem';
+        blockedRow.style.background = 'rgba(234, 179, 8, 0.1)';
+        blockedRow.style.border = '1px solid rgba(234, 179, 8, 0.3)';
+        blockedRow.style.borderRadius = '4px';
+        blockedRow.style.color = 'var(--yellow)';
+        blockedRow.style.fontSize = '0.8rem';
+        blockedRow.textContent = '⚠️ This scan was blocked by enemy Wave Distorters. No fleet data retrieved.';
+        card.appendChild(blockedRow);
+        container.appendChild(card);
+        return;
+      }
+
       // Section: Garrison
       if (gTotal > 0 || namedFleets.length === 0) {
         const gRow = document.createElement('div');
@@ -5692,11 +5775,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
       // Section: Named Fleets
       namedFleets.forEach((nf, nfIdx) => {
-        const nfShips = nf.ships || {};
-        const nfTotal = Object.values(nfShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
-        const shipNames = Object.entries(nfShips).slice(0, 4).map(([sid, cnt]) => `${cnt}x ${sid.replace('main-', '').replace(/-/g, ' ')}`).join(', ');
-        const extraShips = Object.keys(nfShips).length > 4 ? ` +${Object.keys(nfShips).length - 4} more` : '';
-
+        const nfTotal = Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
         const nfRow = document.createElement('div');
         nfRow.style.display = 'flex';
         nfRow.style.justifyContent = 'space-between';
@@ -5705,6 +5784,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         nfRow.style.background = 'rgba(0,0,0,0.2)';
         nfRow.style.borderRadius = '4px';
         nfRow.style.marginBottom = '0.4rem';
+
+        const shipNames = Object.entries(nf.ships || {}).slice(0, 4).map(([sid, cnt]) => `${cnt}x ${sid.replace('main-', '').replace(/-/g, ' ')}`).join(', ');
+        const extraShips = Object.keys(nf.ships || {}).length > 4 ? ` +${Object.keys(nf.ships || {}).length - 4} more` : '';
 
         nfRow.innerHTML = `
           <div>
@@ -5755,6 +5837,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       }
 
       simScanTargets.forEach((t, tIdx) => {
+        if (t.status === 'blocked' || t.isBlocked) return;
         const typeLabel = formatScanType(t.scanType);
         const coords = t.coords || `Target ${tIdx + 1}`;
         const gShips = t.garrisonShips || {};
@@ -6362,9 +6445,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const fleetCount = (t.namedFleets || []).length;
       const shipCount = Object.values(t.garrisonShips || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
       const pdsCount = Object.keys(t.pds || {}).length;
+      const isBlocked = (t.status === 'blocked' || t.isBlocked);
       const opt = document.createElement('option');
       opt.value = idx;
-      opt.textContent = `[${typeLabel}] Planet [${t.coords || '?'}] (Tick ${t.tick || '?'}) — ${shipCount.toLocaleString()} Garrison Ships, ${fleetCount} Fleets${pdsCount > 0 ? `, ${pdsCount} PDS` : ''}`;
+      if (isBlocked) {
+        opt.textContent = `[BLOCKED ${typeLabel}] Planet [${t.coords || '?'}] (Tick ${t.tick || '?'}) — ⚠️ Blocked by Wave Distorter (No Intel)`;
+      } else {
+        opt.textContent = `[${typeLabel}] Planet [${t.coords || '?'}] (Tick ${t.tick || '?'}) — ${shipCount.toLocaleString()} Garrison Ships, ${fleetCount} Fleets${pdsCount > 0 ? `, ${pdsCount} PDS` : ''}`;
+      }
       if (idx === 0) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -6385,7 +6473,11 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (selVal === '' || selVal === '__custom__' || selVal === '__none__') {
       currentTargetScan = null;
       if (scanCard) scanCard.style.display = 'none';
+      if (simDefenderFleets.length === 0) {
+        initDefaultDefenderFleet();
+      }
       renderAllFleetCards('def');
+      recalcCoalitionSummary('def');
       return;
     }
 
@@ -6397,14 +6489,27 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const coordsEl = document.getElementById('sim-def-coords');
     if (coordsEl) coordsEl.textContent = currentTargetScan.coords || 'Unknown';
     const typeEl = document.getElementById('sim-def-type');
-    if (typeEl) typeEl.textContent = formatScanType(currentTargetScan.scanType);
+    const isBlocked = (currentTargetScan.status === 'blocked' || currentTargetScan.isBlocked);
+    if (typeEl) {
+      typeEl.textContent = (isBlocked ? '⚠️ BLOCKED ' : '') + formatScanType(currentTargetScan.scanType);
+      typeEl.style.color = isBlocked ? 'var(--yellow)' : 'var(--cyan)';
+    }
     const tickEl = document.getElementById('sim-def-tick');
     if (tickEl) tickEl.textContent = currentTargetScan.tick || '---';
+
+    const blockedBanner = document.getElementById('sim-def-blocked-banner');
+    const blockedTick = document.getElementById('sim-def-blocked-tick');
+    if (blockedBanner) {
+      blockedBanner.style.display = isBlocked ? 'block' : 'none';
+      if (blockedTick) blockedTick.textContent = currentTargetScan.tick || '---';
+    }
 
     const res = currentTargetScan.resources || {};
     const resBadge = document.getElementById('sim-def-res-badge');
     if (resBadge) {
-      if (res.metal || res.crystal || res.eonium) {
+      if (isBlocked) {
+        resBadge.textContent = '⚠️ Blocked by Wave Distorter';
+      } else if (res.metal || res.crystal || res.eonium) {
         resBadge.textContent = `${(res.metal || 0).toLocaleString()} Metal • ${(res.crystal || 0).toLocaleString()} Crystal • ${(res.eonium || 0).toLocaleString()} Eonium`;
       } else {
         resBadge.textContent = 'Not included in this scan type';
@@ -6414,7 +6519,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const roids = currentTargetScan.asteroids || {};
     const roidsBadge = document.getElementById('sim-def-roids-badge');
     if (roidsBadge) {
-      if (roids.metalRoids || roids.crystalRoids || roids.eoniumRoids) {
+      if (isBlocked) {
+        roidsBadge.textContent = '⚠️ Blocked by Wave Distorter';
+      } else if (roids.metalRoids || roids.crystalRoids || roids.eoniumRoids) {
         roidsBadge.textContent = `${(roids.metalRoids || 0).toLocaleString()} Metal • ${(roids.crystalRoids || 0).toLocaleString()} Crystal • ${(roids.eoniumRoids || 0).toLocaleString()} Eonium`;
       } else {
         roidsBadge.textContent = 'Not included in this scan type';
@@ -6435,15 +6542,65 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     setControlValue('sim-pds-laser-chk', 'checked', !!pds['Laser Battery']);
     if (pds['Laser Battery']) document.getElementById('sim-pds-laser-lvl').value = pds['Laser Battery'];
 
-    // Update defender fleet presets
-    if (simDefenderFleets.length > 0 && (simDefenderFleets[0].sourceVal === '__garrison__' || simDefenderFleets[0].sourceVal === '__custom__')) {
-      simDefenderFleets[0].ships = Object.assign({}, currentTargetScan.garrisonShips || {});
-      const typeLabel = formatScanType(currentTargetScan.scanType);
-      simDefenderFleets[0].name = `[${typeLabel}] Garrison [${currentTargetScan.coords || 'Target'}]`;
-      simDefenderFleets[0].sourceVal = '__garrison__';
+    // Automatically populate defender fleet cards for Garrison AND ALL docked named fleets!
+    simDefenderFleets = [];
+    const typeLabel = formatScanType(currentTargetScan.scanType);
+
+    if (isBlocked) {
+      simDefenderFleets.push({
+        id: 'def_' + (simFleetSeq++),
+        side: 'def',
+        name: `[BLOCKED ${typeLabel}] Garrison [${currentTargetScan.coords || 'Target'}]`,
+        sourceVal: '__custom__',
+        enabled: true,
+        ships: {}
+      });
+      showToast('⚠️ This scan was blocked by enemy Wave Distorters. No fleet data available.');
+    } else {
+      const gShips = currentTargetScan.garrisonShips || {};
+      const gCount = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const namedFleets = currentTargetScan.namedFleets || [];
+
+      // 1. Base / Garrison Fleet (unassigned docked ships on the planet)
+      if (gCount > 0 || namedFleets.length === 0) {
+        simDefenderFleets.push({
+          id: 'def_' + (simFleetSeq++),
+          side: 'def',
+          name: `[${typeLabel}] Garrison [${currentTargetScan.coords || 'Target'}]`,
+          sourceVal: `scan_${idx}_garrison`,
+          enabled: true,
+          ships: Object.assign({}, gShips)
+        });
+      }
+
+      // 2. All Docked Named Fleets from Scan (Enabled by default so ALL docked fleets are counted!)
+      namedFleets.forEach((nf, nfIdx) => {
+        const isDocked = (nf.status === 'DOCKED' || !nf.status);
+        const fleetTitle = nf.name ? `Fleet "${nf.name}"` : `Fleet #${nfIdx + 1}`;
+        simDefenderFleets.push({
+          id: 'def_' + (simFleetSeq++),
+          side: 'def',
+          name: `[${typeLabel}] ${fleetTitle} [${currentTargetScan.coords || 'Target'}]${isDocked ? '' : ' (' + nf.status + ')'}`,
+          sourceVal: `scan_${idx}_nf_${nfIdx}`,
+          enabled: isDocked, // docked fleets enabled by default; in-transit disabled by default
+          ships: Object.assign({}, nf.ships || {})
+        });
+      });
+
+      if (simDefenderFleets.length === 0) {
+        simDefenderFleets.push({
+          id: 'def_' + (simFleetSeq++),
+          side: 'def',
+          name: `[${typeLabel}] Garrison [${currentTargetScan.coords || 'Target'}]`,
+          sourceVal: '__custom__',
+          enabled: true,
+          ships: {}
+        });
+      }
     }
 
     renderAllFleetCards('def');
+    recalcCoalitionSummary('def');
   }
 
   async function runBattleSimulation() {
