@@ -6780,24 +6780,23 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       <div class="panel" style="margin-bottom: 1.5rem; background: rgba(187,134,252,0.03); border-left: 4px solid var(--purple);">
         <div class="panel-header" style="margin-bottom: 0.5rem;">
           <div class="panel-title" style="font-size: 0.95rem; color: #d8b4fe;">📈 Projected Score Dynamics & Asteroid Seizure Breakdown</div>
-          <span class="badge" style="background: rgba(187,134,252,0.15); color: #d8b4fe;">Score Economy Model</span>
+          <span class="badge" style="background: rgba(187,134,252,0.15); color: #d8b4fe;">Official Formulae Standard</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; font-size: 0.85rem; font-family: var(--font-mono);">
           <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 0.75rem;">
             <div style="font-weight: 700; color: var(--cyan); margin-bottom: 0.35rem;">🚀 Attacker Score Impact: <span style="color: ${atkScoreClass};">${atkScoreSign}${scoreChange.attacker.toLocaleString()} pts</span></div>
             <div style="color: var(--text-dim); line-height: 1.6; font-size: 0.8rem;">
-              • Ships Lost Penalty: <span style="color: #ff5252;">${(scoreChange.attackerBreakdown?.shipsLostPenalty || 0).toLocaleString()} pts</span><br>
-              • Salvage Recovery: <span style="color: var(--cyan);">+${(scoreChange.attackerBreakdown?.salvageBonus || 0).toLocaleString()} pts</span><br>
-              • Resource Plunder: <span style="color: var(--yellow);">+${(scoreChange.attackerBreakdown?.plunderBonus || 0).toLocaleString()} pts</span><br>
-              • Asteroids Captured: <span style="color: #69f0ae;">+${(scoreChange.attackerBreakdown?.asteroidsBonus || 0).toLocaleString()} pts</span> (${roidsStolen.total} × 500)
+              • Asteroids Captured: <span style="color: #69f0ae;">+${(scoreChange.attackerBreakdown?.asteroidsBonus || 0).toLocaleString()} pts</span> (${roidsStolen.total} × 50 pts)<br>
+              • Resource Plunder: <span style="color: var(--yellow);">+${(scoreChange.attackerBreakdown?.plunderBonus || 0).toLocaleString()} pts</span> (fromRes / 9)<br>
+              • Fleet Salvage Recovery: <span style="color: var(--cyan);">+${(scoreChange.attackerBreakdown?.salvageBonus || 0).toLocaleString()} pts</span> (30% def wreck res / 9)
             </div>
           </div>
           <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 0.75rem;">
             <div style="font-weight: 700; color: #ff5252; margin-bottom: 0.35rem;">🛡️ Defender Score Impact: <span style="color: ${defScoreClass};">${defScoreSign}${scoreChange.defender.toLocaleString()} pts</span></div>
             <div style="color: var(--text-dim); line-height: 1.6; font-size: 0.8rem;">
-              • Ships Lost Penalty: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.shipsLostPenalty || 0).toLocaleString()} pts</span><br>
-              • Resources Plundered: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.plunderPenalty || 0).toLocaleString()} pts</span><br>
-              • Asteroids Seized: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.asteroidsPenalty || 0).toLocaleString()} pts</span> (-${roidsStolen.total} roids)
+              • Asteroids Lost: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.asteroidsPenalty || 0).toLocaleString()} pts</span> (-${roidsStolen.total} × 50 pts)<br>
+              • Resources Plundered: <span style="color: #ff5252;">${(scoreChange.defenderBreakdown?.plunderPenalty || 0).toLocaleString()} pts</span> (-fromRes / 9)<br>
+              • Garrison Salvage Recovery: <span style="color: var(--green);">+${(scoreChange.defenderBreakdown?.salvageBonus || 0).toLocaleString()} pts</span> (30% atk wreck res / 9)
             </div>
           </div>
         </div>

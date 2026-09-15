@@ -988,18 +988,21 @@ def simulate_combat(
     defender_resources = defender_resources or {}
     defender_asteroids = defender_asteroids or {}
 
-    # Research bonuses
+    # Research bonuses (Pegasus Galaxy official: Hulls +5% armor/lvl, PDS +3% damage/lvl)
     atk_hull_lvl = attacker_research.get("Hulls", 0)
     def_hull_lvl = defender_research.get("Hulls", 0)
     def_pds_lvl = defender_research.get("PDS", 0)
+    atk_pds_lvl = attacker_research.get("PDS", 0)
 
     if atk_armor_mult is None:
+        # Attackers do not have home bonus (1.0)
         atk_armor_mult = 1.0 + (atk_hull_lvl * 0.05)
     if def_armor_mult is None:
-        # Hulls research (+5% per level) + 11% planetary defender advantage (flat additive, yielding 1.36 for lvl 5)
-        def_advantage = 0.11 if (defender_pds or def_hull_lvl > 0) else 0.0
-        def_armor_mult = 1.0 + (def_hull_lvl * 0.05) + def_advantage
-    pds_mult = 1.0 + (def_pds_lvl * 0.08)
+        # Official Formula: Armor = floor(baseArmor * homeBonus * researchBonus)
+        # Home Bonus = 1.10 (only when defending at home), Research Bonus = 1 + (Hulls * 0.05)
+        def_home_bonus = 1.10 if (defender_pds or def_hull_lvl >= 0) else 1.0
+        def_armor_mult = def_home_bonus * (1.0 + (def_hull_lvl * 0.05))
+    pds_mult = 1.0 + (def_pds_lvl * 0.03)
 
     # Normalize multiple fleet inputs
     if attacker_fleets is None:
@@ -1238,30 +1241,37 @@ def simulate_combat(
             # Select SINGLE ACTIVE target class according to shooter's target priority classes
             # A ship group engages targets strictly from its highest available priority class in this round
             # SPECIAL capital ships (Imperator, Oblivion, Oracle) are screened behind standard battleline ships
+            # Pegasus Galaxy official target efficiency:
+            # Primary (1st) = 100%, Secondary (2nd) = 80%, Tertiary (3rd) = 70%, Fallback = 100%
             target_candidates: List[CombatGroup] = []
-            for p_class in [shooter.target_class1, shooter.target_class2, shooter.target_class3]:
+            target_efficiency: float = 1.0
+
+            for p_idx, p_class in enumerate([shooter.target_class1, shooter.target_class2, shooter.target_class3]):
                 if not p_class:
                     continue
                 matching = [e for e in targetable_enemies if e.ship_class == p_class]
                 if matching:
                     target_candidates = matching
+                    target_efficiency = 1.0 if p_idx == 0 else (0.80 if p_idx == 1 else 0.70)
                     break
                 elif p_class == 'HEAVY':
                     # If all standard HEAVY ships are down, engage screened SPECIAL capital ships
                     matching_special = [e for e in targetable_enemies if e.ship_class == 'SPECIAL']
                     if matching_special:
                         target_candidates = matching_special
+                        target_efficiency = 1.0 if p_idx == 0 else (0.80 if p_idx == 1 else 0.70)
                         break
 
-            # If none of the 3 priority classes have targets, fallback to any remaining enemy targets
+            # If none of the 3 priority classes have targets, fallback to any remaining enemy targets at 100%
             if not target_candidates:
                 target_candidates = sorted(targetable_enemies, key=lambda e: (1 if e.ship_class == 'SPECIAL' else 0))
+                target_efficiency = 1.0
 
             if not target_candidates:
                 continue
 
-            # 2. Damage Output Calculation & Kinetic Spillover
-            raw_firepower = shooter.count * shooter.damage
+            # 2. Damage Output Calculation & Kinetic Spillover (quantity * damage * targetEfficiency)
+            raw_firepower = shooter.count * shooter.damage * target_efficiency
             total_dmg = raw_firepower
 
             # 3. Shield Absorption (Planetary Shield Generator for defender targets)
@@ -1305,7 +1315,8 @@ def simulate_combat(
                     chosen_target.count -= destroyed
                     remaining_dmg -= dmg_used
 
-                    msg = f"{shooter.side.capitalize()}:{shooter.name} dealt {int(dmg_used):,} damage to {chosen_target.name}"
+                    eff_note = f" ({int(target_efficiency * 100)}% eff)" if target_efficiency < 1.0 else ""
+                    msg = f"{shooter.side.capitalize()}:{shooter.name} dealt {int(dmg_used):,} damage to {chosen_target.name}{eff_note}"
                     if destroyed > 0:
                         msg += f", destroyed {destroyed:,}"
                     else:
@@ -1338,6 +1349,7 @@ def simulate_combat(
                         round_events.append(reflect_msg)
 
             # 6. EMP Disruption Spillover (if firing group has EMP weapons)
+            # Pegasus Galaxy official: Chance = max(0.0, min(1.0, 0.5 - (targetEmpRes / 100)))
             if shooter.emp_damage > 0:
                 remaining_emp = shooter.count * shooter.emp_damage
                 for chosen_target in target_candidates:
@@ -1363,10 +1375,12 @@ def simulate_combat(
                         round_events.append(f"🛡️ {chosen_target.name} resisted EMP disruption from {shooter.name}")
                         continue
 
-                    emp_needed = chosen_target.count * chosen_target.emp_resistance
-                    if remaining_emp >= emp_needed and not chosen_target.is_pds:
+                    # Official EMP chance per unit: Chance = 0.5 - (targetEmpRes / 100), clamped [0, 1]
+                    emp_chance = max(0.0, min(1.0, 0.5 - (chosen_target.emp_resistance / 100.0)))
+                    expected_disabled = int(round(chosen_target.count * emp_chance)) if emp_chance > 0 else 0
+
+                    if expected_disabled > 0 and not chosen_target.is_pds:
                         chosen_target.emp_disabled = True
-                        remaining_emp -= emp_needed
                         action_data = {
                             "firingShipGroup": shooter.name,
                             "side": shooter.side,
@@ -1375,13 +1389,14 @@ def simulate_combat(
                             "damageDealt": 0,
                             "damageAbsorbed": 0,
                             "shipsDestroyed": 0,
-                            "shipsEmped": chosen_target.count,
+                            "shipsEmped": expected_disabled,
                             "empResult": {"status": "disabled"}
                         }
                         round_actions.append(action_data)
-                        round_events.append(f"⚡ {shooter.name} EMP disrupted all {chosen_target.count} {chosen_target.name} (weapons disabled)")
+                        round_events.append(f"⚡ {shooter.name} EMP disrupted {expected_disabled}/{chosen_target.count} {chosen_target.name} ({int(emp_chance * 100)}% chance)")
+                        break
                     else:
-                        # Partial EMP power - resisted
+                        # Resisted
                         action_data = {
                             "firingShipGroup": shooter.name,
                             "side": shooter.side,
@@ -1620,13 +1635,34 @@ def simulate_combat(
             "valueLost": pds_val
         })
 
-    # Salvage projection (~30% of destroyed metal, crystal, eonium)
-    salvage = {
-        "metal": int((atk_val_lost["metal"] + def_val_lost["metal"]) * 0.30),
-        "crystal": int((atk_val_lost["crystal"] + def_val_lost["crystal"]) * 0.30),
-        "eonium": int((atk_val_lost["eonium"] + def_val_lost["eonium"]) * 0.30),
+    # Salvage Calculation (Pegasus Galaxy Official Formula)
+    # Salvage = floor(destroyedShips * shipCost * 30 / 100)
+    # - Attacker salvage = from destroyed DEFENDER ships -> carried by attacker fleet
+    # - Defender salvage = from destroyed ATTACKER ships -> applied immediately to defender planet
+    # Both sides always receive their salvage regardless of outcome.
+    atk_salvage = {
+        "metal": int(def_val_lost["metal"] * 0.30),
+        "crystal": int(def_val_lost["crystal"] * 0.30),
+        "eonium": int(def_val_lost["eonium"] * 0.30),
     }
-    salvage["total"] = salvage["metal"] + salvage["crystal"] + salvage["eonium"]
+    atk_salvage["total"] = atk_salvage["metal"] + atk_salvage["crystal"] + atk_salvage["eonium"]
+
+    def_salvage = {
+        "metal": int(atk_val_lost["metal"] * 0.30),
+        "crystal": int(atk_val_lost["crystal"] * 0.30),
+        "eonium": int(atk_val_lost["eonium"] * 0.30),
+    }
+    def_salvage["total"] = def_salvage["metal"] + def_salvage["crystal"] + def_salvage["eonium"]
+
+    # Combined salvage dictionary for overall summary
+    salvage = {
+        "metal": atk_salvage["metal"] + def_salvage["metal"],
+        "crystal": atk_salvage["crystal"] + def_salvage["crystal"],
+        "eonium": atk_salvage["eonium"] + def_salvage["eonium"],
+        "total": atk_salvage["total"] + def_salvage["total"],
+        "attacker": atk_salvage,
+        "defender": def_salvage,
+    }
 
     # Cargo capacity of surviving attacker ships
     cargo_capacity = sum(
@@ -1634,22 +1670,49 @@ def simulate_combat(
         for g in attacker_groups
     )
 
-    # Plunder projection if defender has resources
+    # Initial Fleet Values for Loot Fairness Factor calculation
+    atk_initial_fleet_val = sum(g.initial_count * (g.cost.get("metal", 0) + g.cost.get("crystal", 0) + g.cost.get("eonium", 0)) for g in attacker_groups)
+    def_initial_fleet_val = sum(g.initial_count * (g.cost.get("metal", 0) + g.cost.get("crystal", 0) + g.cost.get("eonium", 0)) for g in defender_groups)
+
+    # Dominance & Fairness Factors (Pegasus Galaxy Official Formula):
+    # Dominance = defenderShipsDestroyed / defenderShipsStarted
+    # DominanceFactor = max(0, min(1, (dominance - 0.2) / 0.6))
+    # FleetRatio = attackerFleetValue / defenderFleetValue
+    # FairnessFactor = 1 - 0.5 * max(0, min(1, (ratio - 1) / 2))
+    # LootMultiplier = DominanceFactor * FairnessFactor
+    raw_dominance = (total_def_lost / total_def_start) if total_def_start > 0 else 0.0
+    dominance_factor = max(0.0, min(1.0, (raw_dominance - 0.2) / 0.6)) if raw_dominance > 0.2 else 0.0
+
+    fleet_ratio = (atk_initial_fleet_val / def_initial_fleet_val) if def_initial_fleet_val > 0 else 1.0
+    fairness_penalty_ratio = max(0.0, min(1.0, (fleet_ratio - 1.0) / 2.0))
+    fairness_factor = 1.0 - (0.5 * fairness_penalty_ratio)
+
+    loot_multiplier = dominance_factor * fairness_factor
+
+    # Resource Theft (Plunder): Stolen = floor(defenderStockpile * 0.20 * LootMultiplier)
+    # Capped by surviving Resource Hauler cargo capacity. No haulers = no theft.
     def_metal = defender_resources.get("metal", 0)
     def_crystal = defender_resources.get("crystal", 0)
     def_eonium = defender_resources.get("eonium", 0)
     total_def_res = def_metal + def_crystal + def_eonium
 
     plunder = {"metal": 0, "crystal": 0, "eonium": 0, "total": 0}
-    if outcome == "attacker" and total_def_res > 0 and cargo_capacity > 0:
-        # Attacker can loot up to 50% of planet resources, capped by cargo capacity
-        max_lootable = int(total_def_res * 0.50)
-        actual_loot = min(cargo_capacity, max_lootable)
-        if total_def_res > 0:
-            ratio = actual_loot / total_def_res
-            plunder["metal"] = int(def_metal * ratio)
-            plunder["crystal"] = int(def_crystal * ratio)
-            plunder["eonium"] = int(def_eonium * ratio)
+    if outcome == "attacker" and total_def_res > 0 and cargo_capacity > 0 and loot_multiplier > 0:
+        base_stolen_metal = int(def_metal * 0.20 * loot_multiplier)
+        base_stolen_crystal = int(def_crystal * 0.20 * loot_multiplier)
+        base_stolen_eonium = int(def_eonium * 0.20 * loot_multiplier)
+        base_stolen_tot = base_stolen_metal + base_stolen_crystal + base_stolen_eonium
+
+        if base_stolen_tot <= cargo_capacity:
+            plunder["metal"] = base_stolen_metal
+            plunder["crystal"] = base_stolen_crystal
+            plunder["eonium"] = base_stolen_eonium
+            plunder["total"] = base_stolen_tot
+        else:
+            ratio = cargo_capacity / base_stolen_tot if base_stolen_tot > 0 else 0
+            plunder["metal"] = int(base_stolen_metal * ratio)
+            plunder["crystal"] = int(base_stolen_crystal * ratio)
+            plunder["eonium"] = int(base_stolen_eonium * ratio)
             plunder["total"] = plunder["metal"] + plunder["crystal"] + plunder["eonium"]
 
     # Asteroid Cargo Capacity of surviving attacker miners
@@ -1658,7 +1721,9 @@ def simulate_combat(
         for g in attacker_groups
     )
 
-    # Asteroids Stolen projection (12.5% of defender's roids, capped by surviving asteroid capacity)
+    # Asteroid Theft (Pegasus Galaxy Official Formula):
+    # Stolen = floor(defenderAsteroids * 25 / 100 * LootMultiplier)
+    # Capped by surviving Asteroid Miner capacity (5 per miner). No miners = no theft.
     def_metal_roids = int(defender_asteroids.get("metalRoids", defender_asteroids.get("metal", 0)) or 0)
     def_crystal_roids = int(defender_asteroids.get("crystalRoids", defender_asteroids.get("crystal", 0)) or 0)
     def_eonium_roids = int(defender_asteroids.get("eoniumRoids", defender_asteroids.get("eonium", 0)) or 0)
@@ -1668,10 +1733,10 @@ def simulate_combat(
     stolen_crystal_roids = 0
     stolen_eonium_roids = 0
 
-    if outcome == "attacker" and total_def_roids > 0 and asteroid_capacity > 0:
-        base_stolen_metal = int(def_metal_roids * 0.125)
-        base_stolen_crystal = int(def_crystal_roids * 0.125)
-        base_stolen_eonium = int(def_eonium_roids * 0.125)
+    if outcome == "attacker" and total_def_roids > 0 and asteroid_capacity > 0 and loot_multiplier > 0:
+        base_stolen_metal = int(def_metal_roids * 0.25 * loot_multiplier)
+        base_stolen_crystal = int(def_crystal_roids * 0.25 * loot_multiplier)
+        base_stolen_eonium = int(def_eonium_roids * 0.25 * loot_multiplier)
         base_total = base_stolen_metal + base_stolen_crystal + base_stolen_eonium
 
         if base_total <= asteroid_capacity:
@@ -1680,7 +1745,7 @@ def simulate_combat(
             stolen_eonium_roids = base_stolen_eonium
         else:
             # Scale down proportionally to fit asteroid cargo capacity
-            ratio = asteroid_capacity / base_total
+            ratio = asteroid_capacity / base_total if base_total > 0 else 0
             stolen_metal_roids = int(base_stolen_metal * ratio)
             stolen_crystal_roids = int(base_stolen_crystal * ratio)
             stolen_eonium_roids = int(base_stolen_eonium * ratio)
@@ -1705,41 +1770,33 @@ def simulate_combat(
         "total": stolen_metal_roids + stolen_crystal_roids + stolen_eonium_roids
     }
 
-    # Predicted Score Impact:
-    # 1. Ship value destroyed reduces owner score (approx. 1 score per 1,000 net resource value)
-    # 2. Resources plundered / salvaged transfer net worth from defender to attacker
-    # 3. Asteroids captured yield permanent economic output (~500 score equivalent per asteroid)
-    atk_res_loss = atk_val_lost["total"]
-    def_res_loss = def_val_lost["total"]
-    plunder_res = plunder["total"]
-    salvage_res = salvage["total"] if outcome == "attacker" else (salvage["total"] // 2)
+    # Official Score Formula (Pegasus Galaxy):
+    # Score = 50 * fromRoids + fromResources / 3 + 3 * fromResearches + fromConstructions
+    # Where fromResources = (metal + crystal + eonium) / 3  =>  net score per resource = 1 / 9 points.
+    # Asteroid score weight: 50 points per roid.
+    atk_salvage_pts = int(atk_salvage["total"] / 9.0)
+    def_salvage_pts = int(def_salvage["total"] / 9.0)
+    plunder_pts = int(plunder["total"] / 9.0)
+    stolen_roids_pts = int(asteroids_stolen["total"] * 50)
 
-    atk_score_delta = int(
-        (-atk_res_loss / 1000.0)
-        + (salvage_res / 1000.0)
-        + (plunder_res / 1000.0)
-        + (asteroids_stolen["total"] * 500)
-    )
-
-    def_score_delta = int(
-        (-def_res_loss / 1000.0)
-        - (plunder_res / 1000.0)
-        - (asteroids_stolen["total"] * 500)
-    )
+    # In terms of game score:
+    # Attacker net gain = Asteroids (+50/roid) + Plunder (+1/9 per res) + Attacker Salvage (+1/9 per res)
+    # Defender net impact = Asteroids (-50/roid) - Plunder (-1/9 per res) + Defender Salvage (+1/9 per res)
+    atk_score_delta = stolen_roids_pts + plunder_pts + atk_salvage_pts
+    def_score_delta = -stolen_roids_pts - plunder_pts + def_salvage_pts
 
     score_changes = {
         "attacker": atk_score_delta,
         "defender": def_score_delta,
         "attackerBreakdown": {
-            "shipsLostPenalty": int(-atk_res_loss / 1000.0),
-            "salvageBonus": int(salvage_res / 1000.0),
-            "plunderBonus": int(plunder_res / 1000.0),
-            "asteroidsBonus": asteroids_stolen["total"] * 500
+            "salvageBonus": atk_salvage_pts,
+            "plunderBonus": plunder_pts,
+            "asteroidsBonus": stolen_roids_pts
         },
         "defenderBreakdown": {
-            "shipsLostPenalty": int(-def_res_loss / 1000.0),
-            "plunderPenalty": int(-plunder_res / 1000.0),
-            "asteroidsPenalty": -asteroids_stolen["total"] * 500
+            "salvageBonus": def_salvage_pts,
+            "plunderPenalty": -plunder_pts,
+            "asteroidsPenalty": -stolen_roids_pts
         }
     }
 
@@ -1759,13 +1816,14 @@ def simulate_combat(
         advice.append("⚠️ Assault is projected to fail. Increase total fleet size or send heavy capital ships to absorb ground fire.")
     if current_shield_hp > 0:
         advice.append(f"🛡️ Enemy Shield Generator absorbed significant damage ({int(shield_max_hp - current_shield_hp):,} HP). Bring EMP ships (e.g. Synthara Pulse) or high-caliber bombardment.")
-    if cargo_capacity < total_def_res * 0.30 and outcome == "attacker" and total_def_res > 100000:
-        advice.append(f"📦 High loot potential ({total_def_res:,} resources on planet)! Your surviving cargo capacity is only {cargo_capacity:,}. Add Freighters to maximize plunder.")
+    if cargo_capacity < total_def_res * 0.20 and outcome == "attacker" and total_def_res > 100000:
+        advice.append(f"📦 High loot potential ({total_def_res:,} resources on planet)! Your surviving cargo capacity is only {cargo_capacity:,}. Add Freighters/Haulers to maximize plunder.")
     if outcome == "attacker" and total_def_roids > 0:
+        max_possible_roids = int(total_def_roids * 0.25 * loot_multiplier)
         if asteroid_capacity == 0:
-            advice.append(f"⛏️ Defender has {total_def_roids:,} asteroids available for capture, but your fleet has 0 Mining ships with Asteroid Capacity! Add Ore Extractors, Core Drillers, or Siege Harvesters to seize up to {int(total_def_roids * 0.125):,} asteroids.")
-        elif asteroids_stolen["total"] < int(total_def_roids * 0.125):
-            advice.append(f"⛏️ Mining ships seized {asteroids_stolen['total']:,} asteroids (capped by {asteroid_capacity:,} asteroid cargo cap). Add more miners to capture the full {int(total_def_roids * 0.125):,} asteroids available.")
+            advice.append(f"⛏️ Defender has {total_def_roids:,} asteroids available for capture, but your fleet has 0 Mining ships with Asteroid Capacity! Add Ore Extractors, Core Drillers, or Siege Harvesters to seize up to {max_possible_roids:,} asteroids.")
+        elif asteroids_stolen["total"] < max_possible_roids:
+            advice.append(f"⛏️ Mining ships seized {asteroids_stolen['total']:,} asteroids (capped by {asteroid_capacity:,} asteroid cargo cap). Add more miners to capture the full {max_possible_roids:,} asteroids available.")
     if def_lost_counts.get("main-ion-cannon", 0) == 0 and defender_pds.get("main-ion-cannon", 0) > 0:
         advice.append("⚡ Enemy Ion Cannons will heavily target your capital battleships. Deploy disposable light screens (Talon/Centurion) to draw early fire.")
     if def_start_counts.get("main-vanguard-imperator", 0) > 0:
