@@ -543,25 +543,39 @@ def run_battle_calc_cmd(
     the enemy fleet extracted from deep scan.
     """
     with console.status("[bold cyan]Querying active fleets, defense systems, and scan history...", spinner="dots"):
-        active_fleets_resp = client.call_tool("list_active_fleets") or {}
-        hangar_resp = client.call_tool("get_planet_ships") or {}
+        fleet_summary_resp = client.call_tool("get_fleet_summary") or {}
         scans_resp = client.call_tool("get_scan_history") or {}
         pds_resp = client.call_tool("list_pds") or {}
         research_resp = client.call_tool("get_planet_research") or {}
         planet_resp = client.get_planet_status() or {}
 
-    named_fleets = active_fleets_resp.get("data", []) if isinstance(active_fleets_resp, dict) else []
-    raw_hangar = hangar_resp.get("data", {}) if isinstance(hangar_resp, dict) else {}
+    fs_data = fleet_summary_resp.get("data", {}) if isinstance(fleet_summary_resp, dict) else {}
+    named_fleets = fs_data.get("fleets", []) if isinstance(fs_data, dict) else []
+    if not named_fleets:
+        active_resp = client.call_tool("list_active_fleets") or {}
+        named_fleets = active_resp.get("data", []) if isinstance(active_resp, dict) else []
+
     hangar_ships = {}
-    if isinstance(raw_hangar, dict):
-        hangar_ships = {k: int(v) for k, v in raw_hangar.items() if isinstance(v, (int, float))}
-    elif isinstance(raw_hangar, list):
-        for item in raw_hangar:
-            if isinstance(item, dict):
-                sid = item.get("shipDefinitionId") or item.get("id")
-                qty = item.get("quantity") or item.get("count", 1)
-                if sid:
-                    hangar_ships[sid] = hangar_ships.get(sid, 0) + int(qty)
+    if isinstance(fs_data, dict) and "baseFleet" in fs_data:
+        raw_base = fs_data.get("baseFleet", {})
+        for sid, cnt in raw_base.items():
+            if not sid.startswith("pds-"):
+                try:
+                    hangar_ships[sid] = int(cnt)
+                except (ValueError, TypeError):
+                    pass
+    if not hangar_ships:
+        hangar_resp = client.call_tool("get_planet_ships") or {}
+        raw_hangar = hangar_resp.get("data", {}) if isinstance(hangar_resp, dict) else {}
+        if isinstance(raw_hangar, dict):
+            hangar_ships = {k: int(v) for k, v in raw_hangar.items() if isinstance(v, (int, float))}
+        elif isinstance(raw_hangar, list):
+            for item in raw_hangar:
+                if isinstance(item, dict):
+                    sid = item.get("shipDefinitionId") or item.get("id")
+                    qty = item.get("quantity") or item.get("count", 1)
+                    if sid:
+                        hangar_ships[sid] = hangar_ships.get(sid, 0) + int(qty)
 
     # User Home Defense Data
     user_pds = {}

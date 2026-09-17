@@ -329,24 +329,63 @@ class PegasusHandler(BaseHTTPRequestHandler):
         # Combat Simulator Endpoints (GET)
         if url_path == "/api/combat/attacker_fleets":
             try:
-                active_fleets_resp = mcp_client.call_tool("list_active_fleets") or {}
-                planet_ships_resp = mcp_client.call_tool("get_planet_ships") or {}
-
-                fleets = active_fleets_resp.get("data", []) if isinstance(active_fleets_resp, dict) else []
-                raw_hangar = planet_ships_resp.get("data", {}) if isinstance(planet_ships_resp, dict) else {}
+                fleets = []
                 hangar = {}
-                if isinstance(raw_hangar, dict):
-                    hangar = {k: int(v) for k, v in raw_hangar.items() if isinstance(v, (int, float))}
-                elif isinstance(raw_hangar, list):
-                    for item in raw_hangar:
-                        if isinstance(item, dict):
-                            sid = item.get("shipDefinitionId") or item.get("id")
-                            qty = item.get("quantity") or item.get("count", 1)
-                            if sid:
-                                hangar[sid] = hangar.get(sid, 0) + int(qty)
+                home_pds_from_base = {}
+
+                # 1. Fetch complete fleet summary (includes ALL fleets including DOCKED, plus baseFleet)
+                try:
+                    summary_resp = mcp_client.call_tool("get_fleet_summary") or {}
+                    s_data = summary_resp.get("data", {}) if isinstance(summary_resp, dict) else {}
+                    if isinstance(s_data, dict):
+                        fleets = s_data.get("fleets", []) or []
+                        raw_base = s_data.get("baseFleet", {}) or {}
+                        for sid, cnt in raw_base.items():
+                            if sid.startswith("pds-"):
+                                sid_lower = sid.lower()
+                                if "laser" in sid_lower:
+                                    home_pds_from_base["Laser Battery"] = max(home_pds_from_base.get("Laser Battery", 0), int(cnt))
+                                elif "missile" in sid_lower:
+                                    home_pds_from_base["Missile Silo"] = max(home_pds_from_base.get("Missile Silo", 0), int(cnt))
+                                elif "ion" in sid_lower:
+                                    home_pds_from_base["Ion Cannon"] = max(home_pds_from_base.get("Ion Cannon", 0), int(cnt))
+                                elif "shield" in sid_lower:
+                                    home_pds_from_base["Shield Generator"] = max(home_pds_from_base.get("Shield Generator", 0), int(cnt))
+                            else:
+                                try:
+                                    hangar[sid] = int(cnt)
+                                except (ValueError, TypeError):
+                                    pass
+                except Exception:
+                    pass
+
+                # Fallback if fleets is empty
+                if not fleets:
+                    try:
+                        active_fleets_resp = mcp_client.call_tool("list_active_fleets") or {}
+                        fleets = active_fleets_resp.get("data", []) if isinstance(active_fleets_resp, dict) else []
+                    except Exception:
+                        pass
+
+                # Fallback for hangar if empty
+                if not hangar:
+                    try:
+                        planet_ships_resp = mcp_client.call_tool("get_planet_ships") or {}
+                        raw_hangar = planet_ships_resp.get("data", {}) if isinstance(planet_ships_resp, dict) else {}
+                        if isinstance(raw_hangar, dict):
+                            hangar = {k: int(v) for k, v in raw_hangar.items() if isinstance(v, (int, float))}
+                        elif isinstance(raw_hangar, list):
+                            for item in raw_hangar:
+                                if isinstance(item, dict):
+                                    sid = item.get("shipDefinitionId") or item.get("id")
+                                    qty = item.get("quantity") or item.get("count", 1)
+                                    if sid:
+                                        hangar[sid] = hangar.get(sid, 0) + int(qty)
+                    except Exception:
+                        pass
 
                 # Query Home Defense info (PDS, research, resources, asteroids)
-                home_pds = {}
+                home_pds = dict(home_pds_from_base)
                 try:
                     pds_resp = mcp_client.call_tool("list_pds") or {}
                     pds_list = pds_resp.get("data", []) if isinstance(pds_resp, dict) else []
@@ -354,7 +393,7 @@ class PegasusHandler(BaseHTTPRequestHandler):
                         name = p.get("name")
                         lvl = p.get("currentLevel", 1)
                         if name:
-                            home_pds[name] = lvl
+                            home_pds[name] = max(home_pds.get(name, 0), lvl)
                 except Exception:
                     pass
 
@@ -2734,10 +2773,13 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">Multi-attacker coalition • Toggle, add, or edit fleets</div>
           </div>
           <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
-            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: var(--cyan); border-color: rgba(0,229,255,0.4);" onclick="addAttackerFleet()">
-              + Add Fleet
+            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: var(--cyan); border-color: rgba(0,229,255,0.4);" onclick="addAttackerFleet()" title="Add a custom editable fleet card">
+              + Custom Fleet
             </button>
-            <select id="sim-atk-add-scan-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 220px; border-color: rgba(128,216,255,0.4); color: #80d8ff; background: rgba(0,229,255,0.06);" onchange="onQuickAddScanSelect('atk', this)">
+            <select id="sim-atk-add-empire-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 220px; border-color: rgba(0,229,255,0.4); color: var(--cyan); background: rgba(0,229,255,0.06);" onchange="onQuickAddEmpireSelect('atk', this)" title="Add one of your own fleets or base garrison">
+              <option value="">🏰 Add Own Fleet...</option>
+            </select>
+            <select id="sim-atk-add-scan-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 200px; border-color: rgba(128,216,255,0.4); color: #80d8ff; background: rgba(0,229,255,0.06);" onchange="onQuickAddScanSelect('atk', this)">
               <option value="">📡 Add from Scan...</option>
             </select>
             <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #80d8ff; border-color: rgba(128,216,255,0.4);" onclick="openScanPickerModal('atk')" title="Browse all scanned fleets to pick from">
@@ -2787,10 +2829,13 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">Planet garrison + allied defender fleets</div>
           </div>
           <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
-            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #ff5252; border-color: rgba(255,82,82,0.4);" onclick="addDefenderFleet()">
-              + Add Fleet
+            <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #ff5252; border-color: rgba(255,82,82,0.4);" onclick="addDefenderFleet()" title="Add a custom editable fleet card">
+              + Custom Fleet
             </button>
-            <select id="sim-def-add-scan-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 220px; border-color: rgba(255,138,128,0.4); color: #ff8a80; background: rgba(255,82,82,0.06);" onchange="onQuickAddScanSelect('def', this)">
+            <select id="sim-def-add-empire-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 220px; border-color: rgba(255,82,82,0.4); color: #ff8a80; background: rgba(255,82,82,0.06);" onchange="onQuickAddEmpireSelect('def', this)" title="Add one of your own fleets or base garrison to defense">
+              <option value="">🏰 Add Own Fleet...</option>
+            </select>
+            <select id="sim-def-add-scan-select" class="form-control" style="font-size: 0.78rem; padding: 0.22rem 0.5rem; max-width: 200px; border-color: rgba(255,138,128,0.4); color: #ff8a80; background: rgba(255,82,82,0.06);" onchange="onQuickAddScanSelect('def', this)">
               <option value="">📡 Add from Scan...</option>
             </select>
             <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #ff8a80; border-color: rgba(255,138,128,0.4);" onclick="openScanPickerModal('def')" title="Browse all scanned fleets to pick from">
@@ -5370,6 +5415,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       if (atkJson.success) {
         simAttackerData = atkJson;
         homeDefenseData = atkJson.homeDefense || null;
+        populateQuickEmpireAddDropdowns();
       }
 
       // 2. Fetch fleet & planetary scan targets
@@ -5407,14 +5453,17 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     let name = 'Primary Assault Fleet';
     let sourceVal = '__custom__';
 
-    if (simAttackerData.namedFleets && simAttackerData.namedFleets.length > 0) {
-      const f = simAttackerData.namedFleets[0];
-      ships = Object.assign({}, f.ships || {});
-      name = f.name || 'Primary Assault Fleet';
-      sourceVal = 'fleet_0';
+    // Prioritize first named fleet with ships, or base garrison
+    const fleetWithShips = (simAttackerData.namedFleets || []).find(f => Object.keys(f.ships || {}).length > 0);
+    if (fleetWithShips) {
+      const idx = simAttackerData.namedFleets.indexOf(fleetWithShips);
+      ships = Object.assign({}, fleetWithShips.ships || {});
+      const isDocked = (fleetWithShips.status === 'DOCKED');
+      name = `🚀 Fleet "${fleetWithShips.name || 'Primary Fleet'}" [${isDocked ? 'Docked' : (fleetWithShips.status || 'Active')}]`;
+      sourceVal = `fleet_${idx}`;
     } else if (simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0) {
       ships = Object.assign({}, simAttackerData.hangarShips);
-      name = 'Home Planet Hangar';
+      name = '🏠 Base Garrison (Docked at Base)';
       sourceVal = '__hangar__';
     } else {
       ships = { 'main-vanguard-striker': 100 };
@@ -5464,18 +5513,55 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const atkTitle = document.getElementById('sim-atk-title');
       const defTitle = document.getElementById('sim-def-title');
       if (atkTitle) { atkTitle.textContent = '🚀 Attacking Forces (Enemy Coalition Fleets)'; atkTitle.style.color = '#ff5252'; }
-      if (defTitle) { defTitle.textContent = '🛡️ Defender Base (Your Empire Garrison & PDS)'; defTitle.style.color = 'var(--cyan)'; }
+      if (defTitle) { defTitle.textContent = '🛡️ Defender Base (Your Empire Garrison, Docked Fleets & PDS)'; defTitle.style.color = 'var(--cyan)'; }
 
       applyUserPdsToDefender();
 
-      if (homeDefenseData && homeDefenseData.hangarShips && simDefenderFleets.length > 0) {
-        simDefenderFleets[0].ships = Object.assign({}, homeDefenseData.hangarShips);
-        simDefenderFleets[0].name = 'Home Planet Garrison';
-        simDefenderFleets[0].sourceVal = '__home_hangar__';
-        renderAllFleetCards('def');
+      // Automatically populate defender with base garrison AND all fleets docked at base!
+      simDefenderFleets = [];
+      const myHangar = (homeDefenseData && homeDefenseData.hangarShips && Object.keys(homeDefenseData.hangarShips).length > 0)
+        ? homeDefenseData.hangarShips
+        : (simAttackerData ? simAttackerData.hangarShips : {});
+      if (myHangar && Object.keys(myHangar).length > 0) {
+        simDefenderFleets.push({
+          id: 'def_' + (simFleetSeq++),
+          side: 'def',
+          name: '🏠 Base Garrison (Docked at Base)',
+          sourceVal: '__hangar__',
+          enabled: true,
+          ships: Object.assign({}, myHangar)
+        });
       }
 
-      showToast('Switched to Home Defense Mode (Enemy attacking your base & PDS)');
+      // Add each docked fleet at base
+      const myFleets = (simAttackerData && simAttackerData.namedFleets) ? simAttackerData.namedFleets : [];
+      myFleets.forEach((f, idx) => {
+        if (f.status === 'DOCKED' && Object.keys(f.ships || {}).length > 0) {
+          simDefenderFleets.push({
+            id: 'def_' + (simFleetSeq++),
+            side: 'def',
+            name: `🚀 Fleet "${f.name || 'Unnamed'}" (Docked at Base)`,
+            sourceVal: `fleet_${idx}`,
+            enabled: true,
+            ships: Object.assign({}, f.ships || {})
+          });
+        }
+      });
+
+      if (simDefenderFleets.length === 0) {
+        simDefenderFleets.push({
+          id: 'def_' + (simFleetSeq++),
+          side: 'def',
+          name: '🏠 Base Garrison (Docked at Base)',
+          sourceVal: '__hangar__',
+          enabled: true,
+          ships: Object.assign({}, myHangar || {})
+        });
+      }
+
+      renderAllFleetCards('def');
+      recalcCoalitionSummary('def');
+      showToast('Switched to Home Defense Mode (All docked fleets & base garrison defending with PDS)');
     } else {
       if (assaultBtn) assaultBtn.classList.add('active');
       if (defenseBtn) defenseBtn.classList.remove('active');
@@ -5566,13 +5652,50 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (el) el[prop] = val;
   }
 
-  function addAttackerFleet(presetVal) {
-    const newIdx = simAttackerFleets.length + 1;
-    let initialShips = { 'main-vanguard-striker': 100 };
-    let initialName = `Attacker Fleet ${newIdx}`;
+  function resolveFleetPreset(presetVal, side) {
+    let ships = {};
+    let name = (side === 'atk') ? 'Attacker Fleet' : 'Defender Fleet';
     let sourceVal = presetVal || '__custom__';
 
-    if (presetVal && presetVal.startsWith('scan_')) {
+    if (!presetVal || presetVal === '__custom__') {
+      return { ships: {}, name: name, sourceVal: '__custom__' };
+    }
+
+    if (presetVal === '__hangar__' || presetVal === '__my_hangar__' || presetVal === '__home_hangar__') {
+      const h = (simAttackerData && simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0)
+        ? simAttackerData.hangarShips
+        : (homeDefenseData ? homeDefenseData.hangarShips : {});
+      ships = Object.assign({}, h || {});
+      name = '🏠 Base Garrison (Docked at Base)';
+      sourceVal = '__hangar__';
+    } else if (presetVal.startsWith('fleet_') || presetVal.startsWith('myfleet_')) {
+      const idx = parseInt(presetVal.replace('myfleet_', '').replace('fleet_', ''), 10);
+      const f = (simAttackerData.namedFleets || [])[idx];
+      if (f) {
+        ships = Object.assign({}, f.ships || {});
+        const isDocked = (f.status === 'DOCKED');
+        const statusLabel = isDocked ? 'Docked at Base' : (f.status || 'Active');
+        name = `🚀 Fleet "${f.name || 'Unnamed'}" [${statusLabel}]`;
+        sourceVal = `fleet_${idx}`;
+      }
+    } else if (presetVal === '__garrison__') {
+      if (currentTargetScan) {
+        ships = Object.assign({}, currentTargetScan.garrisonShips || {});
+        const typeLabel = formatScanType(currentTargetScan.scanType);
+        name = `[${typeLabel}] Garrison [${currentTargetScan.coords || 'Target'}]`;
+        sourceVal = '__garrison__';
+      }
+    } else if (presetVal.startsWith('nf_')) {
+      const idx = parseInt(presetVal.split('_')[1], 10);
+      if (currentTargetScan && currentTargetScan.namedFleets) {
+        const nf = currentTargetScan.namedFleets[idx];
+        if (nf) {
+          ships = Object.assign({}, nf.ships || {});
+          name = `Fleet "${nf.name || 'Fleet'}" [${currentTargetScan.coords || 'Target'}]`;
+          sourceVal = presetVal;
+        }
+      }
+    } else if (presetVal.startsWith('scan_')) {
       const parts = presetVal.split('_');
       const tIdx = parseInt(parts[1], 10);
       const target = (simScanTargets || [])[tIdx];
@@ -5580,69 +5703,57 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         const coords = target.coords || `Target ${tIdx + 1}`;
         const typeLabel = formatScanType(target.scanType);
         if (parts[2] === 'garrison') {
-          initialShips = Object.assign({}, target.garrisonShips || {});
-          initialName = `[${typeLabel}] Garrison [${coords}]`;
+          ships = Object.assign({}, target.garrisonShips || {});
+          name = `[${typeLabel}] Garrison [${coords}]`;
         } else if (parts[2] === 'nf') {
           const nfIdx = parseInt(parts[3], 10);
           const nf = (target.namedFleets || [])[nfIdx];
           if (nf) {
-            initialShips = Object.assign({}, nf.ships || {});
-            initialName = `${nf.name || 'Fleet'} [${coords}]`;
+            ships = Object.assign({}, nf.ships || {});
+            name = `[${typeLabel}] Fleet "${nf.name || 'Fleet'}" [${coords}]`;
           }
         }
       }
     }
+    return { ships, name, sourceVal };
+  }
+
+  function addAttackerFleet(presetVal) {
+    const newIdx = simAttackerFleets.length + 1;
+    const resolved = resolveFleetPreset(presetVal, 'atk');
+    const finalName = presetVal ? resolved.name : `Attacker Fleet ${newIdx}`;
+    const finalShips = presetVal ? resolved.ships : { 'main-vanguard-striker': 100 };
 
     simAttackerFleets.push({
       id: 'atk_' + (simFleetSeq++),
       side: 'atk',
-      name: initialName,
+      name: finalName,
       enabled: true,
-      sourceVal: sourceVal,
-      ships: initialShips
+      sourceVal: resolved.sourceVal,
+      ships: finalShips
     });
     renderAllFleetCards('atk');
     recalcCoalitionSummary('atk');
-    showToast(`Added ${initialName}`);
+    showToast(`Added ${finalName}`);
   }
 
   function addDefenderFleet(presetVal) {
     const newIdx = simDefenderFleets.length + 1;
-    let initialShips = { 'main-ashkari-fang': 100 };
-    let initialName = `Defender Fleet ${newIdx}`;
-    let sourceVal = presetVal || '__custom__';
-
-    if (presetVal && presetVal.startsWith('scan_')) {
-      const parts = presetVal.split('_');
-      const tIdx = parseInt(parts[1], 10);
-      const target = (simScanTargets || [])[tIdx];
-      if (target) {
-        const coords = target.coords || `Target ${tIdx + 1}`;
-        const typeLabel = formatScanType(target.scanType);
-        if (parts[2] === 'garrison') {
-          initialShips = Object.assign({}, target.garrisonShips || {});
-          initialName = `[${typeLabel}] Garrison [${coords}]`;
-        } else if (parts[2] === 'nf') {
-          const nfIdx = parseInt(parts[3], 10);
-          const nf = (target.namedFleets || [])[nfIdx];
-          if (nf) {
-            initialShips = Object.assign({}, nf.ships || {});
-            initialName = `${nf.name || 'Fleet'} [${coords}]`;
-          }
-        }
-      }
-    }
+    const resolved = resolveFleetPreset(presetVal, 'def');
+    const finalName = presetVal ? resolved.name : `Defender Fleet ${newIdx}`;
+    const finalShips = presetVal ? resolved.ships : { 'main-ashkari-fang': 100 };
 
     simDefenderFleets.push({
       id: 'def_' + (simFleetSeq++),
       side: 'def',
-      name: initialName,
+      name: finalName,
       enabled: true,
-      sourceVal: sourceVal,
-      ships: initialShips
+      sourceVal: resolved.sourceVal,
+      ships: finalShips
     });
     renderAllFleetCards('def');
-    showToast(`Added ${initialName}`);
+    recalcCoalitionSummary('def');
+    showToast(`Added ${finalName}`);
   }
 
   let currentPickerSide = 'atk';
@@ -5872,6 +5983,47 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     selectEl.value = '';
   }
 
+  function populateQuickEmpireAddDropdowns() {
+    ['atk', 'def'].forEach(side => {
+      const sel = document.getElementById(`sim-${side}-add-empire-select`);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">🏰 Add Own Fleet...</option>';
+
+      // 1. Home Base Garrison / Docked at Base
+      const myHangar = (simAttackerData && simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0)
+        ? simAttackerData.hangarShips
+        : (homeDefenseData ? homeDefenseData.hangarShips : {});
+      const hangarTotal = Object.values(myHangar || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const hOpt = document.createElement('option');
+      hOpt.value = '__hangar__';
+      hOpt.textContent = `🏠 Base Garrison / Docked (${hangarTotal.toLocaleString()} ships)`;
+      sel.appendChild(hOpt);
+
+      // 2. Named Fleets (including docked at base and in transit)
+      const myFleets = (simAttackerData && simAttackerData.namedFleets) ? simAttackerData.namedFleets : [];
+      myFleets.forEach((f, idx) => {
+        const fTotal = Object.values(f.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+        const fOpt = document.createElement('option');
+        fOpt.value = `fleet_${idx}`;
+        const isDocked = (f.status === 'DOCKED');
+        const statusLabel = isDocked ? '⚓ Docked' : (f.status || 'Active');
+        fOpt.textContent = `🚀 Fleet "${f.name || 'Unnamed'}" (${fTotal.toLocaleString()} ships) [${statusLabel}]`;
+        sel.appendChild(fOpt);
+      });
+    });
+  }
+
+  function onQuickAddEmpireSelect(side, selectEl) {
+    const val = selectEl.value;
+    if (!val) return;
+    if (side === 'atk') {
+      addAttackerFleet(val);
+    } else {
+      addDefenderFleet(val);
+    }
+    selectEl.value = '';
+  }
+
   function removeFleet(side, fleetId) {
     if (side === 'atk') {
       simAttackerFleets = simAttackerFleets.filter(f => f.id !== fleetId);
@@ -5920,65 +6072,18 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const fleet = list.find(f => f.id === fleetId);
     if (!fleet) return;
 
-    fleet.sourceVal = presetVal;
-    let newShips = {};
-    let suggestedName = '';
-
     if (presetVal === '__custom__') {
+      fleet.sourceVal = '__custom__';
       return;
-    } else if (presetVal.startsWith('scan_')) {
-      const parts = presetVal.split('_');
-      const tIdx = parseInt(parts[1], 10);
-      const target = (simScanTargets || [])[tIdx];
-      if (target) {
-        const coords = target.coords || `Target ${tIdx + 1}`;
-        const typeLabel = formatScanType(target.scanType);
-        if (parts[2] === 'garrison') {
-          newShips = Object.assign({}, target.garrisonShips || {});
-          suggestedName = `[${typeLabel}] Garrison [${coords}]`;
-        } else if (parts[2] === 'nf') {
-          const nfIdx = parseInt(parts[3], 10);
-          const nf = (target.namedFleets || [])[nfIdx];
-          if (nf) {
-            newShips = Object.assign({}, nf.ships || {});
-            suggestedName = `${nf.name || 'Fleet'} [${coords}]`;
-          }
-        }
-      }
-    } else if (presetVal.startsWith('fleet_') || presetVal.startsWith('myfleet_')) {
-      const idx = parseInt(presetVal.replace('myfleet_', '').replace('fleet_', ''), 10);
-      const nf = (simAttackerData.namedFleets || [])[idx];
-      if (nf) {
-        newShips = Object.assign({}, nf.ships || {});
-        suggestedName = nf.name || `Empire Fleet ${idx + 1}`;
-      }
-    } else if (presetVal === '__hangar__' || presetVal === '__my_hangar__' || presetVal === '__home_hangar__') {
-      const h = (simAttackerData && simAttackerData.hangarShips) ? simAttackerData.hangarShips : (homeDefenseData ? homeDefenseData.hangarShips : {});
-      newShips = Object.assign({}, h || {});
-      suggestedName = 'Home Planet Hangar';
-    } else if (presetVal === '__garrison__') {
-      if (currentTargetScan) {
-        newShips = Object.assign({}, currentTargetScan.garrisonShips || {});
-        suggestedName = `Garrison [${currentTargetScan.coords || 'Target'}]`;
-      }
-    } else if (presetVal.startsWith('nf_')) {
-      const idx = parseInt(presetVal.split('_')[1], 10);
-      if (currentTargetScan && currentTargetScan.namedFleets) {
-        const nf = currentTargetScan.namedFleets[idx];
-        if (nf) {
-          newShips = Object.assign({}, nf.ships || {});
-          suggestedName = `${nf.name || 'Fleet'} [${currentTargetScan.coords || 'Target'}]`;
-        }
-      }
     }
 
-    if (suggestedName) {
-      fleet.name = suggestedName;
-      const nameEl = document.getElementById(`fleet-name-${fleetId}`);
-      if (nameEl) nameEl.value = fleet.name;
-    }
+    const resolved = resolveFleetPreset(presetVal, side);
+    fleet.sourceVal = resolved.sourceVal;
+    fleet.name = resolved.name;
+    fleet.ships = resolved.ships;
 
-    fleet.ships = newShips;
+    const nameEl = document.getElementById(`fleet-name-${fleetId}`);
+    if (nameEl) nameEl.value = fleet.name;
 
     const container = document.getElementById(`fleet-ships-${fleetId}`);
     if (container) {
@@ -6210,23 +6315,27 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const empireGrp = document.createElement('optgroup');
     empireGrp.label = '🏰 Your Empire Forces';
 
+    const myHangar = (simAttackerData && simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0)
+      ? simAttackerData.hangarShips
+      : (homeDefenseData ? homeDefenseData.hangarShips : {});
+    const hangarTotal = Object.values(myHangar || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    const hangarOpt = document.createElement('option');
+    hangarOpt.value = '__hangar__';
+    hangarOpt.textContent = `🏠 Base Garrison / Docked at Base (${hangarTotal.toLocaleString()} ships)`;
+    if (currentVal === '__hangar__' || currentVal === '__my_hangar__' || currentVal === '__home_hangar__') hangarOpt.selected = true;
+    empireGrp.appendChild(hangarOpt);
+
     const myFleets = (simAttackerData && simAttackerData.namedFleets) ? simAttackerData.namedFleets : [];
     myFleets.forEach((f, idx) => {
       const fTotal = Object.values(f.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
       const opt = document.createElement('option');
       opt.value = `fleet_${idx}`;
-      opt.textContent = `Fleet "${f.name || 'Unnamed'}" (${fTotal.toLocaleString()} ships) [${f.status || 'ACTIVE'}]`;
+      const isDocked = (f.status === 'DOCKED');
+      const statusLabel = isDocked ? '⚓ Docked' : (f.status || 'Active');
+      opt.textContent = `🚀 Fleet "${f.name || 'Unnamed'}" (${fTotal.toLocaleString()} ships) [${statusLabel}]`;
       if (currentVal === opt.value) opt.selected = true;
       empireGrp.appendChild(opt);
     });
-
-    const myHangar = (simAttackerData && simAttackerData.hangarShips) ? simAttackerData.hangarShips : (homeDefenseData ? homeDefenseData.hangarShips : {});
-    const hangarTotal = Object.values(myHangar || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
-    const hangarOpt = document.createElement('option');
-    hangarOpt.value = '__hangar__';
-    hangarOpt.textContent = `🏠 Home Planet Hangar (${hangarTotal.toLocaleString()} ships)`;
-    if (currentVal === '__hangar__' || currentVal === '__my_hangar__' || currentVal === '__home_hangar__') hangarOpt.selected = true;
-    empireGrp.appendChild(hangarOpt);
 
     sel.appendChild(empireGrp);
 
@@ -6464,6 +6573,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
     onTargetPlanetChange();
     populateQuickScanAddDropdowns();
+    populateQuickEmpireAddDropdowns();
   }
 
   function onTargetPlanetChange() {
