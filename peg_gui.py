@@ -2498,16 +2498,37 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     .bcalc-table-wrapper::-webkit-scrollbar-thumb:hover {
       background: var(--cyan);
     }
+    /* Hide native number spinners so 100% of cell width is usable for digits */
+    .bcalc-matrix-table input[type=number]::-webkit-inner-spin-button,
+    .bcalc-matrix-table input[type=number]::-webkit-outer-spin-button,
+    input.bcalc-cell-input::-webkit-inner-spin-button,
+    input.bcalc-cell-input::-webkit-outer-spin-button,
+    .bcalc-table input[type=number]::-webkit-inner-spin-button,
+    .bcalc-table input[type=number]::-webkit-outer-spin-button,
+    input.ship-input::-webkit-inner-spin-button,
+    input.ship-input::-webkit-outer-spin-button {
+      -webkit-appearance: none !important;
+      margin: 0 !important;
+    }
+    .bcalc-matrix-table input[type=number],
+    input.bcalc-cell-input,
+    .bcalc-table input[type=number],
+    input.ship-input {
+      -moz-appearance: textfield !important;
+    }
+
     .bcalc-matrix-table {
-      width: 100%;
+      min-width: 100%;
+      width: max-content;
       border-collapse: collapse;
       font-family: var(--font-mono);
-      font-size: var(--bcalc-font-size, 0.78rem);
+      font-size: var(--bcalc-font-size, 0.80rem);
     }
     .bcalc-matrix-table th, .bcalc-matrix-table td {
       border: 1px solid rgba(255,255,255,0.08);
-      padding: var(--bcalc-cell-pad, 0.35rem 0.45rem);
+      padding: var(--bcalc-cell-pad, 0.28rem 0.42rem);
       text-align: right;
+      white-space: nowrap;
     }
     .bcalc-matrix-table th {
       background: #0b1329;
@@ -2531,31 +2552,36 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       box-shadow: 2px 0 6px rgba(0,0,0,0.5);
     }
     .bcalc-matrix-table input.bcalc-cell-input {
-      width: var(--bcalc-input-w, 55px);
-      min-width: 36px;
-      background: rgba(0,0,0,0.6);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 3px;
+      width: var(--bcalc-input-w, 94px);
+      min-width: 82px;
+      max-width: 160px;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 4px;
       color: #fff;
       font-family: var(--font-mono);
-      font-size: var(--bcalc-input-font, 0.76rem);
-      padding: 0.15rem 0.25rem;
+      font-size: var(--bcalc-input-font, 0.82rem);
+      padding: 0.22rem 0.45rem;
       text-align: right;
       box-sizing: border-box;
-      transition: width 0.15s ease;
+      field-sizing: content;
+      transition: width 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .bcalc-matrix-table input.bcalc-cell-input:focus {
       outline: none;
       border-color: var(--cyan);
-      box-shadow: 0 0 5px var(--cyan);
+      box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+      background: rgba(0, 229, 255, 0.08);
     }
     /* Enhanced Matrix Fleet Delineation - Defender = Blue, Attacker = Red */
     .bcalc-matrix-table th.bcalc-def-col,
     .bcalc-matrix-table td.bcalc-def-col {
+      min-width: 95px;
       border-right: 2px solid rgba(56, 189, 248, 0.4) !important;
     }
     .bcalc-matrix-table th.bcalc-atk-col,
     .bcalc-matrix-table td.bcalc-atk-col {
+      min-width: 95px;
       border-right: 2px solid rgba(239, 68, 68, 0.4) !important;
     }
     .bcalc-matrix-table th.bcalc-side-divider,
@@ -2593,9 +2619,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       color: rgba(255, 255, 255, 0.35);
     }
     .bcalc-matrix-table th.bcalc-fleet-header {
-      padding: 0.45rem 0.35rem;
+      padding: 0.5rem 0.45rem;
       text-align: center;
-      min-width: 90px;
+      min-width: 110px;
       vertical-align: top;
     }
     .bcalc-matrix-table th.bcalc-fleet-header.def-even {
@@ -10821,8 +10847,62 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
   }
 
+  function parseShipCount(val) {
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return Math.max(0, Math.floor(val));
+    let str = String(val).trim();
+    if (!str) return 0;
+    
+    // Support 'k' / 'm' shorthand: e.g. 60k -> 60000, 1.5m -> 1500000
+    const kMatch = str.match(/^([\d.,]+)\s*k$/i);
+    if (kMatch) {
+      const num = parseFloat(kMatch[1].replace(/,/g, ''));
+      return isNaN(num) ? 0 : Math.max(0, Math.round(num * 1000));
+    }
+    const mMatch = str.match(/^([\d.,]+)\s*m$/i);
+    if (mMatch) {
+      const num = parseFloat(mMatch[1].replace(/,/g, ''));
+      return isNaN(num) ? 0 : Math.max(0, Math.round(num * 1000000));
+    }
+
+    // Strip commas, spaces, and non-numeric chars
+    const clean = str.replace(/[, \s]/g, '');
+    const num = parseInt(clean, 10);
+    return isNaN(num) ? 0 : Math.max(0, num);
+  }
+
+  function autoResizeBcalcInput(inputEl) {
+    if (!inputEl) return;
+    const val = inputEl.value;
+    const len = String(val || '').length;
+    // Auto-expand input width dynamically if number has 7+ characters
+    if (len >= 7) {
+      inputEl.style.width = Math.max(94, len * 9.5 + 18) + 'px';
+    } else {
+      inputEl.style.width = '';
+    }
+    const count = parseShipCount(val);
+    if (count > 0) {
+      inputEl.classList.remove('zero-ships');
+      inputEl.classList.add('has-ships');
+      inputEl.title = `${count.toLocaleString()} ships`;
+    } else {
+      inputEl.classList.remove('has-ships');
+      inputEl.classList.add('zero-ships');
+      inputEl.title = '0 ships';
+    }
+  }
+
+  function getBcalcInputWidthStyle(cnt) {
+    const len = String(cnt || '').length;
+    if (len >= 7) {
+      return `style="width: ${Math.max(94, len * 9.5 + 18)}px;"`;
+    }
+    return '';
+  }
+
   function onBcalcShipCountChange(side, fleetId, shipId, val) {
-    const count = parseInt(val, 10) || 0;
+    const count = parseShipCount(val);
     const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
     const f = list.find(x => x.id === fleetId);
     if (!f) return;
@@ -10864,15 +10944,15 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const defFleets = simDefenderFleets;
     const atkFleets = simAttackerFleets;
 
-    // Calculate total columns and dynamic sizing variables
-    const totalCols = 5 + defFleets.length + atkFleets.length;
+    // Planetarion-style column sizing: columns NEVER squish or truncate numbers
     let styleVars = '';
-    if (bcalcZoomMode === '70' || (bcalcZoomMode === 'auto' && totalCols >= 16)) {
-      styleVars = '--bcalc-font-size: 0.65rem; --bcalc-cell-pad: 0.18rem 0.22rem; --bcalc-input-w: 36px; --bcalc-input-font: 0.65rem;';
-    } else if (bcalcZoomMode === '85' || (bcalcZoomMode === 'auto' && totalCols >= 11)) {
-      styleVars = '--bcalc-font-size: 0.72rem; --bcalc-cell-pad: 0.24rem 0.32rem; --bcalc-input-w: 44px; --bcalc-input-font: 0.72rem;';
-    } else if (bcalcZoomMode === '100') {
-      styleVars = '--bcalc-font-size: 0.78rem; --bcalc-cell-pad: 0.35rem 0.45rem; --bcalc-input-w: 58px; --bcalc-input-font: 0.76rem;';
+    if (bcalcZoomMode === '70') {
+      styleVars = '--bcalc-font-size: 0.72rem; --bcalc-cell-pad: 0.2rem 0.3rem; --bcalc-input-w: 78px; --bcalc-input-font: 0.74rem;';
+    } else if (bcalcZoomMode === '85') {
+      styleVars = '--bcalc-font-size: 0.76rem; --bcalc-cell-pad: 0.24rem 0.35rem; --bcalc-input-w: 86px; --bcalc-input-font: 0.78rem;';
+    } else {
+      // Auto or 100%: Standard generous width accommodating 8+ figure ship counts with ease
+      styleVars = '--bcalc-font-size: 0.80rem; --bcalc-cell-pad: 0.28rem 0.42rem; --bcalc-input-w: 94px; --bcalc-input-font: 0.82rem;';
     }
 
     // Build the Planetarion side-by-side table HTML
@@ -11018,7 +11098,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <td class="bcalc-def-col ${colClass}" style="text-align: center;">
             ${isPds 
               ? `<span style="font-family: var(--font-mono); color: #ffd54f; font-weight: ${cnt > 0 ? '700' : '400'};">${cnt > 0 ? 'Lvl ' + cnt : '-'}</span>`
-              : `<input type="number" min="0" class="bcalc-cell-input ${hasShipsClass}" value="${cnt || 0}" onchange="onBcalcShipCountChange('def', '${f.id}', '${shipId}', this.value)">`
+              : `<input type="text" inputmode="numeric" class="bcalc-cell-input ${hasShipsClass}" value="${cnt > 0 ? cnt.toLocaleString() : '0'}" placeholder="0" title="${cnt > 0 ? cnt.toLocaleString() + ' ships' : '0 ships'}" onfocus="this.value = (parseShipCount(this.value) > 0 ? parseShipCount(this.value) : ''); this.select();" oninput="autoResizeBcalcInput(this)" onblur="const c = parseShipCount(this.value); this.value = c > 0 ? c.toLocaleString() : '0'; onBcalcShipCountChange('def', '${f.id}', '${shipId}', c);" onchange="onBcalcShipCountChange('def', '${f.id}', '${shipId}', this.value)" ${getBcalcInputWidthStyle(cnt)}>`
             }
           </td>
         `;
@@ -11047,7 +11127,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <td class="bcalc-atk-col ${colClass}" style="text-align: center;">
             ${isPds 
               ? `<span style="color: var(--text-dim);">-</span>`
-              : `<input type="number" min="0" class="bcalc-cell-input ${hasShipsClass}" value="${cnt || 0}" onchange="onBcalcShipCountChange('atk', '${f.id}', '${shipId}', this.value)">`
+              : `<input type="text" inputmode="numeric" class="bcalc-cell-input ${hasShipsClass}" value="${cnt > 0 ? cnt.toLocaleString() : '0'}" placeholder="0" title="${cnt > 0 ? cnt.toLocaleString() + ' ships' : '0 ships'}" onfocus="this.value = (parseShipCount(this.value) > 0 ? parseShipCount(this.value) : ''); this.select();" oninput="autoResizeBcalcInput(this)" onblur="const c = parseShipCount(this.value); this.value = c > 0 ? c.toLocaleString() : '0'; onBcalcShipCountChange('atk', '${f.id}', '${shipId}', c);" onchange="onBcalcShipCountChange('atk', '${f.id}', '${shipId}', this.value)" ${getBcalcInputWidthStyle(cnt)}>`
             }
           </td>
         `;
@@ -11389,22 +11469,37 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       }
 
       const countInput = document.createElement('input');
-      countInput.type = 'number';
+      countInput.type = 'text';
+      countInput.inputMode = 'numeric';
       countInput.className = 'form-control';
-      countInput.value = count;
-      countInput.min = '1';
-      countInput.style.width = '80px';
+      countInput.value = count > 0 ? Number(count).toLocaleString() : '';
+      countInput.placeholder = '0';
+      countInput.style.width = '96px';
       countInput.style.fontSize = '0.8rem';
       countInput.style.padding = '0.2rem 0.4rem';
+      countInput.title = `${Number(count).toLocaleString()} ships`;
 
       sel.onchange = () => {
         const newId = sel.value;
-        const cnt = parseInt(countInput.value, 10) || 1;
+        const cnt = parseShipCount(countInput.value) || 1;
         onShipRowChange(side, fleet.id, shipId, newId, cnt);
       };
 
-      countInput.onchange = () => {
-        const cnt = parseInt(countInput.value, 10) || 0;
+      countInput.onfocus = () => {
+        const raw = parseShipCount(countInput.value);
+        countInput.value = raw > 0 ? raw : '';
+        countInput.select();
+      };
+
+      countInput.oninput = () => {
+        const cnt = parseShipCount(countInput.value);
+        onShipRowChange(side, fleet.id, shipId, sel.value, cnt);
+      };
+
+      countInput.onblur = () => {
+        const cnt = parseShipCount(countInput.value);
+        countInput.value = cnt > 0 ? cnt.toLocaleString() : '';
+        countInput.title = `${cnt.toLocaleString()} ships`;
         onShipRowChange(side, fleet.id, shipId, sel.value, cnt);
       };
 
@@ -11429,7 +11524,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const subtotalEl = document.getElementById(`fleet-subtotal-${fleetId}`);
     if (!fleet || !subtotalEl) return;
 
-    const totalShips = Object.values(fleet.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    const totalShips = Object.values(fleet.ships || {}).reduce((a, b) => a + (parseShipCount(b) || 0), 0);
     const shipList = (typeof refData !== 'undefined' && refData && refData.ships) ? refData.ships : [];
     const shipMap = {};
     shipList.forEach(s => { shipMap[s.id] = s; });

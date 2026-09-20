@@ -190,14 +190,28 @@
       border-left: 3px solid #ef4444;
     }
 
+    /* Hide native number spinners so 100% of cell width is usable for digits */
+    .bcalc-table input[type=number]::-webkit-inner-spin-button,
+    .bcalc-table input[type=number]::-webkit-outer-spin-button,
+    input.ship-input::-webkit-inner-spin-button,
+    input.ship-input::-webkit-outer-spin-button {
+      -webkit-appearance: none !important;
+      margin: 0 !important;
+    }
+    .bcalc-table input[type=number],
+    input.ship-input {
+      -moz-appearance: textfield !important;
+    }
+
     .bcalc-table {
-      width: 100%;
+      min-width: 100%;
+      width: max-content;
       border-collapse: collapse;
       font-family: var(--font-mono);
       font-size: 0.8rem;
     }
     .bcalc-table th, .bcalc-table td {
-      padding: var(--bcalc-cell-pad);
+      padding: var(--bcalc-cell-pad, 0.28rem 0.42rem);
       border-bottom: 1px solid rgba(255,255,255,0.06);
       white-space: nowrap;
     }
@@ -207,15 +221,18 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
       background: rgba(0,0,0,0.35);
+      min-width: 108px;
     }
     .bcalc-table tr:hover td {
       background: rgba(255,255,255,0.02);
     }
 
     .ship-input {
-      width: 76px;
-      padding: 0.22rem 0.4rem;
-      font-size: 0.8rem;
+      width: 94px;
+      min-width: 82px;
+      max-width: 160px;
+      padding: 0.22rem 0.45rem;
+      font-size: 0.82rem;
       font-family: var(--font-mono);
       font-weight: 700;
       text-align: right;
@@ -223,11 +240,20 @@
       border: 1px solid rgba(255,255,255,0.2);
       border-radius: 4px;
       color: #fff;
+      box-sizing: border-box;
+      field-sizing: content;
+      transition: width 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .ship-input:focus {
       outline: none;
       border-color: var(--cyan);
-      box-shadow: 0 0 8px rgba(0,229,255,0.3);
+      box-shadow: 0 0 8px rgba(0,229,255,0.4);
+      background: rgba(0, 229, 255, 0.08);
+    }
+    .ship-input.has-ships {
+      background: rgba(255, 255, 255, 0.14) !important;
+      color: #ffffff !important;
+      border-color: rgba(255, 255, 255, 0.45) !important;
     }
 
     .pds-input {
@@ -2441,6 +2467,49 @@ function getFilteredShips() {
   return ALL_SHIP_KEYS.filter(k => SHIP_DEFINITIONS[k].category === currentCategory);
 }
 
+function parseShipCount(val) {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'number') return Math.max(0, Math.floor(val));
+  let str = String(val).trim();
+  if (!str) return 0;
+  
+  // Support 'k' / 'm' shorthand: e.g. 60k -> 60000, 1.5m -> 1500000
+  const kMatch = str.match(/^([\d.,]+)\s*k$/i);
+  if (kMatch) {
+    const num = parseFloat(kMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.max(0, Math.round(num * 1000));
+  }
+  const mMatch = str.match(/^([\d.,]+)\s*m$/i);
+  if (mMatch) {
+    const num = parseFloat(mMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.max(0, Math.round(num * 1000000));
+  }
+
+  // Strip commas, spaces, and non-numeric chars
+  const clean = str.replace(/[, \s]/g, '');
+  const num = parseInt(clean, 10);
+  return isNaN(num) ? 0 : Math.max(0, num);
+}
+
+function autoResizeShipInput(inputEl) {
+  if (!inputEl) return;
+  const val = inputEl.value;
+  const len = String(val || '').length;
+  if (len >= 7) {
+    inputEl.style.width = Math.max(94, len * 9.5 + 18) + 'px';
+  } else {
+    inputEl.style.width = '';
+  }
+  const count = parseShipCount(val);
+  if (count > 0) {
+    inputEl.classList.add('has-ships');
+    inputEl.title = `${count.toLocaleString()} ships`;
+  } else {
+    inputEl.classList.remove('has-ships');
+    inputEl.title = '0 ships';
+  }
+}
+
 function renderMatrix() {
   renderSideTable('def', defenderFleets, 'def-matrix-table-container');
   renderSideTable('atk', attackerFleets, 'atk-matrix-table-container');
@@ -2459,7 +2528,7 @@ function renderSideTable(side, fleets, containerId) {
 
   // Fleet Header Columns
   fleets.forEach((f, idx) => {
-    html += `<th style="text-align: right; min-width: 95px;">
+    html += `<th style="text-align: right; min-width: 108px;">
       <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.25rem;">
         <input type="checkbox" ${f.enabled ? 'checked' : ''} title="Include fleet in combat" onchange="toggleFleetEnabled('${side}', ${idx}, this.checked)">
         <span style="cursor: pointer;" title="Click to rename fleet" onclick="renameFleet('${side}', ${idx})">${f.name}</span>
@@ -2507,7 +2576,7 @@ function renderSideTable(side, fleets, containerId) {
     fleets.forEach((f, idx) => {
       const count = f.ships[sId] || 0;
       html += `<td style="text-align: right;">
-        <input type="number" min="0" class="ship-input" value="${count > 0 ? count : ''}" placeholder="0" oninput="onShipInput('${side}', ${idx}, '${sId}', this.value)">
+        <input type="text" inputmode="numeric" class="ship-input ${count > 0 ? 'has-ships' : ''}" value="${count > 0 ? count.toLocaleString() : ''}" placeholder="0" title="${count > 0 ? count.toLocaleString() + ' ships' : '0 ships'}" onfocus="this.value = (parseShipCount(this.value) > 0 ? parseShipCount(this.value) : ''); this.select();" oninput="autoResizeShipInput(this); onShipInput('${side}', ${idx}, '${sId}', this.value);" onblur="const c = parseShipCount(this.value); this.value = c > 0 ? c.toLocaleString() : ''; onShipInput('${side}', ${idx}, '${sId}', c);" ${count >= 1000000 ? `style="width: ${Math.max(94, String(count).length * 9.5 + 18)}px;"` : ''}>
       </td>`;
     });
 
@@ -2519,7 +2588,7 @@ function renderSideTable(side, fleets, containerId) {
 }
 
 function onShipInput(side, fleetIdx, shipId, val) {
-  const count = parseInt(val, 10) || 0;
+  const count = parseShipCount(val);
   const fleets = side === 'atk' ? attackerFleets : defenderFleets;
   if (fleets[fleetIdx]) {
     if (count > 0) {
@@ -2528,8 +2597,8 @@ function onShipInput(side, fleetIdx, shipId, val) {
       delete fleets[fleetIdx].ships[shipId];
     }
   }
-  updateTotals();
 }
+
 
 function onPdsInput(pdsId, val) {
   const lvl = parseInt(val, 10) || 0;
