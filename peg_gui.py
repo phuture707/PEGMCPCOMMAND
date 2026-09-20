@@ -7387,7 +7387,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       sel.appendChild(opt);
     });
 
-    // Auto-load newest scan if valid
+    // Default selection to newest scan if valid, without overwriting active fleets
     if (matchingScans.length > 0) {
       const newestGlobalIdx = simScanTargets.indexOf(matchingScans[0]);
       sel.value = newestGlobalIdx;
@@ -7396,7 +7396,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         const tSel = document.getElementById(id);
         if (tSel) tSel.value = newestGlobalIdx;
       });
-      loadScanIntoSide(side, matchingScans[0]);
     }
   }
 
@@ -7491,8 +7490,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       list.push({
         id: side + '_' + (simFleetSeq++),
         side: side,
-        name: `[${typeLabel}] Consolidated Forces [${scanCoords || 'Target'}]`,
-        sourceVal: '__custom__',
+        name: `Consolidated [${scanCoords || 'Target'}]`,
+        fleetName: 'Consolidated',
+        sourceVal: '__consolidated__',
         coords: scanCoords,
         enabled: true,
         ships: mergedShips
@@ -7501,7 +7501,8 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       list.push({
         id: side + '_' + (simFleetSeq++),
         side: side,
-        name: `[${typeLabel}] Garrison [${scanCoords || 'Target'}]`,
+        name: `Garrison [${scanCoords || 'Target'}]`,
+        fleetName: 'Garrison',
         sourceVal: '__garrison__',
         coords: scanCoords,
         enabled: true,
@@ -7511,10 +7512,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const nfIdx = parseInt(mode.replace('nf_', ''), 10);
       const nf = namedFleets[nfIdx];
       if (nf) {
+        const displayName = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${nfIdx + 1}`;
         list.push({
           id: side + '_' + (simFleetSeq++),
           side: side,
-          name: `[${typeLabel}] Fleet "${nf.name || 'Fleet'}" [${scanCoords || 'Target'}]`,
+          name: `${displayName} [${scanCoords || 'Target'}]`,
+          fleetName: displayName,
           sourceVal: mode,
           coords: scanCoords,
           enabled: true,
@@ -7527,7 +7530,8 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         list.push({
           id: side + '_' + (simFleetSeq++),
           side: side,
-          name: `[${typeLabel}] Garrison [${scanCoords || 'Target'}]`,
+          name: `Garrison [${scanCoords || 'Target'}]`,
+          fleetName: 'Garrison',
           sourceVal: '__garrison__',
           coords: scanCoords,
           enabled: true,
@@ -7535,10 +7539,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         });
       }
       namedFleets.forEach((nf, nfIdx) => {
+        const displayName = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${nfIdx + 1}`;
         list.push({
           id: side + '_' + (simFleetSeq++),
           side: side,
-          name: `[Scanned Fleet ${nfIdx + 1}] "${nf.name || 'Fleet'}" [${scanCoords || 'Target'}]`,
+          name: `${displayName} [${scanCoords || 'Target'}]`,
+          fleetName: displayName,
           sourceVal: `nf_${nfIdx}`,
           coords: scanCoords,
           enabled: true,
@@ -7707,6 +7713,40 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function getFleetShipCount(fleet) {
     if (!fleet || !fleet.ships) return 0;
     return Object.values(fleet.ships).reduce((acc, v) => acc + (parseInt(v, 10) || 0), 0);
+  }
+
+  function getFleetDisplayName(fleet, fallback = '') {
+    if (!fleet) return fallback;
+    if (fleet.fleetName && typeof fleet.fleetName === 'string' && fleet.fleetName.trim()) {
+      return fleet.fleetName.trim();
+    }
+    const rawName = (typeof fleet === 'string') ? fleet : (fleet.name || '');
+    if (!rawName) return fallback;
+
+    const quoteMatch = rawName.match(/["']([^"']+)["']/);
+    if (quoteMatch && quoteMatch[1] && quoteMatch[1].trim()) {
+      return quoteMatch[1].trim();
+    }
+
+    if (/garrison/i.test(rawName)) {
+      return 'Garrison';
+    }
+    if (/consolidated/i.test(rawName)) {
+      return 'Consolidated';
+    }
+
+    let cleaned = rawName
+      .replace(/\[(?:Unit Scan|Planet Scan|Deep Scan|Scanned Fleet \d+|BLOCKED|🤝 Ally.*?|👤 Mine)\]/gi, '')
+      .replace(/\[\d+:\d+:\d+\]/g, '')
+      .replace(/\[Target\]/gi, '')
+      .trim();
+
+    if (cleaned) {
+      cleaned = cleaned.replace(/^[-–—:\s]+|[-–—:\s]+$/g, '').trim();
+      if (cleaned) return cleaned;
+    }
+
+    return rawName || fallback;
   }
 
   function isPlaceholderFleet(fleet) {
@@ -7990,18 +8030,19 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   function resolveFleetPreset(presetVal, side) {
     let ships = {};
-    let name = (side === 'atk') ? 'Attacker Fleet' : 'Defender Fleet';
+    let name = '';
+    let fleetName = '';
     let sourceVal = presetVal || '__custom__';
     let coords = '';
 
     if (!presetVal || presetVal === '__custom__') {
-      return { ships: {}, name: name, sourceVal: '__custom__', coords: '' };
+      return { ships: {}, name: name, fleetName: '', sourceVal: '__custom__', coords: '' };
     }
 
     // Attacker cannot add base garrison or home hangar (stationary defender-only)
     if (side === 'atk' && (presetVal === '__hangar__' || presetVal === '__my_hangar__' || presetVal === '__home_hangar__' || presetVal === '__garrison__' || (presetVal.startsWith('scan_') && presetVal.includes('_garrison')))) {
       showToast('Base Garrison is stationary and cannot be added to Attacker forces.', 'warning');
-      return { ships: {}, name: 'Attacker Fleet', sourceVal: '__custom__', coords: '' };
+      return { ships: {}, name: 'Attacker Fleet', fleetName: 'Attacker Fleet', sourceVal: '__custom__', coords: '' };
     }
 
     if (presetVal === '__hangar__' || presetVal === '__my_hangar__' || presetVal === '__home_hangar__') {
@@ -8010,6 +8051,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         : (homeDefenseData ? (homeDefenseData.hangarShips || homeDefenseData.garrisonShips) : {});
       ships = Object.assign({}, h || {});
       name = '🏠 Base Garrison (Docked at Base)';
+      fleetName = 'Base Garrison';
       sourceVal = '__hangar__';
       coords = (homeDefenseData && homeDefenseData.coords) ? homeDefenseData.coords : (simAttackerData.coords || '');
     } else if (presetVal.startsWith('fleet_') || presetVal.startsWith('myfleet_')) {
@@ -8019,16 +8061,18 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         ships = Object.assign({}, f.ships || {});
         const isDocked = (f.status === 'DOCKED');
         const statusLabel = isDocked ? 'Docked at Base' : (f.status || 'Active');
-        name = `🚀 Fleet "${f.name || 'Unnamed'}" [${statusLabel}]`;
+        const displayName = (f.name && f.name.trim()) ? f.name.trim() : `Fleet ${idx + 1}`;
+        name = `🚀 ${displayName} [${statusLabel}]`;
+        fleetName = displayName;
         sourceVal = `fleet_${idx}`;
         coords = (homeDefenseData && homeDefenseData.coords) ? homeDefenseData.coords : (simAttackerData.coords || '');
       }
     } else if (presetVal === '__garrison__') {
       if (currentTargetScan) {
         ships = Object.assign({}, currentTargetScan.garrisonShips || {});
-        const typeLabel = formatScanType(currentTargetScan.scanType);
         coords = currentTargetScan.coords || '';
-        name = `[${typeLabel}] Garrison [${coords || 'Target'}]`;
+        name = `Garrison [${coords || 'Target'}]`;
+        fleetName = 'Garrison';
         sourceVal = '__garrison__';
       }
     } else if (presetVal.startsWith('nf_')) {
@@ -8038,7 +8082,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         if (nf) {
           ships = Object.assign({}, nf.ships || {});
           coords = currentTargetScan.coords || '';
-          name = `Fleet "${nf.name || 'Fleet'}" [${coords || 'Target'}]`;
+          const displayName = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${idx + 1}`;
+          name = `${displayName} [${coords || 'Target'}]`;
+          fleetName = displayName;
           sourceVal = presetVal;
         }
       }
@@ -8048,7 +8094,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const target = (simScanTargets || [])[tIdx];
       if (target) {
         coords = target.coords || `Target ${tIdx + 1}`;
-        const typeLabel = formatScanType(target.scanType);
         if (parts[2] === 'consolidated') {
           // Combine named fleets, and garrison if defender
           const merged = {};
@@ -8063,21 +8108,25 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             });
           });
           ships = merged;
-          name = (side === 'atk') ? `[${typeLabel}] Consolidated Fleets [${coords}]` : `[${typeLabel}] Consolidated [${coords}]`;
+          name = `Consolidated [${coords}]`;
+          fleetName = 'Consolidated';
         } else if (parts[2] === 'garrison') {
           ships = Object.assign({}, target.garrisonShips || {});
-          name = `[${typeLabel}] Garrison [${coords}]`;
+          name = `Garrison [${coords}]`;
+          fleetName = 'Garrison';
         } else if (parts[2] === 'nf') {
           const nfIdx = parseInt(parts[3], 10);
           const nf = (target.namedFleets || [])[nfIdx];
           if (nf) {
             ships = Object.assign({}, nf.ships || {});
-            name = `[${typeLabel}] Fleet "${nf.name || 'Fleet'}" [${coords}]`;
+            const displayName = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${nfIdx + 1}`;
+            name = `${displayName} [${coords}]`;
+            fleetName = displayName;
           }
         }
       }
     }
-    return { ships, name, sourceVal, coords };
+    return { ships, name, fleetName, sourceVal, coords };
   }
 
   function addAttackerFleet(presetVal, coords) {
@@ -8095,6 +8144,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (placeholderIdx !== -1) {
       const f = simAttackerFleets[placeholderIdx];
       f.name = presetVal ? resolved.name : (finalCoords ? `Attacker Fleet [${finalCoords}]` : (placeholderIdx === 0 ? 'Attacker Fleet 1' : `Attacker Fleet ${placeholderIdx + 1}`));
+      f.fleetName = resolved.fleetName || (placeholderIdx === 0 ? 'Attacker Fleet 1' : `Attacker Fleet ${placeholderIdx + 1}`);
       f.ships = presetVal ? Object.assign({}, resolved.ships) : {};
       f.sourceVal = resolved.sourceVal;
       f.coords = finalCoords;
@@ -8115,6 +8165,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       id: 'atk_' + (simFleetSeq++),
       side: 'atk',
       name: finalName,
+      fleetName: resolved.fleetName || `Attacker Fleet ${newIdx}`,
       coords: finalCoords,
       enabled: true,
       sourceVal: resolved.sourceVal,
@@ -8141,6 +8192,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const fName = resolved.name || (finalCoords ? `Home Base Garrison [${finalCoords}]` : 'Defender Base Garrison');
       if (simDefenderFleets.length > 0) {
         simDefenderFleets[0].name = fName;
+        simDefenderFleets[0].fleetName = resolved.fleetName || 'Base Garrison';
         simDefenderFleets[0].ships = Object.assign({}, resolved.ships);
         simDefenderFleets[0].sourceVal = '__hangar__';
         simDefenderFleets[0].coords = finalCoords;
@@ -8150,6 +8202,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           id: 'def_' + (simFleetSeq++),
           side: 'def',
           name: fName,
+          fleetName: resolved.fleetName || 'Base Garrison',
           coords: finalCoords,
           enabled: true,
           sourceVal: '__hangar__',
@@ -8173,6 +8226,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (placeholderIdx !== -1) {
       const f = simDefenderFleets[placeholderIdx];
       f.name = presetVal ? resolved.name : (finalCoords ? `Defender Fleet [${finalCoords}]` : (placeholderIdx === 0 ? 'Defender Garrison' : `Defender Fleet ${placeholderIdx + 1}`));
+      f.fleetName = resolved.fleetName || (placeholderIdx === 0 ? 'Garrison' : `Defender Fleet ${placeholderIdx + 1}`);
       f.ships = presetVal ? Object.assign({}, resolved.ships) : {};
       f.sourceVal = resolved.sourceVal;
       f.coords = finalCoords;
@@ -8193,6 +8247,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       id: 'def_' + (simFleetSeq++),
       side: 'def',
       name: finalName,
+      fleetName: resolved.fleetName || `Defender Fleet ${newIdx}`,
       coords: finalCoords,
       enabled: true,
       sourceVal: resolved.sourceVal,
@@ -9040,10 +9095,52 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function removeFleet(side, fleetId) {
     if (side === 'atk') {
       simAttackerFleets = simAttackerFleets.filter(f => f.id !== fleetId);
+      if (simAttackerFleets.length === 0) {
+        simAttackerFleets = [{
+          id: 'atk_' + (simFleetSeq++),
+          side: 'atk',
+          name: 'Attacker Fleet 1',
+          fleetName: 'Attacker Fleet 1',
+          sourceVal: '__custom__',
+          enabled: true,
+          ships: {}
+        }];
+        ['sim-atk-target-select', 'sim-bcalc-atk-target-select', 'sim-atk-coords-scans-select'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        const scanCard = document.getElementById('sim-atk-scan-details');
+        if (scanCard) scanCard.style.display = 'none';
+      }
       renderAllFleetCards('atk');
       recalcCoalitionSummary('atk');
     } else {
       simDefenderFleets = simDefenderFleets.filter(f => f.id !== fleetId);
+      if (simDefenderFleets.length === 0) {
+        simDefenderFleets = [{
+          id: 'def_' + (simFleetSeq++),
+          side: 'def',
+          name: 'Defender Fleet 1',
+          fleetName: 'Defender Fleet 1',
+          sourceVal: '__custom__',
+          enabled: true,
+          ships: {}
+        }];
+        currentTargetScan = null;
+        ['sim-def-target', 'sim-bcalc-def-target-select', 'sim-coords-scans-select'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        ['shield', 'ion', 'silo', 'laser'].forEach(id => {
+          const chk = document.getElementById(`sim-pds-${id}-chk`);
+          const lvl = document.getElementById(`sim-pds-${id}-lvl`);
+          if (chk) chk.checked = false;
+          if (lvl) lvl.value = 0;
+        });
+        simDefenderPds = {};
+        const scanCard = document.getElementById('sim-def-scan-details');
+        if (scanCard) scanCard.style.display = 'none';
+      }
       renderAllFleetCards('def');
       recalcCoalitionSummary('def');
     }
@@ -9080,6 +9177,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const fleet = list.find(f => f.id === fleetId);
     if (fleet) {
       fleet.name = newName.trim() || (side === 'atk' ? 'Attacker Fleet' : 'Defender Fleet');
+      fleet.fleetName = fleet.name;
       renderBcalcMatrix();
     }
   }
@@ -9088,9 +9186,11 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const list = (side === 'atk') ? simAttackerFleets : simDefenderFleets;
     const fleet = list.find(f => f.id === fleetId);
     if (!fleet) return;
-    const newName = prompt(`Enter new name for ${side === 'atk' ? 'Attacker' : 'Defender'} fleet:`, fleet.name);
+    const curName = fleet.fleetName || fleet.name;
+    const newName = prompt(`Enter new name for ${side === 'atk' ? 'Attacker' : 'Defender'} fleet:`, curName);
     if (newName !== null && newName.trim() !== '') {
       fleet.name = newName.trim();
+      fleet.fleetName = newName.trim();
       renderAllFleetCards(side);
       renderBcalcMatrix();
       showToast(`Renamed fleet to "${fleet.name}"`);
@@ -10979,15 +11079,15 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
     // Defender fleet columns
     defFleets.forEach((f, idx) => {
-      const shortName = f.name.length > 15 ? f.name.substring(0, 13) + '…' : f.name;
+      const displayName = getFleetDisplayName(f, f.name || `DEF ${idx + 1}`);
       const coordsBadge = f.coords ? `[${f.coords}]` : '[Set Coords]';
       const colClass = (idx % 2 === 0) ? 'def-even' : 'def-odd';
       const fTotal = getFleetShipCount(f);
       html += `
         <th class="bcalc-fleet-header bcalc-def-col ${colClass}">
           <div><span class="bcalc-fleet-pill def">DEF ${idx + 1}</span></div>
-          <div style="font-weight: 700; color: #38bdf8; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; margin: 0 auto;" title="Click to rename: ${escapeHtml(f.name)}" onclick="promptRenameFleet('def', '${f.id}')">
-            ${escapeHtml(shortName)} <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
+          <div style="font-weight: 700; color: #38bdf8; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 125px; margin: 0 auto;" title="Click to rename: ${escapeHtml(f.name || displayName)}" onclick="promptRenameFleet('def', '${f.id}')">
+            ${escapeHtml(displayName)} <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
           </div>
           <div style="font-size: 0.68rem; color: #ffd54f; cursor: pointer; margin-top: 0.1rem;" title="Click to set/edit coordinates" onclick="promptFleetCoords('def', '${f.id}')">
             ${escapeHtml(coordsBadge)} 🎯
@@ -11016,15 +11116,15 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
     // Attacker fleet columns
     atkFleets.forEach((f, idx) => {
-      const shortName = f.name.length > 15 ? f.name.substring(0, 13) + '…' : f.name;
+      const displayName = getFleetDisplayName(f, f.name || `ATK ${idx + 1}`);
       const coordsBadge = f.coords ? `[${f.coords}]` : '[Set Coords]';
       const colClass = (idx % 2 === 0) ? 'atk-even' : 'atk-odd';
       const fTotal = getFleetShipCount(f);
       html += `
         <th class="bcalc-fleet-header bcalc-atk-col ${colClass}">
           <div><span class="bcalc-fleet-pill atk">ATK ${idx + 1}</span></div>
-          <div style="font-weight: 700; color: #f87171; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; margin: 0 auto;" title="Click to rename: ${escapeHtml(f.name)}" onclick="promptRenameFleet('atk', '${f.id}')">
-            ${escapeHtml(shortName)} <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
+          <div style="font-weight: 700; color: #f87171; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 125px; margin: 0 auto;" title="Click to rename: ${escapeHtml(f.name || displayName)}" onclick="promptRenameFleet('atk', '${f.id}')">
+            ${escapeHtml(displayName)} <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
           </div>
           <div style="font-size: 0.68rem; color: #fca5a5; cursor: pointer; margin-top: 0.1rem;" title="Click to set/edit coordinates" onclick="promptFleetCoords('atk', '${f.id}')">
             ${escapeHtml(coordsBadge)} 🎯

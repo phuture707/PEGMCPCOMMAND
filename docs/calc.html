@@ -2531,6 +2531,40 @@ function autoResizeShipInput(inputEl) {
   }
 }
 
+function getFleetDisplayName(fleet, fallback = '') {
+  if (!fleet) return fallback;
+  if (fleet.fleetName && typeof fleet.fleetName === 'string' && fleet.fleetName.trim()) {
+    return fleet.fleetName.trim();
+  }
+  const rawName = (typeof fleet === 'string') ? fleet : (fleet.name || '');
+  if (!rawName) return fallback;
+
+  const quoteMatch = rawName.match(/["']([^"']+)["']/);
+  if (quoteMatch && quoteMatch[1] && quoteMatch[1].trim()) {
+    return quoteMatch[1].trim();
+  }
+
+  if (/garrison/i.test(rawName)) {
+    return 'Garrison';
+  }
+  if (/consolidated/i.test(rawName)) {
+    return 'Consolidated';
+  }
+
+  let cleaned = rawName
+    .replace(/\[(?:Unit Scan|Planet Scan|Deep Scan|Scanned Fleet \d+|BLOCKED|🤝 Ally.*?|👤 Mine)\]/gi, '')
+    .replace(/\[\d+:\d+:\d+\]/g, '')
+    .replace(/\[Target\]/gi, '')
+    .trim();
+
+  if (cleaned) {
+    cleaned = cleaned.replace(/^[-–—:\s]+|[-–—:\s]+$/g, '').trim();
+    if (cleaned) return cleaned;
+  }
+
+  return rawName || fallback;
+}
+
 function renderMatrix() {
   renderSideTable('def', defenderFleets, 'def-matrix-table-container');
   renderSideTable('atk', attackerFleets, 'atk-matrix-table-container');
@@ -2549,12 +2583,14 @@ function renderSideTable(side, fleets, containerId) {
 
   // Fleet Header Columns
   fleets.forEach((f, idx) => {
+    const displayName = getFleetDisplayName(f, f.name || (side === 'atk' ? `ATK ${idx + 1}` : `DEF ${idx + 1}`));
+    const coordsBadge = f.coords ? `[${f.coords}]` : '';
     html += `<th style="text-align: right; min-width: 108px;">
       <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.25rem;">
         <input type="checkbox" ${f.enabled ? 'checked' : ''} title="Include fleet in combat" onchange="toggleFleetEnabled('${side}', ${idx}, this.checked)">
-        <span style="cursor: pointer;" title="Click to rename fleet" onclick="renameFleet('${side}', ${idx})">${f.name}</span>
+        <span style="cursor: pointer; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;" title="Click to rename fleet: ${escapeHtml(f.name || displayName)}${coordsBadge ? ' ' + coordsBadge : ''}" onclick="renameFleet('${side}', ${idx})">${escapeHtml(displayName)}</span>
         <button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem;" title="Empty this fleet" onclick="emptySingleFleet('${side}', ${idx})">E</button>
-        ${fleets.length > 1 ? `<button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem; color: #f87171;" title="Delete fleet" onclick="deleteFleet('${side}', ${idx})">×</button>` : ''}
+        <button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem; color: #f87171;" title="Delete fleet" onclick="deleteFleet('${side}', ${idx})">×</button>
       </div>
     </th>`;
   });
@@ -2637,9 +2673,11 @@ function toggleFleetEnabled(side, fleetIdx, checked) {
 function renameFleet(side, fleetIdx) {
   const fleets = side === 'atk' ? attackerFleets : defenderFleets;
   if (!fleets[fleetIdx]) return;
-  const newName = prompt("Enter fleet name:", fleets[fleetIdx].name);
+  const curName = fleets[fleetIdx].fleetName || fleets[fleetIdx].name;
+  const newName = prompt("Enter fleet name:", curName);
   if (newName && newName.trim()) {
     fleets[fleetIdx].name = newName.trim();
+    fleets[fleetIdx].fleetName = newName.trim();
     renderMatrix();
   }
 }
@@ -2655,12 +2693,20 @@ function emptySingleFleet(side, fleetIdx) {
 
 function deleteFleet(side, fleetIdx) {
   const fleets = side === 'atk' ? attackerFleets : defenderFleets;
-  if (fleets.length <= 1) return;
-  if (confirm(`Delete "${fleets[fleetIdx].name}"?`)) {
+  if (!fleets[fleetIdx]) return;
+  const targetName = fleets[fleetIdx].name || (side === 'atk' ? 'Attacker Fleet' : 'Defender Fleet');
+  if (confirm(`Delete "${targetName}"?`)) {
     if (side === 'atk') {
       attackerFleets.splice(fleetIdx, 1);
+      if (attackerFleets.length === 0) {
+        attackerFleets = [{ id: 'atk_' + (simFleetSeq++), name: 'Attacker Fleet 1', fleetName: 'Attacker Fleet 1', enabled: true, ships: {} }];
+      }
     } else {
       defenderFleets.splice(fleetIdx, 1);
+      if (defenderFleets.length === 0) {
+        defenderFleets = [{ id: 'def_' + (simFleetSeq++), name: 'Defender Fleet 1', fleetName: 'Defender Fleet 1', enabled: true, ships: {} }];
+        defenderPds = {};
+      }
     }
     renderMatrix();
     updateTotals();
@@ -3910,6 +3956,7 @@ function pickScanFleet(targetIdx, mode, nfIdx) {
   const typeLabel = formatScanType(target.scanType);
   const targetFleets = (currentPickerSide === 'atk') ? attackerFleets : defenderFleets;
   let fleetName = '';
+  let fleetRealName = '';
   let fleetShips = {};
 
   if (mode === 'consolidated') {
@@ -3925,16 +3972,20 @@ function pickScanFleet(targetIdx, mode, nfIdx) {
       });
     });
     fleetShips = merged;
+    fleetRealName = 'Consolidated';
     fleetName = currentPickerSide === 'atk'
-      ? `[${typeLabel}] Consolidated (Excl. Garrison) [${targetCoords || 'Target'}]`
-      : `[${typeLabel}] Consolidated [${targetCoords || 'Target'}]`;
+      ? `Consolidated [${targetCoords || 'Target'}]`
+      : `Consolidated [${targetCoords || 'Target'}]`;
   } else if (mode === 'garrison') {
     fleetShips = Object.assign({}, target.garrisonShips || {});
-    fleetName = `[${typeLabel}] Garrison [${targetCoords || 'Target'}]`;
+    fleetRealName = 'Garrison';
+    fleetName = `Garrison [${targetCoords || 'Target'}]`;
   } else if (mode === 'named') {
     const nf = (target.namedFleets || [])[nfIdx];
     fleetShips = Object.assign({}, nf?.ships || {});
-    fleetName = `[${typeLabel}] Fleet "${nf?.name || 'Fleet'}" [${targetCoords || 'Target'}]`;
+    const displayName = (nf?.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${nfIdx + 1}`;
+    fleetRealName = displayName;
+    fleetName = `${displayName} [${targetCoords || 'Target'}]`;
   }
 
   // If roster only has 1 empty fleet, replace it instead of creating duplicate blank columns
@@ -3942,6 +3993,8 @@ function pickScanFleet(targetIdx, mode, nfIdx) {
   const newFleetObj = {
     id: (currentPickerSide === 'atk' ? 'atk_scan_' : 'def_scan_') + (simFleetSeq++),
     name: fleetName,
+    fleetName: fleetRealName,
+    coords: targetCoords,
     enabled: true,
     ships: fleetShips
   };
