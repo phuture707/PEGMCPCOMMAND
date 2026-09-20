@@ -6997,11 +6997,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     startScanBackgroundSync();
 
     if (window.location.hash.includes('c=') || window.location.hash.includes('import=') || window.location.hash.includes('coords=')) {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (typeof switchTab === 'function') switchTab('battlecalc');
-        handleCalcUrlHash();
+        await handleCalcUrlHash();
       }, 500);
     }
+    window.addEventListener('hashchange', () => {
+      handleCalcUrlHash();
+    });
   };
 
 // =========================================================================
@@ -7023,6 +7026,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   let simEnteredCoords = '';
   let universePlanetsList = [];
   let userAllianceData = null;
+  let userClearedRoster = { atk: false, def: false };
 
   function normalizeCoords(str) {
     if (!str) return '';
@@ -7136,17 +7140,21 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       await refreshScanTargets(false);
       startScanBackgroundSync();
 
+      const hasSharedHash = window.location.hash.includes('c=') || window.location.hash.includes('import=');
+
       // Initialize default attacker fleet if none exists (starts empty)
-      if (simAttackerFleets.length === 0) {
+      if (simAttackerFleets.length === 0 && !hasSharedHash && !userClearedRoster.atk) {
         initDefaultAttackerFleet();
       }
 
       // Initialize default defender fleet if none exists (starts empty)
-      if (simDefenderFleets.length === 0) {
+      if (simDefenderFleets.length === 0 && !hasSharedHash && !userClearedRoster.def) {
         initDefaultDefenderFleet();
       }
 
-      setSimulationMode(currentSimMode, true);
+      if (!hasSharedHash && !userClearedRoster.def) {
+        setSimulationMode(currentSimMode, true);
+      }
       setSimulatorLayout(currentBcalcLayout);
       initCalcSessions();
 
@@ -7272,6 +7280,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const mainInput = document.getElementById(mainInputId);
     if (mainInput && mainInput.value !== normVal) mainInput.value = normVal;
 
+    if (normVal) {
+      userClearedRoster[side] = false;
+    }
+
     if (side === 'atk') {
       simEnteredCoordsAtk = normVal;
       updateCoordsScansDropdown('atk');
@@ -7388,7 +7400,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     });
 
     // Default selection to newest scan if valid, without overwriting active fleets
-    if (matchingScans.length > 0) {
+    if (matchingScans.length > 0 && !userClearedRoster[side]) {
       const newestGlobalIdx = simScanTargets.indexOf(matchingScans[0]);
       sel.value = newestGlobalIdx;
       const targetSelIds = isAtk ? ['sim-atk-target-select', 'sim-bcalc-atk-target-select'] : ['sim-def-target', 'sim-bcalc-def-target-select'];
@@ -7402,6 +7414,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function onCoordsScanSelected(side, selectEl) {
     const val = selectEl.value;
     if (val === '' || val === '__none__') return;
+    userClearedRoster[side] = false;
     const idx = parseInt(val, 10);
     const targetScan = simScanTargets[idx];
     if (targetScan) {
@@ -7417,6 +7430,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function onTargetSelectChange(side, selectEl) {
     const val = selectEl.value;
     if (val === '' || val === '__none__') return;
+    userClearedRoster[side] = false;
     // Synchronize the other selector for this side
     const otherId = (side === 'atk')
       ? (selectEl.id === 'sim-atk-target-select' ? 'sim-bcalc-atk-target-select' : 'sim-atk-target-select')
@@ -7433,6 +7447,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   function loadScanIntoSide(side, targetScan, mode) {
     if (!targetScan) return;
+    userClearedRoster[side] = false;
     const isAtk = (side === 'atk');
     const isBlocked = (targetScan.status === 'blocked' || targetScan.isBlocked);
     const typeLabel = formatScanType(targetScan.scanType);
@@ -7820,6 +7835,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       id: 'atk_' + (simFleetSeq++),
       side: 'atk',
       name: 'Attacker Fleet 1',
+      fleetName: 'Attacker Fleet 1',
       coords: '',
       enabled: true,
       sourceVal: '__custom__',
@@ -7832,6 +7848,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       id: 'def_' + (simFleetSeq++),
       side: 'def',
       name: 'Defender Garrison',
+      fleetName: 'Defender Garrison',
       coords: '',
       enabled: true,
       sourceVal: '__custom__',
@@ -8130,6 +8147,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   }
 
   function addAttackerFleet(presetVal, coords) {
+    userClearedRoster.atk = false;
     const resolved = resolveFleetPreset(presetVal, 'atk');
     const finalCoords = coords || resolved.coords || simEnteredCoordsAtk || '';
 
@@ -8178,6 +8196,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   }
 
   function addDefenderFleet(presetVal, coords) {
+    userClearedRoster.def = false;
     const resolved = resolveFleetPreset(presetVal, 'def');
     const finalCoords = coords || resolved.coords || simEnteredCoordsDef || '';
 
@@ -8330,6 +8349,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       id: side + '_' + (simFleetSeq++),
       side: side,
       name: finalName,
+      fleetName: 'Consolidated',
       coords: combinedCoords,
       enabled: true,
       sourceVal: '__custom__',
@@ -9096,6 +9116,19 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (side === 'atk') {
       simAttackerFleets = simAttackerFleets.filter(f => f.id !== fleetId);
       if (simAttackerFleets.length === 0) {
+        userClearedRoster.atk = true;
+        simEnteredCoordsAtk = '';
+        const atkCoordsInput = document.getElementById('sim-atk-coords-input');
+        if (atkCoordsInput) atkCoordsInput.value = '';
+        const atkBcalcCoordsInput = document.getElementById('sim-bcalc-atk-coords-input');
+        if (atkBcalcCoordsInput) atkBcalcCoordsInput.value = '';
+        const atkLabel = document.getElementById('sim-atk-coords-active-label');
+        if (atkLabel) atkLabel.textContent = 'Attacker Coords';
+        const atkBadge = document.getElementById('sim-atk-coords-match-badge');
+        if (atkBadge) {
+          atkBadge.textContent = '0 scan(s)';
+          atkBadge.style.color = 'var(--cyan)';
+        }
         simAttackerFleets = [{
           id: 'atk_' + (simFleetSeq++),
           side: 'atk',
@@ -9111,12 +9144,32 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         });
         const scanCard = document.getElementById('sim-atk-scan-details');
         if (scanCard) scanCard.style.display = 'none';
+
+        const atkEmpty = simAttackerFleets.every(f => Object.keys(f.ships || {}).length === 0);
+        const defEmpty = simDefenderFleets.every(f => Object.keys(f.ships || {}).length === 0);
+        if (atkEmpty && defEmpty) {
+          const bottomCoords = document.getElementById('sim-bcalc-bottom-coords');
+          if (bottomCoords) bottomCoords.value = '';
+        }
       }
       renderAllFleetCards('atk');
       recalcCoalitionSummary('atk');
     } else {
       simDefenderFleets = simDefenderFleets.filter(f => f.id !== fleetId);
       if (simDefenderFleets.length === 0) {
+        userClearedRoster.def = true;
+        simEnteredCoordsDef = '';
+        const defCoordsInput = document.getElementById('sim-coords-input');
+        if (defCoordsInput) defCoordsInput.value = '';
+        const defBcalcCoordsInput = document.getElementById('sim-bcalc-def-coords-input');
+        if (defBcalcCoordsInput) defBcalcCoordsInput.value = '';
+        const defLabel = document.getElementById('sim-coords-active-label');
+        if (defLabel) defLabel.textContent = 'Defender Coords';
+        const defBadge = document.getElementById('sim-coords-match-badge');
+        if (defBadge) {
+          defBadge.textContent = '0 scan(s)';
+          defBadge.style.color = 'var(--cyan)';
+        }
         simDefenderFleets = [{
           id: 'def_' + (simFleetSeq++),
           side: 'def',
@@ -9140,6 +9193,13 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         simDefenderPds = {};
         const scanCard = document.getElementById('sim-def-scan-details');
         if (scanCard) scanCard.style.display = 'none';
+
+        const atkEmpty = simAttackerFleets.every(f => Object.keys(f.ships || {}).length === 0);
+        const defEmpty = simDefenderFleets.every(f => Object.keys(f.ships || {}).length === 0);
+        if (atkEmpty && defEmpty) {
+          const bottomCoords = document.getElementById('sim-bcalc-bottom-coords');
+          if (bottomCoords) bottomCoords.value = '';
+        }
       }
       renderAllFleetCards('def');
       recalcCoalitionSummary('def');
@@ -9574,37 +9634,70 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       setSimulationMode(state.simMode, true);
     }
 
+    userClearedRoster.atk = false;
+    userClearedRoster.def = false;
+
     if (Array.isArray(state.atk)) {
       simAttackerFleets = state.atk.map((f, i) => ({
         id: f.id || ('atk_' + (i + 1)),
         side: 'atk',
-        name: f.name || ('Fleet ' + (i + 1)),
-        coords: state.coords || '',
+        name: f.fleetName || f.name || ('Fleet ' + (i + 1)),
+        fleetName: f.fleetName || f.name || ('Fleet ' + (i + 1)),
+        coords: f.coords || state.coords || '',
         enabled: f.enabled !== false && !f.disabled,
         ships: Object.assign({}, f.ships || {})
       }));
     } else if (Array.isArray(state.attackerFleets)) {
-      simAttackerFleets = JSON.parse(JSON.stringify(state.attackerFleets));
+      simAttackerFleets = state.attackerFleets.map((f, i) => ({
+        id: f.id || ('atk_' + (i + 1)),
+        side: 'atk',
+        name: f.fleetName || f.name || ('Fleet ' + (i + 1)),
+        fleetName: f.fleetName || f.name || ('Fleet ' + (i + 1)),
+        coords: f.coords || state.coords || '',
+        enabled: f.enabled !== false && !f.disabled,
+        ships: Object.assign({}, f.ships || {})
+      }));
+    }
+    if (!simAttackerFleets || simAttackerFleets.length === 0) {
+      initDefaultAttackerFleet();
     }
 
     if (Array.isArray(state.def)) {
       simDefenderFleets = state.def.map((f, i) => ({
         id: f.id || ('def_' + (i + 1)),
         side: 'def',
-        name: f.name || (i === 0 ? 'Defender Garrison' : ('Fleet ' + (i + 1))),
-        coords: state.coords || '',
+        name: f.fleetName || f.name || (i === 0 ? 'Defender Garrison' : ('Fleet ' + (i + 1))),
+        fleetName: f.fleetName || f.name || (i === 0 ? 'Defender Garrison' : ('Fleet ' + (i + 1))),
+        coords: f.coords || state.coords || '',
         enabled: f.enabled !== false && !f.disabled,
         ships: Object.assign({}, f.ships || {})
       }));
     } else if (Array.isArray(state.defenderFleets)) {
-      simDefenderFleets = JSON.parse(JSON.stringify(state.defenderFleets));
+      simDefenderFleets = state.defenderFleets.map((f, i) => ({
+        id: f.id || ('def_' + (i + 1)),
+        side: 'def',
+        name: f.fleetName || f.name || (i === 0 ? 'Defender Garrison' : ('Fleet ' + (i + 1))),
+        fleetName: f.fleetName || f.name || (i === 0 ? 'Defender Garrison' : ('Fleet ' + (i + 1))),
+        coords: f.coords || state.coords || '',
+        enabled: f.enabled !== false && !f.disabled,
+        ships: Object.assign({}, f.ships || {})
+      }));
+    }
+    if (!simDefenderFleets || simDefenderFleets.length === 0) {
+      initDefaultDefenderFleet();
     }
 
     const coordsVal = state.coords || state.bottomCoords || state.enteredCoordsDef || '';
     if (coordsVal) {
-      onCoordsInputChanged('def', coordsVal);
+      simEnteredCoordsDef = coordsVal;
       const bcalcBottomCoords = document.getElementById('sim-bcalc-bottom-coords');
       if (bcalcBottomCoords) bcalcBottomCoords.value = coordsVal;
+      const defCoordsInput = document.getElementById('sim-coords-input');
+      if (defCoordsInput) defCoordsInput.value = coordsVal;
+      const defBcalcCoordsInput = document.getElementById('sim-bcalc-def-coords-input');
+      if (defBcalcCoordsInput) defBcalcCoordsInput.value = coordsVal;
+      const defLabel = document.getElementById('sim-coords-active-label');
+      if (defLabel) defLabel.textContent = `[${coordsVal}]`;
     }
     if (state.enteredCoordsAtk) {
       onCoordsInputChanged('atk', state.enteredCoordsAtk);
@@ -9659,6 +9752,13 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       if (lvl) lvl.value = info.level;
     });
 
+    simDefenderPds = {
+      'main-shield-generator': parseInt(document.getElementById('sim-pds-shield-lvl')?.value || '0', 10),
+      'main-laser-battery': parseInt(document.getElementById('sim-pds-laser-lvl')?.value || '0', 10),
+      'main-missile-silo': parseInt(document.getElementById('sim-pds-silo-lvl')?.value || '0', 10),
+      'main-ion-cannon': parseInt(document.getElementById('sim-pds-ion-lvl')?.value || '0', 10)
+    };
+
     if (state.rounds) {
       const rSel = document.getElementById('sim-max-rounds');
       if (rSel) rSel.value = String(state.rounds);
@@ -9672,6 +9772,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       setSimulatorLayout(state.layout);
     } else {
       renderBcalcMatrix();
+    }
+
+    if (calcSessions && calcSessions.length > 0) {
+      calcSessions[0].state = state;
+      if (state.title || state.coords) {
+        calcSessions[0].name = state.title || `Target ${state.coords}`;
+      }
+      renderCalcTabs();
     }
 
     renderAllFleetCards('atk');
@@ -9975,7 +10083,97 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
   }
 
-  // Compression & Public Link Sharing (URL Safe Deflate-Raw)
+  // =========================================================================
+  // COMPRESSION & SHAREABLE LINK ENGINE (ULTRA-COMPACT SCHEMA V2 & DEFLATE-RAW)
+  // =========================================================================
+  const COMPACT_SHIP_KEYS = [
+    "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-marauder",
+    "main-ashkari-oblivion", "main-ashkari-plunder-barge", "main-ashkari-raid-runner",
+    "main-ashkari-ravager", "main-ashkari-reaper", "main-ashkari-talon", "main-ashkari-viper",
+    "main-synthara-arc", "main-synthara-crystal-borer", "main-synthara-monolith",
+    "main-synthara-nexus", "main-synthara-nexus-freighter", "main-synthara-obelisk",
+    "main-synthara-oracle", "main-synthara-pulse", "main-synthara-pulse-courier",
+    "main-synthara-singularity", "main-synthara-singularity-hauler", "main-synthara-void-harvester",
+    "main-vanguard-centurion", "main-vanguard-colossus", "main-vanguard-core-driller",
+    "main-vanguard-fortress-transport", "main-vanguard-guardian", "main-vanguard-imperator",
+    "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor", "main-vanguard-sentinel",
+    "main-vanguard-siege-harvester", "main-vanguard-sovereign", "main-vanguard-supply-runner",
+    "main-vanguard-titan"
+  ];
+
+  const COMPACT_SHIP_MAP = {};
+  COMPACT_SHIP_KEYS.forEach((k, i) => { COMPACT_SHIP_MAP[k] = i; });
+
+  function compactFleets(fleets) {
+    if (!Array.isArray(fleets)) return [];
+    return fleets.map(f => {
+      const compactShips = [];
+      if (f.ships) {
+        Object.entries(f.ships).forEach(([sId, cnt]) => {
+          const num = parseInt(cnt, 10) || 0;
+          if (num > 0) {
+            const idx = COMPACT_SHIP_MAP[sId];
+            if (idx !== undefined) {
+              compactShips.push([idx, num]);
+            }
+          }
+        });
+      }
+      const name = f.fleetName || f.name || '';
+      const enabled = (f.enabled !== false && !f.disabled) ? 1 : 0;
+      const coords = f.coords || '';
+      return [name, compactShips, enabled, coords];
+    });
+  }
+
+  function expandCompactFleets(compactArray, side) {
+    if (!Array.isArray(compactArray)) return [];
+    return compactArray.map((cf, i) => {
+      let name = '';
+      let compactShips = [];
+      let enabled = true;
+      let coords = '';
+
+      if (Array.isArray(cf)) {
+        name = cf[0] || (side === 'atk' ? `ATK ${i + 1}` : (i === 0 ? 'Defender Garrison' : `DEF ${i + 1}`));
+        compactShips = Array.isArray(cf[1]) ? cf[1] : [];
+        enabled = cf[2] !== 0;
+        coords = cf[3] || '';
+      } else if (cf && typeof cf === 'object') {
+        return {
+          id: cf.id || (side + '_' + (i + 1)),
+          side: side,
+          name: cf.name || (side === 'atk' ? `ATK ${i + 1}` : (i === 0 ? 'Defender Garrison' : `DEF ${i + 1}`)),
+          fleetName: cf.fleetName || cf.name || '',
+          coords: cf.coords || '',
+          enabled: cf.enabled !== false && !cf.disabled,
+          ships: Object.assign({}, cf.ships || {})
+        };
+      }
+
+      const ships = {};
+      compactShips.forEach(entry => {
+        if (Array.isArray(entry) && entry.length >= 2) {
+          const sKey = typeof entry[0] === 'number' ? COMPACT_SHIP_KEYS[entry[0]] : entry[0];
+          const cnt = parseInt(entry[1], 10) || 0;
+          if (sKey && cnt > 0) {
+            ships[sKey] = cnt;
+          }
+        }
+      });
+
+      return {
+        id: side + '_' + (i + 1),
+        side: side,
+        name: name,
+        fleetName: name,
+        coords: coords,
+        enabled: enabled,
+        ships: ships
+      };
+    });
+  }
+
   async function compressToUrlSafe(obj) {
     try {
       const jsonStr = JSON.stringify(obj);
@@ -9999,16 +10197,64 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     try {
       let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
       while (b64.length % 4) b64 += '=';
+      let data = null;
       if (typeof DecompressionStream !== 'undefined') {
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-        const txt = await new Response(stream).text();
-        return JSON.parse(txt);
+        try {
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+          const txt = await new Response(stream).text();
+          data = JSON.parse(txt);
+        } catch(decompErr) {
+          try {
+            data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+          } catch(legacyErr) {
+            console.warn("Decompression failed for both deflate-raw and uncompressed base64:", decompErr, legacyErr);
+          }
+        }
       } else {
-        return JSON.parse(decodeURIComponent(escape(atob(b64))));
+        try {
+          data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+        } catch(legacyErr) {
+          console.warn("Base64 decode failed:", legacyErr);
+        }
       }
+
+      if (!data) return null;
+
+      // Compact Schema v2 expansion
+      if (data.v === 2) {
+        const p = Array.isArray(data.p) ? data.p : [0, 0, 0, 0];
+        const t = Array.isArray(data.t) ? data.t : [5, 5, 5, 5];
+        return {
+          version: 2,
+          title: data.c ? `Target ${data.c}` : 'Battle Calculation',
+          coords: data.c || '',
+          atk: expandCompactFleets(data.a || [], 'atk'),
+          def: expandCompactFleets(data.d || [], 'def'),
+          pds: {
+            'main-shield-generator': p[0] || 0,
+            'main-laser-battery': p[1] || 0,
+            'main-missile-silo': p[2] || 0,
+            'main-ion-cannon': p[3] || 0,
+            'shield': { enabled: (p[0] || 0) > 0, level: p[0] || 0 },
+            'laser': { enabled: (p[1] || 0) > 0, level: p[1] || 0 },
+            'silo': { enabled: (p[2] || 0) > 0, level: p[2] || 0 },
+            'ion': { enabled: (p[3] || 0) > 0, level: p[3] || 0 }
+          },
+          tech: {
+            atkHulls: t[0] !== undefined ? t[0] : 5,
+            atkShipTech: t[1] !== undefined ? t[1] : 5,
+            defHulls: t[2] !== undefined ? t[2] : 5,
+            defShipTech: t[3] !== undefined ? t[3] : 5
+          },
+          rounds: data.r || 1,
+          timestamp: data.ts || Date.now()
+        };
+      }
+
+      return data;
     } catch(e) {
       console.error("Decompression failed:", e);
       return null;
@@ -10023,51 +10269,29 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const atkHulls = document.getElementById('sim-atk-hulls');
     const atkShipTech = document.getElementById('sim-atk-shiptech');
 
-    const pdsLevels = {};
-    const pdsFullMap = {
-      shield: 'main-shield-generator',
-      ion: 'main-ion-cannon',
-      silo: 'main-missile-silo',
-      laser: 'main-laser-battery'
-    };
-    ['shield', 'ion', 'silo', 'laser'].forEach(id => {
+    const pdsArr = [0, 0, 0, 0];
+    ['shield', 'laser', 'silo', 'ion'].forEach((id, idx) => {
       const chk = document.getElementById(`sim-pds-${id}-chk`);
       const lvl = document.getElementById(`sim-pds-${id}-lvl`);
-      const val = lvl ? parseInt(lvl.value, 10) || 0 : 0;
       const en = chk ? chk.checked : true;
-      pdsLevels[id] = { enabled: en, level: val };
-      pdsLevels[pdsFullMap[id]] = val;
+      const val = lvl ? parseInt(lvl.value, 10) || 0 : 0;
+      pdsArr[idx] = en ? val : 0;
     });
 
-    const cleanAtk = (typeof simAttackerFleets !== 'undefined' && Array.isArray(simAttackerFleets) ? simAttackerFleets : []).map((f, i) => ({
-      id: f.id || ('atk_' + (i + 1)),
-      name: f.name || ('Fleet ' + (i + 1)),
-      enabled: f.enabled !== false && !f.disabled,
-      ships: Object.assign({}, f.ships || {})
-    }));
-
-    const cleanDef = (typeof simDefenderFleets !== 'undefined' && Array.isArray(simDefenderFleets) ? simDefenderFleets : []).map((f, i) => ({
-      id: f.id || ('def_' + (i + 1)),
-      name: f.name || (i === 0 ? 'Defender Garrison' : ('Fleet ' + (i + 1))),
-      enabled: f.enabled !== false && !f.disabled,
-      ships: Object.assign({}, f.ships || {})
-    }));
-
     return {
-      version: 1,
-      title: effectiveCoords ? `Target ${effectiveCoords}` : 'Battle Calc',
-      coords: effectiveCoords,
-      atk: cleanAtk,
-      def: cleanDef,
-      pds: pdsLevels,
-      tech: {
-        atkHulls: parseInt(atkHulls ? atkHulls.value : 5, 10) || 5,
-        atkShipTech: parseInt(atkShipTech ? atkShipTech.value : 5, 10) || 5,
-        defHulls: 5,
-        defShipTech: 5
-      },
-      rounds: parseInt(document.getElementById('sim-max-rounds')?.value || '1', 10) || 1,
-      timestamp: Date.now()
+      v: 2,
+      c: effectiveCoords,
+      r: parseInt(document.getElementById('sim-max-rounds')?.value || '1', 10) || 1,
+      a: compactFleets(simAttackerFleets),
+      d: compactFleets(simDefenderFleets),
+      p: pdsArr,
+      t: [
+        parseInt(atkHulls ? atkHulls.value : 5, 10) || 5,
+        parseInt(atkShipTech ? atkShipTech.value : 5, 10) || 5,
+        5,
+        5
+      ],
+      ts: Date.now()
     };
   }
 
@@ -10783,7 +11007,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     openCalcShareModal();
   }
 
-  function handleCalcUrlHash() {
+  async function handleCalcUrlHash() {
     const hash = window.location.hash || '';
     if (!hash) return;
 
@@ -10791,17 +11015,20 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const matchC = hash.match(/c=([^&]+)/);
     if (matchC) {
       const code = matchC[1];
-      decompressFromUrlSafe(code).then(state => {
+      try {
+        const state = await decompressFromUrlSafe(code);
         if (state) {
           applyCalcState(state);
           if (calcSessions && calcSessions.length > 0) {
-            calcSessions[0].name = state.title || 'Shared Calc';
+            calcSessions[0].name = state.title || (state.coords ? `Target ${state.coords}` : 'Shared Calc');
             calcSessions[0].state = state;
             renderCalcTabs();
           }
           showToast(`Imported shared battle: ${state.title || 'Battle'}`);
         }
-      }).catch(e => console.warn("Failed to decompress hash:", e));
+      } catch(e) {
+        console.warn("Failed to decompress hash:", e);
+      }
       return;
     }
 
@@ -10831,42 +11058,18 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const matchCoords = hash.match(/coords=([^&]+)/);
     if (matchCoords) {
       const coords = decodeURIComponent(matchCoords[1]).trim();
-      setTimeout(() => {
-        onCoordsInputChanged('def', coords);
-        const bottomCoords = document.getElementById('sim-bcalc-bottom-coords');
-        if (bottomCoords) bottomCoords.value = coords;
-        if (calcSessions && calcSessions.length > 0) {
-          calcSessions[0].name = `Target ${coords}`;
-          renderCalcTabs();
-        }
-      }, 250);
+      onCoordsInputChanged('def', coords);
+      const bottomCoords = document.getElementById('sim-bcalc-bottom-coords');
+      if (bottomCoords) bottomCoords.value = coords;
+      if (calcSessions && calcSessions.length > 0) {
+        calcSessions[0].name = `Target ${coords}`;
+        renderCalcTabs();
+      }
     }
   }
 
-  function handleCalcUrlHashPostLoad() {
-    const hash = window.location.hash || '';
-    if (!hash) return;
-
-    const matchC = hash.match(/c=([^&]+)/);
-    if (matchC) {
-      const code = matchC[1];
-      decompressFromUrlSafe(code).then(state => {
-        if (state) applyCalcState(state);
-      }).catch(e => {});
-      return;
-    }
-
-    const matchImport = hash.match(/import=([^&]+)/);
-    if (matchImport) {
-      const transferId = matchImport[1];
-      try {
-        const raw = localStorage.getItem(transferId) || localStorage.getItem('peg_calc_transfer_latest');
-        if (raw) {
-          const state = JSON.parse(raw);
-          applyCalcState(state);
-        }
-      } catch(e) {}
-    }
+  async function handleCalcUrlHashPostLoad() {
+    await handleCalcUrlHash();
   }
 
   async function initStandaloneCombatSimulator() {
@@ -10889,10 +11092,8 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (bcalcTab) bcalcTab.classList.add('active');
 
     initCalcSessions();
-    handleCalcUrlHash();
-
     await loadCombatSimulator();
-    handleCalcUrlHashPostLoad();
+    await handleCalcUrlHash();
   }
 
   function setBcalcHullFilter(filter) {

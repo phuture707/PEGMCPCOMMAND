@@ -523,9 +523,9 @@
         <span class="mcp-dot"></span>
         <span id="mcp-status-text">Probing MCP...</span>
       </div>
-      <a id="btn-open-local-suite" href="http://127.0.0.1:7890/calc" target="_blank" class="btn btn-refresh" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12); font-weight: 600; display: none;" title="Open this exact scenario in your local Pegasus MCP Suite (port 7890) for full automatic .env integration">
+      <button type="button" id="btn-open-local-suite" onclick="openInLocalSuite(event)" class="btn btn-refresh" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12); font-weight: 600; display: none;" title="Open this exact scenario in your local Pegasus MCP Suite (port 7890) for full automatic .env integration">
         🚀 Open in Local MCP
-      </a>
+      </button>
       <button class="btn btn-primary" onclick="copyShareLink()" title="Copy shareable link with encoded calculation">
         🔗 Copy Share Link
       </button>
@@ -811,9 +811,9 @@
         This page is loaded over <strong>HTTPS</strong>. Web browsers (Chrome, Edge, Firefox, Brave) automatically block public HTTPS websites from contacting local HTTP addresses (<code>http://127.0.0.1:7890</code>) for security.
       </div>
       <div style="margin-top: 0.6rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-        <a id="modal-open-local-btn" href="http://127.0.0.1:7890/calc" target="_blank" class="btn btn-primary" style="font-size: 0.78rem; text-decoration: none; padding: 0.3rem 0.8rem; background: linear-gradient(135deg, #0284c7, #2563eb);">
+        <button type="button" id="modal-open-local-btn" onclick="openInLocalSuite(event)" class="btn btn-primary" style="font-size: 0.78rem; text-decoration: none; padding: 0.3rem 0.8rem; background: linear-gradient(135deg, #0284c7, #2563eb); border: none; cursor: pointer;">
           🚀 1-Click: Open in Local MCP Suite (Port 7890)
-        </a>
+        </button>
         <button type="button" class="btn btn-refresh" onclick="showBrowserSettingGuide()" style="font-size: 0.78rem; color: #38bdf8; border-color: rgba(56,189,248,0.4); padding: 0.3rem 0.8rem;">
           🔓 Or Allow Insecure Content in Chrome
         </button>
@@ -2094,8 +2094,96 @@ const ALL_SHIP_KEYS = Object.keys(SHIP_DEFINITIONS);
 const HULL_CATEGORIES = ['FIGHTER', 'CORVETTE', 'FRIGATE', 'DESTROYER', 'CRUISER', 'BATTLESHIP'];
 
 // =========================================================================
-// COMPRESSION & SHAREABLE LINK ENGINE (NATIVE BROWSER DEFLATE-RAW)
+// COMPRESSION & SHAREABLE LINK ENGINE (ULTRA-COMPACT SCHEMA V2 & DEFLATE-RAW)
 // =========================================================================
+const COMPACT_SHIP_KEYS = [
+  "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-marauder",
+  "main-ashkari-oblivion", "main-ashkari-plunder-barge", "main-ashkari-raid-runner",
+  "main-ashkari-ravager", "main-ashkari-reaper", "main-ashkari-talon", "main-ashkari-viper",
+  "main-synthara-arc", "main-synthara-crystal-borer", "main-synthara-monolith",
+  "main-synthara-nexus", "main-synthara-nexus-freighter", "main-synthara-obelisk",
+  "main-synthara-oracle", "main-synthara-pulse", "main-synthara-pulse-courier",
+  "main-synthara-singularity", "main-synthara-singularity-hauler", "main-synthara-void-harvester",
+  "main-vanguard-centurion", "main-vanguard-colossus", "main-vanguard-core-driller",
+  "main-vanguard-fortress-transport", "main-vanguard-guardian", "main-vanguard-imperator",
+  "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor", "main-vanguard-sentinel",
+  "main-vanguard-siege-harvester", "main-vanguard-sovereign", "main-vanguard-supply-runner",
+  "main-vanguard-titan"
+];
+
+const COMPACT_SHIP_MAP = {};
+COMPACT_SHIP_KEYS.forEach((k, i) => { COMPACT_SHIP_MAP[k] = i; });
+
+function compactFleets(fleets) {
+  if (!Array.isArray(fleets)) return [];
+  return fleets.map(f => {
+    const compactShips = [];
+    if (f.ships) {
+      Object.entries(f.ships).forEach(([sId, cnt]) => {
+        const num = parseInt(cnt, 10) || 0;
+        if (num > 0) {
+          const idx = COMPACT_SHIP_MAP[sId];
+          if (idx !== undefined) {
+            compactShips.push([idx, num]);
+          }
+        }
+      });
+    }
+    const name = f.fleetName || f.name || '';
+    const enabled = (f.enabled !== false && !f.disabled) ? 1 : 0;
+    const coords = f.coords || '';
+    return [name, compactShips, enabled, coords];
+  });
+}
+
+function expandCompactFleets(compactArray, side) {
+  if (!Array.isArray(compactArray)) return [];
+  return compactArray.map((cf, i) => {
+    let name = '';
+    let compactShips = [];
+    let enabled = true;
+    let coords = '';
+
+    if (Array.isArray(cf)) {
+      name = cf[0] || (side === 'atk' ? `ATK ${i + 1}` : (i === 0 ? 'Defender Garrison' : `DEF ${i + 1}`));
+      compactShips = Array.isArray(cf[1]) ? cf[1] : [];
+      enabled = cf[2] !== 0;
+      coords = cf[3] || '';
+    } else if (cf && typeof cf === 'object') {
+      return {
+        id: cf.id || (side + '_' + (i + 1)),
+        side: side,
+        name: cf.name || (side === 'atk' ? `ATK ${i + 1}` : (i === 0 ? 'Defender Garrison' : `DEF ${i + 1}`)),
+        fleetName: cf.fleetName || cf.name || '',
+        coords: cf.coords || '',
+        enabled: cf.enabled !== false && !cf.disabled,
+        ships: Object.assign({}, cf.ships || {})
+      };
+    }
+
+    const ships = {};
+    compactShips.forEach(entry => {
+      if (Array.isArray(entry) && entry.length >= 2) {
+        const sKey = typeof entry[0] === 'number' ? COMPACT_SHIP_KEYS[entry[0]] : entry[0];
+        const cnt = parseInt(entry[1], 10) || 0;
+        if (sKey && cnt > 0) {
+          ships[sKey] = cnt;
+        }
+      }
+    });
+
+    return {
+      id: side + '_' + (i + 1),
+      side: side,
+      name: name,
+      fleetName: name,
+      coords: coords,
+      enabled: enabled,
+      ships: ships
+    };
+  });
+}
+
 async function compressToUrlSafe(obj) {
   try {
     const jsonStr = JSON.stringify(obj);
@@ -2120,16 +2208,64 @@ async function decompressFromUrlSafe(b64url) {
   try {
     let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
+    let data = null;
     if (typeof DecompressionStream !== 'undefined') {
-      const bin = atob(b64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-      const txt = await new Response(stream).text();
-      return JSON.parse(txt);
+      try {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        const txt = await new Response(stream).text();
+        data = JSON.parse(txt);
+      } catch(decompErr) {
+        try {
+          data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+        } catch(legacyErr) {
+          console.warn("Decompression failed for both deflate-raw and uncompressed base64:", decompErr, legacyErr);
+        }
+      }
     } else {
-      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+      try {
+        data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+      } catch(legacyErr) {
+        console.warn("Base64 decode failed:", legacyErr);
+      }
     }
+
+    if (!data) return null;
+
+    // Compact Schema v2 expansion
+    if (data.v === 2) {
+      const p = Array.isArray(data.p) ? data.p : [0, 0, 0, 0];
+      const t = Array.isArray(data.t) ? data.t : [5, 5, 5, 5];
+      return {
+        version: 2,
+        title: data.c ? `Target ${data.c}` : 'Battle Calculation',
+        coords: data.c || '',
+        atk: expandCompactFleets(data.a || [], 'atk'),
+        def: expandCompactFleets(data.d || [], 'def'),
+        pds: {
+          'main-shield-generator': p[0] || 0,
+          'main-laser-battery': p[1] || 0,
+          'main-missile-silo': p[2] || 0,
+          'main-ion-cannon': p[3] || 0,
+          'shield': { enabled: (p[0] || 0) > 0, level: p[0] || 0 },
+          'laser': { enabled: (p[1] || 0) > 0, level: p[1] || 0 },
+          'silo': { enabled: (p[2] || 0) > 0, level: p[2] || 0 },
+          'ion': { enabled: (p[3] || 0) > 0, level: p[3] || 0 }
+        },
+        tech: {
+          atkHulls: t[0] !== undefined ? t[0] : 5,
+          atkShipTech: t[1] !== undefined ? t[1] : 5,
+          defHulls: t[2] !== undefined ? t[2] : 5,
+          defShipTech: t[3] !== undefined ? t[3] : 5
+        },
+        rounds: data.r || 1,
+        timestamp: data.ts || Date.now()
+      };
+    }
+
+    return data;
   } catch(e) {
     console.error("Decompression failed:", e);
     return null;
@@ -2138,25 +2274,25 @@ async function decompressFromUrlSafe(b64url) {
 
 function captureCalcSnapshot() {
   const coords = document.getElementById('bottom-coords-input')?.value?.trim() || '';
+  const shield = defenderPds['main-shield-generator'] || 0;
+  const laser = defenderPds['main-laser-battery'] || 0;
+  const silo = defenderPds['main-missile-silo'] || 0;
+  const ion = defenderPds['main-ion-cannon'] || 0;
+
   return {
-    version: 1,
-    title: coords ? `Target ${coords}` : 'Battle Calculation',
-    coords: coords,
-    atk: attackerFleets,
-    def: defenderFleets,
-    pds: {
-      'main-shield-generator': defenderPds['main-shield-generator'] || 0,
-      'main-laser-battery': defenderPds['main-laser-battery'] || 0,
-      'main-missile-silo': defenderPds['main-missile-silo'] || 0,
-      'main-ion-cannon': defenderPds['main-ion-cannon'] || 0,
-      'shield': { enabled: true, level: defenderPds['main-shield-generator'] || 0 },
-      'laser': { enabled: true, level: defenderPds['main-laser-battery'] || 0 },
-      'silo': { enabled: true, level: defenderPds['main-missile-silo'] || 0 },
-      'ion': { enabled: true, level: defenderPds['main-ion-cannon'] || 0 }
-    },
-    tech: techLevels,
-    rounds: parseInt(document.getElementById('sim-max-rounds')?.value || '1', 10),
-    timestamp: Date.now()
+    v: 2,
+    c: coords,
+    r: parseInt(document.getElementById('sim-max-rounds')?.value || '1', 10) || 1,
+    a: compactFleets(attackerFleets),
+    d: compactFleets(defenderFleets),
+    p: [shield, laser, silo, ion],
+    t: [
+      parseInt(techLevels.atkHulls !== undefined ? techLevels.atkHulls : 5, 10),
+      parseInt(techLevels.atkShipTech !== undefined ? techLevels.atkShipTech : 5, 10),
+      parseInt(techLevels.defHulls !== undefined ? techLevels.defHulls : 5, 10),
+      parseInt(techLevels.defShipTech !== undefined ? techLevels.defShipTech : 5, 10)
+    ],
+    ts: Date.now()
   };
 }
 
@@ -2175,23 +2311,37 @@ function applyCalcSnapshot(data) {
     }
   }
 
+  userClearedRoster['atk'] = false;
+  userClearedRoster['def'] = false;
+
   const rawAtk = data.atk || data.attackerFleets;
-  if (Array.isArray(rawAtk)) {
+  if (Array.isArray(rawAtk) && rawAtk.length > 0) {
     attackerFleets = rawAtk.map((f, i) => ({
       id: f.id || ('atk_' + (i + 1)),
       name: f.name || ('Coalition Fleet ' + (i + 1)),
+      fleetName: f.fleetName || f.name || ('Coalition Fleet ' + (i + 1)),
+      coords: f.coords || data.coords || '',
       enabled: f.enabled !== false && !f.disabled,
       ships: Object.assign({}, f.ships || {})
     }));
   }
+  if (!attackerFleets || attackerFleets.length === 0) {
+    attackerFleets = [{ id: 'atk_' + (simFleetSeq++), name: 'Coalition Fleet 1', fleetName: 'Coalition Fleet 1', enabled: true, ships: {} }];
+  }
+
   const rawDef = data.def || data.defenderFleets;
-  if (Array.isArray(rawDef)) {
+  if (Array.isArray(rawDef) && rawDef.length > 0) {
     defenderFleets = rawDef.map((f, i) => ({
       id: f.id || ('def_' + (i + 1)),
       name: f.name || (i === 0 ? 'Defender Garrison' : ('Defender Fleet ' + (i + 1))),
+      fleetName: f.fleetName || f.name || (i === 0 ? 'Defender Garrison' : ('Defender Fleet ' + (i + 1))),
+      coords: f.coords || data.coords || '',
       enabled: f.enabled !== false && !f.disabled,
       ships: Object.assign({}, f.ships || {})
     }));
+  }
+  if (!defenderFleets || defenderFleets.length === 0) {
+    defenderFleets = [{ id: 'def_' + (simFleetSeq++), name: 'Defender Garrison', fleetName: 'Defender Garrison', enabled: true, ships: {} }];
   }
   const rawPds = data.pds || data.pdsLevels;
   if (rawPds) {
@@ -2424,10 +2574,14 @@ function setCategoryFilter(cat, btn) {
   renderMatrix();
 }
 
+let userClearedRoster = { atk: false, def: false };
+
 function addAttackerFleet() {
+  userClearedRoster['atk'] = false;
   attackerFleets.push({
     id: 'atk_' + (simFleetSeq++),
     name: `Coalition Fleet ${attackerFleets.length + 1}`,
+    fleetName: `Coalition Fleet ${attackerFleets.length + 1}`,
     enabled: true,
     ships: {}
   });
@@ -2436,9 +2590,11 @@ function addAttackerFleet() {
 }
 
 function addDefenderFleet() {
+  userClearedRoster['def'] = false;
   defenderFleets.push({
     id: 'def_' + (simFleetSeq++),
     name: `Support Fleet ${defenderFleets.length + 1}`,
+    fleetName: `Support Fleet ${defenderFleets.length + 1}`,
     enabled: true,
     ships: {}
   });
@@ -2585,12 +2741,23 @@ function renderSideTable(side, fleets, containerId) {
   fleets.forEach((f, idx) => {
     const displayName = getFleetDisplayName(f, f.name || (side === 'atk' ? `ATK ${idx + 1}` : `DEF ${idx + 1}`));
     const coordsBadge = f.coords ? `[${f.coords}]` : '';
-    html += `<th style="text-align: right; min-width: 108px;">
-      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.25rem;">
-        <input type="checkbox" ${f.enabled ? 'checked' : ''} title="Include fleet in combat" onchange="toggleFleetEnabled('${side}', ${idx}, this.checked)">
-        <span style="cursor: pointer; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;" title="Click to rename fleet: ${escapeHtml(f.name || displayName)}${coordsBadge ? ' ' + coordsBadge : ''}" onclick="renameFleet('${side}', ${idx})">${escapeHtml(displayName)}</span>
-        <button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem;" title="Empty this fleet" onclick="emptySingleFleet('${side}', ${idx})">E</button>
-        <button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem; color: #f87171;" title="Delete fleet" onclick="deleteFleet('${side}', ${idx})">×</button>
+    const pillText = isDef ? `DEF ${idx + 1}` : `ATK ${idx + 1}`;
+    const nameColor = isDef ? '#38bdf8' : '#f87171';
+    const fTotal = Object.values(f.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+
+    html += `<th style="text-align: center; min-width: 125px; padding: 0.35rem 0.4rem; vertical-align: top;">
+      <div><span class="badge" style="font-size: 0.65rem; font-family: var(--font-mono); background: ${isDef ? 'rgba(56,189,248,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${nameColor}; border: 1px solid ${isDef ? 'rgba(56,189,248,0.4)' : 'rgba(239,68,68,0.4)'};">${pillText}</span></div>
+      <div style="font-weight: 700; color: ${nameColor}; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; margin: 0.15rem auto 0;" title="Click to rename fleet: ${escapeHtml(f.name || displayName)}" onclick="renameFleet('${side}', ${idx})">
+        ${escapeHtml(displayName)} <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
+      </div>
+      ${coordsBadge ? `<div style="font-size: 0.68rem; color: #ffd54f; margin-top: 0.1rem;" title="Target coordinates">${escapeHtml(coordsBadge)} 🎯</div>` : ''}
+      <div style="font-size: 0.7rem; font-weight: 700; color: #fff; margin-top: 0.15rem; font-family: var(--font-mono);" title="Total ships in this fleet">
+        ${fTotal.toLocaleString()} <span style="font-size: 0.62rem; font-weight: 400; color: var(--text-dim);">ships</span>
+      </div>
+      <div style="margin-top: 0.25rem; display: flex; justify-content: center; align-items: center; gap: 0.3rem;">
+        <input type="checkbox" ${f.enabled ? 'checked' : ''} title="Include fleet in combat" onchange="toggleFleetEnabled('${side}', ${idx}, this.checked)" style="cursor: pointer;">
+        <button type="button" class="filter-pill-btn" style="padding: 0.05rem 0.3rem; font-size: 0.65rem; font-weight: 700; color: ${nameColor};" title="Empty this fleet counts" onclick="emptySingleFleet('${side}', ${idx})">E</button>
+        <button type="button" class="filter-pill-btn" style="padding: 0.05rem 0.3rem; font-size: 0.68rem; font-weight: 700; color: #f87171;" title="Delete fleet column" onclick="deleteFleet('${side}', ${idx})">×</button>
       </div>
     </th>`;
   });
@@ -2694,20 +2861,35 @@ function emptySingleFleet(side, fleetIdx) {
 function deleteFleet(side, fleetIdx) {
   const fleets = side === 'atk' ? attackerFleets : defenderFleets;
   if (!fleets[fleetIdx]) return;
-  const targetName = fleets[fleetIdx].name || (side === 'atk' ? 'Attacker Fleet' : 'Defender Fleet');
+  const targetName = fleets[fleetIdx].fleetName || fleets[fleetIdx].name || (side === 'atk' ? 'Attacker Fleet' : 'Defender Fleet');
   if (confirm(`Delete "${targetName}"?`)) {
     if (side === 'atk') {
       attackerFleets.splice(fleetIdx, 1);
       if (attackerFleets.length === 0) {
         attackerFleets = [{ id: 'atk_' + (simFleetSeq++), name: 'Attacker Fleet 1', fleetName: 'Attacker Fleet 1', enabled: true, ships: {} }];
+        userClearedRoster['atk'] = true;
+        const targetSel = document.getElementById('sim-bcalc-atk-target-select');
+        if (targetSel) targetSel.value = '';
       }
     } else {
       defenderFleets.splice(fleetIdx, 1);
       if (defenderFleets.length === 0) {
         defenderFleets = [{ id: 'def_' + (simFleetSeq++), name: 'Defender Fleet 1', fleetName: 'Defender Fleet 1', enabled: true, ships: {} }];
         defenderPds = {};
+        userClearedRoster['def'] = true;
+        const targetSel = document.getElementById('sim-bcalc-def-target-select');
+        if (targetSel) targetSel.value = '';
       }
     }
+
+    // If both rosters are now empty, clear bottom coords input as well
+    const atkEmpty = attackerFleets.every(f => !f.ships || Object.values(f.ships).every(c => !c || c <= 0));
+    const defEmpty = defenderFleets.every(f => !f.ships || Object.values(f.ships).every(c => !c || c <= 0));
+    if (atkEmpty && defEmpty) {
+      const bottomInp = document.getElementById('bottom-coords-input');
+      if (bottomInp) bottomInp.value = '';
+    }
+
     renderMatrix();
     updateTotals();
   }
@@ -3359,10 +3541,10 @@ async function loadCombatDataFromMcp() {
       homeDefenseData = atkJson.homeDefense || null;
       populateQuickEmpireAddDropdowns();
 
-      // If Defender roster is currently default empty (0 total ships) AND not opening a shared link (#c=...), auto-load Home Garrison & PDS!
+      // If Defender roster is currently default empty (0 total ships) AND not opening a shared link (#c=...) AND user has not explicitly cleared/deleted the roster, auto-load Home Garrison & PDS!
       const hasSharedHash = window.location.hash && window.location.hash.includes('c=');
       const defTotal = defenderFleets.reduce((sum, f) => sum + (f.ships ? Object.values(f.ships).reduce((a, b) => a + (parseInt(b, 10) || 0), 0) : 0), 0);
-      if (!hasSharedHash && defTotal === 0 && (homeDefenseData?.hangarShips || homeDefenseData?.garrisonShips || simEmpireData?.hangarShips)) {
+      if (!hasSharedHash && defTotal === 0 && !userClearedRoster['def'] && (homeDefenseData?.hangarShips || homeDefenseData?.garrisonShips || simEmpireData?.hangarShips)) {
         loadMyEmpireIntoDefender();
       }
     }
@@ -3545,6 +3727,8 @@ function onQuickAddEmpireSelect(side, selectEl) {
     fleetObj = {
       id: side + '_' + (simFleetSeq++),
       name: `🏠 Base Garrison [${myCoords || 'Home'}]`,
+      fleetName: 'Base Garrison',
+      coords: myCoords,
       enabled: true,
       ships: Object.assign({}, rawHangar || {})
     };
@@ -3552,9 +3736,12 @@ function onQuickAddEmpireSelect(side, selectEl) {
     const idx = parseInt(val.replace('fleet_', ''), 10);
     const nf = (simEmpireData.namedFleets || [])[idx];
     if (nf) {
+      const displayName = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${idx + 1}`;
       fleetObj = {
         id: side + '_' + (simFleetSeq++),
-        name: `🚀 Fleet "${nf.name || 'Unnamed'}" [${nf.status || 'ACTIVE'}]`,
+        name: `🚀 Fleet "${displayName}" [${nf.status || 'ACTIVE'}]`,
+        fleetName: displayName,
+        coords: myCoords,
         enabled: true,
         ships: Object.assign({}, nf.ships || {})
       };
@@ -3562,6 +3749,7 @@ function onQuickAddEmpireSelect(side, selectEl) {
   }
 
   if (fleetObj) {
+    userClearedRoster[side] = false;
     const targetFleets = (side === 'atk') ? attackerFleets : defenderFleets;
     const isEmpty = targetFleets.length === 1 && Object.keys(targetFleets[0].ships).length === 0;
     if (isEmpty) {
@@ -3628,10 +3816,13 @@ function loadMyEmpireIntoDefender() {
   const garrisonFleet = {
     id: 'def_garrison_' + (simFleetSeq++),
     name: `🏠 Home Colony Garrison [${myCoords || 'Home'}]`,
+    fleetName: 'Base Garrison',
+    coords: myCoords,
     enabled: true,
     ships: garrisonShips
   };
 
+  userClearedRoster['def'] = false;
   if (defenderFleets.length === 1 && Object.keys(defenderFleets[0].ships).length === 0) {
     defenderFleets = [garrisonFleet];
   } else {
@@ -3670,11 +3861,15 @@ function loadMyEmpireIntoAttacker() {
     return;
   }
 
+  userClearedRoster['atk'] = false;
   attackerFleets = [];
   namedFleets.forEach((nf, idx) => {
+    const displayName = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${idx + 1}`;
     attackerFleets.push({
       id: 'atk_' + (simFleetSeq++),
-      name: `🚀 Fleet "${nf.name || ('Fleet ' + (idx + 1))}" [${nf.status || 'ACTIVE'}]`,
+      name: `🚀 Fleet "${displayName}" [${nf.status || 'ACTIVE'}]`,
+      fleetName: displayName,
+      coords: (simEmpireData.coords || ''),
       enabled: true,
       ships: Object.assign({}, nf.ships || {})
     });
@@ -3989,6 +4184,7 @@ function pickScanFleet(targetIdx, mode, nfIdx) {
   }
 
   // If roster only has 1 empty fleet, replace it instead of creating duplicate blank columns
+  userClearedRoster[currentPickerSide] = false;
   const isEmptyRoster = (targetFleets.length === 1 && Object.keys(targetFleets[0].ships).length === 0);
   const newFleetObj = {
     id: (currentPickerSide === 'atk' ? 'atk_scan_' : 'def_scan_') + (simFleetSeq++),
@@ -4173,19 +4369,27 @@ function closeCalcSession(sessionId) {
 }
 
 function updateLocalSuiteLink() {
-  const hash = window.location.hash || '';
-  const localUrl = `http://127.0.0.1:7890/calc${hash}`;
   const btn = document.getElementById('btn-open-local-suite');
   if (btn) {
-    btn.href = localUrl;
     if (window.location.protocol === 'https:' || !mcpConfig.connected) {
       btn.style.display = 'inline-flex';
     } else {
       btn.style.display = 'none';
     }
   }
-  const modalBtn = document.getElementById('modal-open-local-btn');
-  if (modalBtn) modalBtn.href = localUrl;
+}
+
+async function openInLocalSuite(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  try {
+    const snap = captureCalcSnapshot();
+    const code = await compressToUrlSafe(snap);
+    const targetUrl = code ? `http://127.0.0.1:7890/calc#c=${code}` : 'http://127.0.0.1:7890/calc';
+    window.open(targetUrl, '_blank');
+  } catch(e) {
+    console.error("Open in local suite failed:", e);
+    window.open('http://127.0.0.1:7890/calc', '_blank');
+  }
 }
 
 function showBrowserSettingGuide() {
@@ -4992,10 +5196,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   updateTotals();
   updateLocalSuiteLink();
 
-  // Test / probe for Pegasus MCP Suite (.env credentials or PAT)
-  await probeMcpConnection();
-
-  // Check URL hash for shared calculation
+  // Check URL hash for shared calculation FIRST
   const hash = window.location.hash || '';
   if (hash.includes('c=')) {
     const code = hash.split(/#?c=/)[1].split('&')[0];
@@ -5024,11 +5225,28 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   }
+
+  // Test / probe for Pegasus MCP Suite (.env credentials or PAT)
+  await probeMcpConnection();
   updateLocalSuiteLink();
 });
 
-window.addEventListener('hashchange', () => {
+window.addEventListener('hashchange', async () => {
   if (typeof updateLocalSuiteLink === 'function') updateLocalSuiteLink();
+  const hash = window.location.hash || '';
+  if (hash.includes('c=')) {
+    const code = hash.split(/#?c=/)[1].split('&')[0];
+    const data = await decompressFromUrlSafe(code);
+    if (data) {
+      applyCalcSnapshot(data);
+      if (typeof calcSessions !== 'undefined' && calcSessions && calcSessions.length > 0) {
+        calcSessions[0].name = data.title || (data.coords ? `Target ${data.coords}` : 'Shared Calc');
+        calcSessions[0].state = data;
+        if (typeof renderCalcTabs === 'function') renderCalcTabs();
+      }
+      showToast(`Loaded shared battle: ${data.title || 'Calculation'}`);
+    }
+  }
 });
 </script>
 
