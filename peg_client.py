@@ -5,9 +5,11 @@ Connects to https://mcp.pegasus-galaxy.net via Streamable HTTP (JSON-RPC 2.0 / M
 
 import json
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 import httpx
 
 DEFAULT_MCP_URL = "https://mcp.pegasus-galaxy.net"
@@ -72,11 +74,13 @@ class PegasusMCPClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._request_id = 0
+        self._id_lock = threading.Lock()
         self._session = httpx.Client(timeout=timeout)
 
     def _next_id(self) -> int:
-        self._request_id += 1
-        return self._request_id
+        with self._id_lock:
+            self._request_id += 1
+            return self._request_id
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -200,6 +204,47 @@ class PegasusMCPClient:
                         return {"success": False, "isError": True, "error": text}
                     return text
         return result
+
+    def call_tools_parallel(
+        self,
+        jobs: List[Union[str, Tuple[str, Optional[Dict[str, Any]]], Dict[str, Any]]],
+        max_workers: int = 6,
+    ) -> List[Any]:
+        """
+        Run independent MCP tool calls concurrently.
+        Each job is a tool name, (name, arguments), or {"name": ..., "arguments": ...}.
+        Failures are returned as {"success": False, "error": "..."} so one timeout
+        does not abort the rest of the batch.
+        """
+        specs: List[Tuple[str, Optional[Dict[str, Any]]]] = []
+        for job in jobs:
+            if isinstance(job, str):
+                specs.append((job, None))
+            elif isinstance(job, tuple):
+                name = job[0]
+                args = job[1] if len(job) > 1 else None
+                specs.append((name, args))
+            elif isinstance(job, dict):
+                specs.append((job.get("name") or job.get("tool") or "", job.get("arguments")))
+            else:
+                specs.append((str(job), None))
+
+        results: List[Any] = [None] * len(specs)
+        if not specs:
+            return results
+
+        def _run(index: int, name: str, arguments: Optional[Dict[str, Any]]) -> None:
+            try:
+                results[index] = self.call_tool(name, arguments)
+            except Exception as exc:
+                results[index] = {"success": False, "error": str(exc)}
+
+        workers = max(1, min(max_workers, len(specs)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = [pool.submit(_run, i, name, args) for i, (name, args) in enumerate(specs)]
+            for fut in futs:
+                fut.result()
+        return results
 
     def list_resources(self) -> List[Dict[str, Any]]:
         """List all available MCP resources."""

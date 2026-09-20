@@ -61,7 +61,7 @@ def color(text: str, code: str) -> str:
 def print_banner():
     banner = f"""
 {color("==================================================================", "cyan")}
-{color("  Pegasus Galaxy MCP Suite v0.5 - Easy Setup & Token Configuration", "bold")}
+{color("  Pegasus Galaxy MCP Suite v0.6 - Easy Setup & Token Configuration", "bold")}
 {color("==================================================================", "cyan")}
 """
     print(banner)

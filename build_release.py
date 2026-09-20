@@ -239,13 +239,13 @@ def build_docs():
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pegasus Galaxy MCP Suite v0.5 — {doc_name}</title>
+  <title>Pegasus Galaxy MCP Suite v0.6 — {doc_name}</title>
   <style>{CSS}</style>
 </head>
 <body>
   <div class="doc-container">
     <div class="doc-badge-bar">
-      <span>🌌 Pegasus Galaxy MCP Suite v0.5</span>
+      <span>🌌 Pegasus Galaxy MCP Suite v0.6</span>
       <span>•</span>
       <span>{doc_name} Documentation</span>
     </div>

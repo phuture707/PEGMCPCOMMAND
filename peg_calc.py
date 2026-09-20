@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pegasus Galaxy Standalone BattleCalc Launcher v0.5 (Cross-Platform)
+Pegasus Galaxy Standalone BattleCalc Launcher v0.6 (Cross-Platform)
 Launches or connects to the dedicated Combat Simulator / Matrix Mode in your default browser.
 Supports multiple independent calculation windows and tab sessions.
 Runs on macOS, Linux, and Windows.
@@ -40,7 +40,7 @@ def is_server_running(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> boo
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Pegasus Galaxy Standalone BattleCalc Launcher v0.5 (macOS / Linux / Windows)",
+        description="Pegasus Galaxy Standalone BattleCalc Launcher v0.6 (macOS / Linux / Windows)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -88,7 +88,7 @@ Examples:
         calc_url += f"#coords={clean_coords}"
 
     print("=" * 64)
-    print("⚔️  PEGASUS GALAXY STANDALONE BATTLECALC (v0.5)")
+    print("⚔️  PEGASUS GALAXY STANDALONE BATTLECALC (v0.6)")
     print("=" * 64)
 
     if is_server_running(args.host, args.port):

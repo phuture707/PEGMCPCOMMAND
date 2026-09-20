@@ -1,8 +1,8 @@
-# 🌌 Pegasus Galaxy MCP Suite v0.5 — Web GUI, Bot Engine, Combat Simulator & CLI Inspector
+# 🌌 Pegasus Galaxy MCP Suite v0.6 — Web GUI, Bot Engine, Combat Simulator & CLI Inspector
 
 A production-ready Python client, interactive web control dashboard, multi-fleet battle simulator, and autonomous bot suite for [Pegasus Galaxy](https://pegasus-galaxy.net/mcp), connected via Model Context Protocol (MCP 2025-03-26 Streamable HTTP).
 
-[![Suite Version](https://img.shields.io/badge/Version-0.5-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![Suite Version](https://img.shields.io/badge/Version-0.6-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blueviolet)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
@@ -24,6 +24,13 @@ You can run everything **100% locally** on your personal computer (macOS, Window
 3. **Deploy to a VPS only when you want to**: A remote VPS is completely optional — you only need it if you want the bot to continue advancing your empire 24/7 while your desktop computer is powered off or asleep.
 
 ---
+
+## ⚡ What's New in v0.6
+
+- **Faster telemetry and combat loads**: Dashboard, fleet, PDS, reference, and scan APIs now fan out MCP calls in parallel, gzip HTML/JSON, and cache per tick so the UI does not wait on serial round-trips.
+- **Polling that rests**: Mission Control, Bot Studio, and scan sync pause when the browser tab is hidden or you are on another page.
+- **Tighter workflow**: Compact hash-backed nav (`#tab=calc`), Ctrl/Cmd+K command palette, 1–6 page shortcuts, Quick Orders on Mission Control, Codex (Ships / PDS / IDs) and Bot Memory folded into Bot Studio.
+- **Battle Simulator chrome**: One sticky action bar (Simulate + Plan Defense + More), no duplicate Share/Import/Pop Out rows, and the matrix is not rebuilt every time you leave and return.
 
 ## ⚔️ What's New in v0.5
 

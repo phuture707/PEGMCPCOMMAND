@@ -1,8 +1,8 @@
-# 🌌 Pegasus Galaxy MCP Suite v0.5 — Complete User & Operations Guide
+# 🌌 Pegasus Galaxy MCP Suite v0.6 — Complete User & Operations Guide
 
-Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.5**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
+Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.6**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
 
-[![Suite Version](https://img.shields.io/badge/Version-0.5-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![Suite Version](https://img.shields.io/badge/Version-0.6-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blueviolet)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
@@ -182,12 +182,12 @@ journalctl -u pegasus-bot -f
 
 ```
 pegasus-mcp-suite/
-├── peg_gui.py              # Interactive sci-fi web control dashboard, Bot Studio & Combat Simulator v0.5
-├── peg_calc.py             # Standalone BattleCalc launcher & multi-window coordinator v0.5
-├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.5
-├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.5
-├── peg_combat.py           # Tactical combat simulator & multi-fleet coalition battle engine v0.5
-├── docs/                   # Public static BattleCalc (GitHub Pages) & client-side combat engine v0.5
+├── peg_gui.py              # Interactive sci-fi web control dashboard, Bot Studio & Combat Simulator v0.6
+├── peg_calc.py             # Standalone BattleCalc launcher & multi-window coordinator v0.6
+├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.6
+├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.6
+├── peg_combat.py           # Tactical combat simulator & multi-fleet coalition battle engine v0.6
+├── docs/                   # Public static BattleCalc (GitHub Pages) & client-side combat engine v0.6
 │   ├── calc.html           # Zero-dependency browser battle calculator & JS combat simulator
 │   └── index.html          # Clean entry point with hash preservation
 ├── peg_client.py           # Core Python MCP client SDK (JSON-RPC / Streamable HTTP)
@@ -263,7 +263,7 @@ A full-featured, zero-external-frontend-dependency web application styled with a
    - **Live Log Streamer**: Real-time console showing tick evaluations, server responses, and decisions.
 7. **🧠 Bot Memory**:
    - Persistent key-value memory scratchpad backed by local `bot_memory.json` storage.
-8. **⚔️ Battle Simulator & Coalition Calculator (v0.5)**:
+8. **⚔️ Battle Simulator & Coalition Calculator (v0.6)**:
     - **Hybrid Standalone & MCP Bridge Engine (`docs/calc.html`)**:
       - **Zero-Dependency Public Standalone Mode**:
         - Accessible directly via GitHub Pages (`https://phuture707.github.io/PEGMCPCOMMAND/calc.html`) or as an offline single-file HTML export.

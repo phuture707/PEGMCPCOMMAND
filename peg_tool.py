@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pegasus Galaxy MCP Inspector & CLI Tool v0.5 (Cross-Platform)
+Pegasus Galaxy MCP Inspector & CLI Tool v0.6 (Cross-Platform)
 Inspects game state, browses tools/resources, and calls MCP endpoints.
 Runs on macOS, Linux, and Windows.
 """
@@ -1053,7 +1053,7 @@ def run_battle_calc_cmd(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Pegasus Galaxy MCP Tool & Game State Inspector v0.5 (macOS / Linux / Windows)",
+        description="Pegasus Galaxy MCP Tool & Game State Inspector v0.6 (macOS / Linux / Windows)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

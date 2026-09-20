@@ -6,6 +6,7 @@ A complete interactive web-based GUI for Pegasus Galaxy MCP.
 
 import argparse
 import datetime
+import gzip
 import json
 import os
 import re
@@ -16,10 +17,11 @@ import threading
 import time
 import urllib.parse
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from socketserver import ThreadingMixIn
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 # Ensure UTF-8 output on Windows consoles
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -44,7 +46,43 @@ cached_universe_map: Optional[list] = None
 cached_universe_time: float = 0.0
 cached_alliance_info: Optional[dict] = None
 cached_alliance_time: float = 0.0
+cached_state: Optional[dict] = None
+cached_state_time: float = 0.0
+cached_attacker_fleets: Optional[dict] = None
+cached_attacker_time: float = 0.0
+cached_scan_payload: Optional[dict] = None
+cached_scan_time: float = 0.0
+_html_payloads: Dict[str, Tuple[bytes, bytes]] = {}
+_html_payload_lock = threading.Lock()
 bot_process: Optional[subprocess.Popen] = None
+
+STATE_CACHE_TTL = 8.0
+ATTACKER_CACHE_TTL = 20.0
+SCAN_CACHE_TTL = 12.0
+
+
+def _wants_gzip(handler: BaseHTTPRequestHandler) -> bool:
+    return "gzip" in (handler.headers.get("Accept-Encoding") or "").lower()
+
+
+def _html_payload(standalone: bool) -> Tuple[bytes, bytes]:
+    """Return (raw_utf8, gzipped) HTML, compressed once per process."""
+    key = "calc" if standalone else "hub"
+    cached = _html_payloads.get(key)
+    if cached:
+        return cached
+    html = HTML_CONTENT
+    if standalone:
+        html = html.replace(
+            "<head>",
+            "<head>\n  <script>window.IS_STANDALONE_CALC = true;</script>",
+            1,
+        )
+    raw = html.encode("utf-8")
+    gz = gzip.compress(raw, compresslevel=6)
+    with _html_payload_lock:
+        _html_payloads[key] = (raw, gz)
+    return raw, gz
 
 
 def get_bot_status() -> Dict[str, Any]:
@@ -211,10 +249,14 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
         super().log_message(format, *args)
 
-    def _send_json(self, data: Any, status: int = 200):
-        body = json.dumps(data).encode("utf-8")
+    def _send_bytes(self, body: bytes, content_type: str, status: int = 200, encoding: Optional[str] = None, cache_control: Optional[str] = None):
         self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Type", content_type)
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
+            self.send_header("Vary", "Accept-Encoding")
+        if cache_control:
+            self.send_header("Cache-Control", cache_control)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
@@ -222,6 +264,21 @@ class PegasusHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Private-Network", "true")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_json(self, data: Any, status: int = 200):
+        body = json.dumps(data, separators=(",", ":")).encode("utf-8")
+        encoding = None
+        if len(body) > 1024 and _wants_gzip(self):
+            body = gzip.compress(body, compresslevel=5)
+            encoding = "gzip"
+        self._send_bytes(body, "application/json; charset=utf-8", status=status, encoding=encoding, cache_control="no-store")
+
+    def _send_html_file_or_string(self, body: bytes):
+        encoding = None
+        if _wants_gzip(self):
+            body = gzip.compress(body, compresslevel=5)
+            encoding = "gzip"
+        self._send_bytes(body, "text/html; charset=utf-8", encoding=encoding, cache_control="public, max-age=60")
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -236,55 +293,69 @@ class PegasusHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         global mcp_client, cached_tools, cached_ships, cached_universe_map, cached_universe_time, cached_alliance_info, cached_alliance_time
+        global cached_state, cached_state_time, cached_attacker_fleets, cached_attacker_time, cached_scan_payload, cached_scan_time
+        global cached_constructions, cached_research
 
         url_path = self.path.split("?")[0]
         query_str = self.path.split("?")[1] if "?" in self.path else ""
 
-        if url_path in ("/calc.html", "/docs/calc.html", "/docs/index.html"):
-            doc_file = BASE_DIR / "docs" / ("index.html" if "index.html" in url_path else "calc.html")
+        if url_path in ("/calc", "/bcalc", "/battlecalc", "/calc.html", "/docs/calc.html"):
+            doc_file = BASE_DIR / "docs" / "calc.html"
             if doc_file.exists():
-                body = doc_file.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Access-Control-Allow-Private-Network", "true")
-                self.end_headers()
-                self.wfile.write(body)
+                self._send_html_file_or_string(doc_file.read_bytes())
                 return
 
-        if url_path in ("/", "/index.html", "/calc", "/bcalc", "/battlecalc"):
-            is_standalone = url_path in ("/calc", "/bcalc", "/battlecalc") or (
+        if url_path == "/docs/index.html":
+            doc_file = BASE_DIR / "docs" / "index.html"
+            if doc_file.exists():
+                self._send_html_file_or_string(doc_file.read_bytes())
+                return
+
+        if url_path in ("/", "/index.html"):
+            is_standalone = (
                 "calc" in query_str.lower() and ("mode=calc" in query_str.lower() or "calc=1" in query_str.lower())
             )
-            html_to_serve = HTML_CONTENT
-            if is_standalone:
-                html_to_serve = html_to_serve.replace(
-                    "<head>",
-                    "<head>\n  <script>window.IS_STANDALONE_CALC = true;</script>",
-                    1
-                )
-            body = html_to_serve.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            raw, gz = _html_payload(is_standalone)
+            if _wants_gzip(self):
+                self._send_bytes(gz, "text/html; charset=utf-8", encoding="gzip", cache_control="public, max-age=60")
+            else:
+                self._send_bytes(raw, "text/html; charset=utf-8", cache_control="public, max-age=60")
             return
 
         if url_path == "/api/state":
             try:
-                summary = mcp_client.get_game_state_summary()
-                planet = mcp_client.get_planet_status()
-                tick = mcp_client.get_tick_info()
-                rank = mcp_client.get_player_rank()
-                self._send_json({
+                now = time.time()
+                if cached_state and (now - cached_state_time) < STATE_CACHE_TTL:
+                    self._send_json(cached_state)
+                    return
+                summary, rank = mcp_client.call_tools_parallel([
+                    "get_game_state_summary",
+                    "get_player_rank",
+                ])
+                s_data = summary.get("data", {}) if isinstance(summary, dict) else {}
+                extras = []
+                if not (isinstance(s_data, dict) and s_data.get("planet")):
+                    extras.append("get_planet_status")
+                if not (isinstance(s_data, dict) and (s_data.get("tick") or s_data.get("nextTickIn"))):
+                    extras.append("get_tick_info")
+                extra_results = mcp_client.call_tools_parallel(extras) if extras else []
+                extra_map = dict(zip(extras, extra_results))
+                planet = extra_map.get("get_planet_status")
+                if planet is None and isinstance(s_data, dict) and s_data.get("planet"):
+                    planet = {"data": s_data.get("planet")}
+                tick = extra_map.get("get_tick_info")
+                if tick is None and isinstance(s_data, dict):
+                    tick = {"data": {"tick": s_data.get("tick"), "nextTickIn": s_data.get("nextTickIn")}}
+                payload = {
                     "success": True,
                     "summary": summary,
                     "planet": planet,
                     "tick": tick,
                     "rank": rank,
-                })
+                }
+                cached_state = payload
+                cached_state_time = now
+                self._send_json(payload)
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
@@ -341,9 +412,19 @@ class PegasusHandler(BaseHTTPRequestHandler):
 
         if url_path == "/api/pds":
             try:
-                constructions = mcp_client.read_resource("pegasus://construction/definitions")
-                defence_defs = [c for c in constructions if c.get("category") in ("Defence", "DEFENSE", "Defense")]
-                pds_live = mcp_client.call_tool("list_pds")
+                def _load_constructions():
+                    global cached_constructions
+                    if not cached_constructions:
+                        cached_constructions = mcp_client.read_resource("pegasus://construction/definitions")
+                    return cached_constructions
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    f_cons = pool.submit(_load_constructions)
+                    f_pds = pool.submit(mcp_client.call_tool, "list_pds")
+                    constructions = f_cons.result()
+                    pds_live = f_pds.result()
+
+                defence_defs = [c for c in (constructions or []) if isinstance(c, dict) and c.get("category") in ("Defence", "DEFENSE", "Defense")]
                 live_list = pds_live.get("data", []) if isinstance(pds_live, dict) else []
                 live_map = {item.get("constructionId"): item for item in live_list if isinstance(item, dict)}
 
@@ -358,14 +439,32 @@ class PegasusHandler(BaseHTTPRequestHandler):
             return
 
         if url_path == "/api/reference":
-            global cached_constructions, cached_research
             try:
-                if not cached_constructions:
-                    cached_constructions = mcp_client.read_resource("pegasus://construction/definitions")
-                if not cached_research:
-                    cached_research = mcp_client.read_resource("pegasus://research/definitions")
-                if not cached_ships:
-                    cached_ships = mcp_client.read_resource("pegasus://ship/definitions")
+                def _load_cons():
+                    global cached_constructions
+                    if not cached_constructions:
+                        cached_constructions = mcp_client.read_resource("pegasus://construction/definitions")
+                    return cached_constructions
+
+                def _load_research():
+                    global cached_research
+                    if not cached_research:
+                        cached_research = mcp_client.read_resource("pegasus://research/definitions")
+                    return cached_research
+
+                def _load_ships():
+                    global cached_ships
+                    if not cached_ships:
+                        cached_ships = mcp_client.read_resource("pegasus://ship/definitions")
+                    return cached_ships
+
+                with ThreadPoolExecutor(max_workers=3) as pool:
+                    f_c = pool.submit(_load_cons)
+                    f_r = pool.submit(_load_research)
+                    f_s = pool.submit(_load_ships)
+                    cached_constructions = f_c.result()
+                    cached_research = f_r.result()
+                    cached_ships = f_s.result()
                 self._send_json({
                     "success": True,
                     "constructions": cached_constructions,
@@ -387,37 +486,42 @@ class PegasusHandler(BaseHTTPRequestHandler):
         # Combat Simulator Endpoints (GET)
         if url_path == "/api/combat/attacker_fleets":
             try:
+                now = time.time()
+                if cached_attacker_fleets and (now - cached_attacker_time) < ATTACKER_CACHE_TTL:
+                    self._send_json(cached_attacker_fleets)
+                    return
+
                 fleets = []
                 hangar = {}
                 home_pds_from_base = {}
+                summary_resp, pds_resp, res_resp, p_status = mcp_client.call_tools_parallel([
+                    "get_fleet_summary",
+                    "list_pds",
+                    "get_planet_research",
+                    "get_planet_status",
+                ])
 
-                # 1. Fetch complete fleet summary (includes ALL fleets including DOCKED, plus baseFleet)
-                try:
-                    summary_resp = mcp_client.call_tool("get_fleet_summary") or {}
-                    s_data = summary_resp.get("data", {}) if isinstance(summary_resp, dict) else {}
-                    if isinstance(s_data, dict):
-                        fleets = s_data.get("fleets", []) or []
-                        raw_base = s_data.get("baseFleet", {}) or {}
-                        for sid, cnt in raw_base.items():
-                            if sid.startswith("pds-"):
-                                sid_lower = sid.lower()
-                                if "laser" in sid_lower:
-                                    home_pds_from_base["Laser Battery"] = max(home_pds_from_base.get("Laser Battery", 0), int(cnt))
-                                elif "missile" in sid_lower:
-                                    home_pds_from_base["Missile Silo"] = max(home_pds_from_base.get("Missile Silo", 0), int(cnt))
-                                elif "ion" in sid_lower:
-                                    home_pds_from_base["Ion Cannon"] = max(home_pds_from_base.get("Ion Cannon", 0), int(cnt))
-                                elif "shield" in sid_lower:
-                                    home_pds_from_base["Shield Generator"] = max(home_pds_from_base.get("Shield Generator", 0), int(cnt))
-                            else:
-                                try:
-                                    hangar[sid] = int(cnt)
-                                except (ValueError, TypeError):
-                                    pass
-                except Exception:
-                    pass
+                s_data = summary_resp.get("data", {}) if isinstance(summary_resp, dict) else {}
+                if isinstance(s_data, dict):
+                    fleets = s_data.get("fleets", []) or []
+                    raw_base = s_data.get("baseFleet", {}) or {}
+                    for sid, cnt in raw_base.items():
+                        if sid.startswith("pds-"):
+                            sid_lower = sid.lower()
+                            if "laser" in sid_lower:
+                                home_pds_from_base["Laser Battery"] = max(home_pds_from_base.get("Laser Battery", 0), int(cnt))
+                            elif "missile" in sid_lower:
+                                home_pds_from_base["Missile Silo"] = max(home_pds_from_base.get("Missile Silo", 0), int(cnt))
+                            elif "ion" in sid_lower:
+                                home_pds_from_base["Ion Cannon"] = max(home_pds_from_base.get("Ion Cannon", 0), int(cnt))
+                            elif "shield" in sid_lower:
+                                home_pds_from_base["Shield Generator"] = max(home_pds_from_base.get("Shield Generator", 0), int(cnt))
+                        else:
+                            try:
+                                hangar[sid] = int(cnt)
+                            except (ValueError, TypeError):
+                                pass
 
-                # Fallback if fleets is empty
                 if not fleets:
                     try:
                         active_fleets_resp = mcp_client.call_tool("list_active_fleets") or {}
@@ -425,7 +529,6 @@ class PegasusHandler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
 
-                # Fallback for hangar if empty
                 if not hangar:
                     try:
                         planet_ships_resp = mcp_client.call_tool("get_planet_ships") or {}
@@ -442,54 +545,45 @@ class PegasusHandler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
 
-                # Query Home Defense info (PDS, research, resources, asteroids)
                 home_pds = dict(home_pds_from_base)
-                try:
-                    pds_resp = mcp_client.call_tool("list_pds") or {}
-                    pds_list = pds_resp.get("data", []) if isinstance(pds_resp, dict) else []
-                    for p in pds_list:
-                        name = p.get("name")
-                        lvl = p.get("currentLevel", 1)
-                        if name:
-                            home_pds[name] = max(home_pds.get(name, 0), lvl)
-                except Exception:
-                    pass
+                pds_list = pds_resp.get("data", []) if isinstance(pds_resp, dict) else []
+                for p in pds_list:
+                    if not isinstance(p, dict):
+                        continue
+                    name = p.get("name")
+                    lvl = p.get("currentLevel", 1)
+                    if name:
+                        home_pds[name] = max(home_pds.get(name, 0), lvl)
 
                 home_research = {"Hulls": 0, "ShipTechnology": 0, "PDS": 0}
-                try:
-                    res_resp = mcp_client.call_tool("get_planet_research") or {}
-                    res_list = res_resp.get("data", []) if isinstance(res_resp, dict) else []
-                    for r in res_list:
-                        r_name = r.get("name", "")
-                        lvl = r.get("currentLevel", 0)
-                        if r_name == "Hulls":
-                            home_research["Hulls"] = lvl
-                        elif r_name == "Ship Technology":
-                            home_research["ShipTechnology"] = lvl
-                        elif r_name == "PDS":
-                            home_research["PDS"] = lvl
-                except Exception:
-                    pass
+                res_list = res_resp.get("data", []) if isinstance(res_resp, dict) else []
+                for r in res_list:
+                    if not isinstance(r, dict):
+                        continue
+                    r_name = r.get("name", "")
+                    lvl = r.get("currentLevel", 0)
+                    if r_name == "Hulls":
+                        home_research["Hulls"] = lvl
+                    elif r_name == "Ship Technology":
+                        home_research["ShipTechnology"] = lvl
+                    elif r_name == "PDS":
+                        home_research["PDS"] = lvl
 
                 home_resources = {"metal": 0, "crystal": 0, "eonium": 0}
                 home_asteroids = {"metalRoids": 0, "crystalRoids": 0, "eoniumRoids": 0}
                 coords = "Unknown"
-                try:
-                    p_status = mcp_client.get_planet_status() or {}
-                    p_data = p_status.get("data", {}) if isinstance(p_status, dict) else {}
+                p_data = p_status.get("data", {}) if isinstance(p_status, dict) else {}
+                if isinstance(p_data, dict):
                     home_resources["metal"] = p_data.get("metal", 0)
                     home_resources["crystal"] = p_data.get("crystal", 0)
                     home_resources["eonium"] = p_data.get("eonium", 0)
                     coords = p_data.get("coords", "Unknown")
-                    ast_cnt = p_data.get("asteroidCount", 0)
-                    # Even split if breakdown not given
+                    ast_cnt = p_data.get("asteroidCount", 0) or 0
                     home_asteroids = {
                         "metalRoids": ast_cnt // 3,
                         "crystalRoids": ast_cnt // 3,
                         "eoniumRoids": ast_cnt - (2 * (ast_cnt // 3))
                     }
-                except Exception:
-                    pass
 
                 home_defense = {
                     "pds": home_pds,
@@ -500,12 +594,15 @@ class PegasusHandler(BaseHTTPRequestHandler):
                     "hangarShips": hangar
                 }
 
-                self._send_json({
+                payload = {
                     "success": True,
                     "namedFleets": fleets,
                     "hangarShips": hangar,
                     "homeDefense": home_defense
-                })
+                }
+                cached_attacker_fleets = payload
+                cached_attacker_time = now
+                self._send_json(payload)
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
@@ -801,15 +898,61 @@ class PegasusHandler(BaseHTTPRequestHandler):
 
         if url_path == "/api/combat/scan_targets":
             try:
-                # 1. Fetch universe map (cached for 10 minutes)
                 now = time.time()
-                if not cached_universe_map or (now - cached_universe_time > 600):
+                since_count = 0
+                if query_str:
                     try:
-                        u_resp = mcp_client.call_tool("get_universe_map") or {}
+                        since_count = int(urllib.parse.parse_qs(query_str).get("sinceCount", ["0"])[0] or 0)
+                    except (ValueError, TypeError):
+                        since_count = 0
+                if cached_scan_payload and (now - cached_scan_time) < SCAN_CACHE_TTL:
+                    if since_count and since_count == int(cached_scan_payload.get("totalScans") or 0):
+                        self._send_json({
+                            "success": True,
+                            "unchanged": True,
+                            "totalScans": cached_scan_payload.get("totalScans", since_count),
+                            "userScansCount": cached_scan_payload.get("userScansCount", 0),
+                            "allyScansCount": cached_scan_payload.get("allyScansCount", 0),
+                        })
+                        return
+                    self._send_json(cached_scan_payload)
+                    return
+
+                need_universe = (not cached_universe_map) or (now - cached_universe_time > 600)
+                need_alliance = (now - cached_alliance_time > 300)
+
+                def _fetch_universe():
+                    try:
+                        return mcp_client.call_tool("get_universe_map") or {}
+                    except Exception:
+                        return {}
+
+                def _fetch_scans():
+                    try:
+                        return mcp_client.call_tool("get_scan_history", {"limit": 100}) or {}
+                    except Exception:
+                        return {}
+
+                def _fetch_alliance():
+                    try:
+                        return mcp_client.get_user_alliance()
+                    except Exception:
+                        return None
+
+                with ThreadPoolExecutor(max_workers=3) as pool:
+                    f_scans = pool.submit(_fetch_scans)
+                    f_uni = pool.submit(_fetch_universe) if need_universe else None
+                    f_ally = pool.submit(_fetch_alliance) if need_alliance else None
+                    scans_resp = f_scans.result()
+                    if f_uni:
+                        u_resp = f_uni.result() or {}
                         cached_universe_map = u_resp.get("data", []) if isinstance(u_resp, dict) else []
                         cached_universe_time = now
-                    except Exception:
-                        cached_universe_map = cached_universe_map or []
+                    if f_ally:
+                        cached_alliance_info = f_ally.result()
+                        cached_alliance_time = now
+
+                cached_universe_map = cached_universe_map or []
 
                 # Build planetary metadata lookup from universe map
                 planet_meta = {}
@@ -836,25 +979,17 @@ class PegasusHandler(BaseHTTPRequestHandler):
                         coords_lookup[norm_c] = pid
                     universe_planets.append({"id": pid, "name": pname, "coords": c, "owner": powner})
 
-                # 2. Fetch User Personal Scans
                 user_scans = []
-                try:
-                    scans_resp = mcp_client.call_tool("get_scan_history", {"limit": 100}) or {}
-                    raw_user_scans = scans_resp.get("data", []) if isinstance(scans_resp, dict) else []
-                    for s in raw_user_scans:
+                raw_user_scans = scans_resp.get("data", []) if isinstance(scans_resp, dict) else []
+                for s in raw_user_scans:
+                    if isinstance(s, dict):
                         s["source"] = "user"
                         user_scans.append(s)
-                except Exception:
-                    user_scans = []
 
-                # 3. Detect Alliance & Fetch Alliance Shared Scans
                 alliance_info = None
                 alliance_scans = []
                 alliance_error = None
                 try:
-                    if not cached_alliance_info or (now - cached_alliance_time > 300):
-                        cached_alliance_info = mcp_client.get_user_alliance()
-                        cached_alliance_time = now
                     user_alliance = cached_alliance_info
                     if user_alliance and user_alliance.get("id"):
                         alliance_info = {
@@ -863,7 +998,6 @@ class PegasusHandler(BaseHTTPRequestHandler):
                             "tag": user_alliance.get("tag"),
                             "leaderId": user_alliance.get("leaderId"),
                         }
-                        # Attempt get_scan_intel
                         intel_resp = mcp_client.call_tool("get_scan_intel", {
                             "allianceId": user_alliance["id"],
                             "limit": 100
@@ -871,9 +1005,10 @@ class PegasusHandler(BaseHTTPRequestHandler):
                         if isinstance(intel_resp, dict) and intel_resp.get("success"):
                             raw_ally = intel_resp.get("data", []) or []
                             for ascan in raw_ally:
-                                ascan["source"] = "ally"
-                                ascan["allianceTag"] = user_alliance.get("tag", "")
-                                alliance_scans.append(ascan)
+                                if isinstance(ascan, dict):
+                                    ascan["source"] = "ally"
+                                    ascan["allianceTag"] = user_alliance.get("tag", "")
+                                    alliance_scans.append(ascan)
                         elif isinstance(intel_resp, dict) and intel_resp.get("error"):
                             alliance_error = str(intel_resp.get("error"))
                 except Exception as e:
@@ -966,7 +1101,7 @@ class PegasusHandler(BaseHTTPRequestHandler):
                 # Sort newest tick first
                 targets.sort(key=lambda t: t.get("tick", 0), reverse=True)
 
-                self._send_json({
+                payload = {
                     "success": True,
                     "targets": targets,
                     "universePlanets": universe_planets,
@@ -975,7 +1110,10 @@ class PegasusHandler(BaseHTTPRequestHandler):
                     "totalScans": len(targets),
                     "userScansCount": sum(1 for t in targets if t.get("source") == "user"),
                     "allyScansCount": sum(1 for t in targets if t.get("source") == "ally"),
-                })
+                }
+                cached_scan_payload = payload
+                cached_scan_time = time.time()
+                self._send_json(payload)
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
             return
@@ -1608,10 +1746,11 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pegasus Galaxy v0.5 • MCP Control Hub</title>
+  <title>Pegasus Galaxy v0.6 • MCP Control Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
   <style>
     :root {
       --bg-space: #050b14;
@@ -1630,9 +1769,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       --text-main: #e2e8f0;
       --text-dim: #94a3b8;
       --text-bright: #ffffff;
-      --font-display: 'Orbitron', sans-serif;
-      --font-body: 'Rajdhani', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
+      --font-display: 'Orbitron', 'Segoe UI', sans-serif;
+      --font-body: 'Rajdhani', 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1704,11 +1843,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       align-items: center;
       padding: 1rem 1.5rem;
       background: var(--bg-panel);
-      backdrop-filter: blur(12px);
       border: 1px solid var(--border-glow);
       border-radius: 12px;
       margin-bottom: 1.5rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 0 16px var(--cyan-dim);
     }
 
     .brand {
@@ -1719,13 +1856,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
     .logo-icon {
       font-size: 2rem;
-      filter: drop-shadow(0 0 10px var(--cyan));
-      animation: pulse 4s infinite ease-in-out;
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px var(--cyan)); }
-      50% { transform: scale(1.05); filter: drop-shadow(0 0 18px var(--cyan)); }
     }
 
     .brand h1 {
@@ -1801,26 +1931,31 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     /* Main Navigation Tabs */
     .tabs {
       display: flex;
-      gap: 0.75rem;
-      margin-bottom: 1.5rem;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
       border-bottom: 1px solid var(--border-accent);
-      padding-bottom: 0.5rem;
+      padding-bottom: 0.4rem;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      scrollbar-width: thin;
     }
 
     .tab-btn {
       font-family: var(--font-display);
-      font-size: 0.95rem;
-      letter-spacing: 0.05em;
-      padding: 0.65rem 1.4rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      padding: 0.5rem 0.85rem;
       background: transparent;
       border: 1px solid transparent;
       border-radius: 8px 8px 0 0;
       color: var(--text-dim);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: color 0.15s, background 0.15s;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.35rem;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .tab-btn:hover {
@@ -1896,11 +2031,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
     .panel {
       background: var(--bg-panel);
-      backdrop-filter: blur(12px);
       border: 1px solid var(--border-accent);
       border-radius: 12px;
       padding: 1.25rem;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
       position: relative;
     }
 
@@ -2762,6 +2895,155 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         font-size: 0.85rem;
       }
     }
+
+    .tab-count-badge {
+      display: inline-flex;
+      min-width: 1.1rem;
+      height: 1.1rem;
+      padding: 0 0.28rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #10b981;
+      color: #042f2e;
+      font-size: 0.65rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+    }
+    .calc-sticky-bar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(15, 23, 42, 0.94);
+    }
+    .bot-subnav, .codex-subnav {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 12;
+      background: rgba(5, 11, 20, 0.92);
+      padding: 0.4rem 0;
+    }
+    .more-wrap { position: relative; display: inline-flex; }
+    .more-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      min-width: 200px;
+      background: #0b1524;
+      border: 1px solid var(--border-glow);
+      border-radius: 8px;
+      padding: 0.35rem;
+      z-index: 60;
+    }
+    .more-wrap.open .more-menu { display: block; }
+    .more-menu button, .more-menu a {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      padding: 0.4rem 0.55rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-decoration: none;
+    }
+    .more-menu button:hover, .more-menu a:hover { background: rgba(0,229,255,0.1); color: var(--cyan); }
+    #cmd-palette-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      background: rgba(5,7,15,0.72);
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 12vh;
+    }
+    #cmd-palette-overlay.open { display: flex; }
+    #cmd-palette-box {
+      width: min(640px, 92vw);
+      background: #0b1524;
+      border: 1px solid var(--border-glow);
+      border-radius: 10px;
+      padding: 0.75rem;
+    }
+    #cmd-palette-list { max-height: 360px; overflow-y: auto; margin-top: 0.5rem; }
+    .cmd-item {
+      padding: 0.45rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-main);
+    }
+    .cmd-item:hover, .cmd-item.active { background: rgba(0,229,255,0.12); color: var(--cyan); }
+    .quick-orders {
+      grid-column: span 12;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .qo-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      width: 100%;
+    }
+    .dash-claim-card {
+      width: 100%;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(16,185,129,0.18), rgba(6,95,70,0.2));
+      border: 1px solid rgba(16,185,129,0.45);
+    }
+    .pop-alloc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.3rem;
+    }
+    .pop-alloc-row input {
+      width: 92px;
+      padding: 0.28rem 0.4rem;
+      font-size: 0.8rem;
+    }
+    .pinned-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-bottom: 0.55rem;
+    }
+    .pinned-tools:empty { display: none; }
+    .pin-btn {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text-dim);
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 0.2rem 0.45rem;
+      font-size: 0.85rem;
+    }
+    .pin-btn.pinned { color: var(--yellow); border-color: rgba(250,204,21,0.45); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2775,7 +3057,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
           <div style="font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; letter-spacing: 0.08em; color: var(--text-bright); text-transform: uppercase; display: flex; align-items: center; gap: 0.4rem;">
             <span>⚔️ Interstellar Battle Simulator</span>
-            <span style="font-size: 0.68rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.1rem 0.35rem; vertical-align: middle;">v0.5</span>
+            <span style="font-size: 0.68rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.1rem 0.35rem; vertical-align: middle;">v0.6</span>
           </div>
           <!-- MCP Enhanced Mode Indicator (Inline next to Interstellar Battle Simulator text) -->
           <span class="badge" style="background: rgba(16,185,129,0.2); color: #86efac; border: 1.5px solid rgba(16,185,129,0.7); font-family: var(--font-mono); font-size: 0.76rem; font-weight: 800; border-radius: 9999px; padding: 0.25rem 0.7rem; display: inline-flex; align-items: center; gap: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; box-shadow: 0 0 12px rgba(16,185,129,0.35);" title="MCP Enhanced Mode is active! Live game state, empire fleets, PDS garrison, and scan browser are connected.">
@@ -2822,7 +3104,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     <div class="brand">
       <div class="logo-icon">🪐</div>
       <div>
-        <h1>Pegasus Galaxy <span style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.15rem 0.45rem; vertical-align: middle; margin-left: 0.4rem; font-weight: 500; letter-spacing: 0.05em;">v0.5</span></h1>
+        <h1>Pegasus Galaxy <span style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.15rem 0.45rem; vertical-align: middle; margin-left: 0.4rem; font-weight: 500; letter-spacing: 0.05em;">v0.6</span></h1>
         <div class="subtitle">Autonomous AI Agent & Human Command Hub</div>
       </div>
     </div>
@@ -2832,25 +3114,26 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <span>Tick: <strong id="header-tick">---</strong></span>
         <span style="color: var(--cyan);">(In: <span id="header-countdown">---</span>)</span>
       </div>
-      <button class="btn-refresh" onclick="openMobileSetupModal()" style="color: #f472b6; border-color: rgba(244,114,182,0.45); font-weight: 600;">
-        <span>📱</span> Phone Setup
+      <button class="btn-refresh" onclick="openCommandPalette()" title="Command palette (Ctrl+K)" style="padding: 0.5rem 0.85rem;">
+        ⌘K
       </button>
-      <button class="btn-refresh" onclick="refreshDashboard()">
-        <span>🔄</span> Refresh Telemetry
+      <button class="btn-refresh" onclick="openMobileSetupModal()" style="color: #f472b6; border-color: rgba(244,114,182,0.45); font-weight: 600;">
+        <span>📱</span> Phone
+      </button>
+      <button class="btn-refresh" onclick="refreshDashboard(true)">
+        <span>🔄</span> Refresh
       </button>
     </div>
   </header>
 
   <!-- Navigation Tabs -->
   <div class="tabs" id="main-tabs">
-    <button class="tab-btn active" onclick="switchTab('dashboard', this)">📊 Mission Control</button>
-    <button class="tab-btn" onclick="switchTab('commands', this)">🛠️ Command Hub (67 Tools)</button>
-    <button class="tab-btn" onclick="switchTab('missions', this)">🎯 Quests & Missions</button>
-    <button class="tab-btn" onclick="switchTab('ships', this)">🚀 Hangar & Ship Codex</button>
-    <button class="tab-btn" onclick="switchTab('reference', this)">📚 Game Codex & IDs</button>
-    <button class="tab-btn" onclick="switchTab('bot', this)">🤖 Bot Studio</button>
-    <button class="tab-btn" onclick="switchTab('memory', this)">🧠 Bot Memory</button>
-    <button class="tab-btn" onclick="switchTab('battlecalc', this)">⚔️ Battle Simulator</button>
+    <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard', this)" title="Mission Control">📊 Control</button>
+    <button class="tab-btn" data-tab="commands" onclick="switchTab('commands', this)" title="Command Hub">🛠️ Commands</button>
+    <button class="tab-btn" data-tab="missions" onclick="switchTab('missions', this)" title="Quests & Missions">🎯 Quests <span id="missions-nav-badge" class="tab-count-badge" style="display:none">0</span></button>
+    <button class="tab-btn" data-tab="ships" onclick="switchTab('ships', this)" title="Hangar, PDS & Game IDs">📚 Codex</button>
+    <button class="tab-btn" data-tab="bot" onclick="switchTab('bot', this)" title="Bot Studio & Memory">🤖 Bot</button>
+    <button class="tab-btn" data-tab="battlecalc" onclick="switchTab('battlecalc', this)" title="Battle Simulator">⚔️ Calc</button>
   </div>
 
   <!-- TAB 1: Mission Control Dashboard -->
@@ -2881,6 +3164,28 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <div class="stat-item">
           <div class="stat-label">Asteroids</div>
           <div class="stat-value" id="stat-asteroids" style="color: var(--purple);">---</div>
+        </div>
+      </div>
+
+      <div class="panel quick-orders" style="flex-direction: column; align-items: stretch;">
+        <div id="dash-claim-card" class="dash-claim-card"></div>
+        <div class="qo-row">
+          <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">Quick orders:</span>
+          <button class="filter-pill-btn" onclick="quickOpenTool('launch_fleet')">🚀 Launch</button>
+          <button class="filter-pill-btn" onclick="quickOpenTool('list_incoming_fleets')">Incoming</button>
+          <button class="filter-pill-btn" onclick="switchTab('battlecalc')">⚔️ Calc</button>
+          <button class="filter-pill-btn" onclick="switchTab('missions')">🎯 Quests</button>
+        </div>
+        <div class="qo-row">
+          <input type="text" id="qo-scan-coords" class="form-control" placeholder="Scan coords 12:1:1" style="width: 130px; padding: 0.35rem 0.5rem; font-size: 0.8rem;">
+          <select id="qo-scan-type" class="form-control" style="width: auto; padding: 0.35rem 0.5rem; font-size: 0.8rem;">
+            <option value="MILITARY_SCAN">Military</option>
+            <option value="FLEET_COMPOSITION_SCAN">Fleet</option>
+            <option value="DEEP_SCAN">Deep</option>
+            <option value="INCOMING_SCAN">Incoming</option>
+            <option value="SURFACE_SCAN">Surface</option>
+          </select>
+          <button class="filter-pill-btn" onclick="quickScanNow()">📡 Scan now</button>
         </div>
       </div>
 
@@ -2922,6 +3227,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <div class="progress-track">
             <div class="progress-fill" id="pop-miners-bar" style="background: var(--blue); width: 0%;"></div>
           </div>
+          <div class="pop-alloc-row">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Allocate</span>
+            <input type="number" min="0" id="pop-in-miners" class="form-control" value="0">
+          </div>
         </div>
         <div class="pop-bar-group">
           <div class="pop-bar-header">
@@ -2930,6 +3239,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           </div>
           <div class="progress-track">
             <div class="progress-fill" id="pop-researchers-bar" style="background: var(--purple); width: 0%;"></div>
+          </div>
+          <div class="pop-alloc-row">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Allocate</span>
+            <input type="number" min="0" id="pop-in-researchers" class="form-control" value="0">
           </div>
         </div>
         <div class="pop-bar-group">
@@ -2940,6 +3253,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <div class="progress-track">
             <div class="progress-fill" id="pop-builders-bar" style="background: var(--yellow); width: 0%;"></div>
           </div>
+          <div class="pop-alloc-row">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Allocate</span>
+            <input type="number" min="0" id="pop-in-builders" class="form-control" value="0">
+          </div>
         </div>
         <div class="pop-bar-group">
           <div class="pop-bar-header">
@@ -2949,7 +3266,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <div class="progress-track">
             <div class="progress-fill" id="pop-shipwrights-bar" style="background: var(--cyan); width: 0%;"></div>
           </div>
+          <div class="pop-alloc-row">
+            <span style="font-size: 0.72rem; color: var(--text-dim);">Allocate</span>
+            <input type="number" min="0" id="pop-in-shipwrights" class="form-control" value="0">
+          </div>
         </div>
+        <button class="filter-pill-btn" style="margin-top: 0.65rem;" onclick="applyPopulation()">Apply allocation</button>
       </div>
 
       <!-- Active Queues Panel -->
@@ -2968,6 +3290,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);" id="build-pts">
             0 / 0 points
           </div>
+          <div id="qo-idle-build" style="display:none; margin-top: 0.55rem;" class="qo-row">
+            <select id="qo-build-select" class="form-control" style="flex: 1; min-width: 140px; padding: 0.3rem 0.45rem; font-size: 0.78rem;"></select>
+            <button class="filter-pill-btn" onclick="quickStartBuild()">Start build</button>
+          </div>
         </div>
         <div class="dev-card">
           <div class="dev-card-title">
@@ -2979,6 +3305,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           </div>
           <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);" id="research-pts">
             0 / 0 points
+          </div>
+          <div id="qo-idle-research" style="display:none; margin-top: 0.55rem;" class="qo-row">
+            <select id="qo-research-select" class="form-control" style="flex: 1; min-width: 140px; padding: 0.3rem 0.45rem; font-size: 0.78rem;"></select>
+            <button class="filter-pill-btn" onclick="quickStartResearch()">Start research</button>
           </div>
         </div>
       </div>
@@ -3066,6 +3396,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <span class="cat-pill" onclick="setCategory('META')">Meta</span>
           <span class="cat-pill" onclick="setCategory('MEMORY')">Memory</span>
         </div>
+        <div class="pinned-tools" id="pinned-tools-row"></div>
         <div class="tool-list" id="tool-list-container">
           <!-- Tools populated dynamically -->
         </div>
@@ -3081,7 +3412,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
                 Choose an MCP command from the left sidebar to inspect parameters and invoke it.
               </div>
             </div>
-            <div id="selected-tool-badge"></div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <button type="button" class="pin-btn" id="pin-tool-btn" onclick="togglePinnedTool(selectedTool && selectedTool.name)" title="Pin to favorites">☆</button>
+              <div id="selected-tool-badge"></div>
+            </div>
           </div>
 
           <!-- Dynamic Form Container -->
@@ -3123,6 +3457,11 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   <!-- TAB 4: Hangar & Ship Codex -->
   <div id="tab-ships" class="tab-content">
+    <div class="codex-subnav" id="codex-subnav">
+      <button class="filter-pill-btn active" id="codex-view-ships-btn" onclick="setCodexView('ships')">🚀 Ships</button>
+      <button class="filter-pill-btn" id="codex-view-pds-btn" onclick="setCodexView('pds')">🏰 PDS</button>
+      <button class="filter-pill-btn" id="codex-view-ids-btn" onclick="setCodexView('ids')">🆔 Game IDs</button>
+    </div>
     <div class="codex-controls">
       <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-between; align-items: center;">
         <input type="text" id="codex-search" class="search-input" style="max-width: 420px; margin-bottom: 0;" placeholder="Search ships or defenses (e.g. Centurion, Ion Cannon, Cruiser)..." oninput="renderCodex()">
@@ -3189,8 +3528,16 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   <!-- TAB: Bot Studio -->
   <div id="tab-bot" class="tab-content">
+    <div class="bot-subnav" id="bot-subnav">
+      <button class="filter-pill-btn active" data-bot-sec="control" onclick="showBotSection('control')">Control</button>
+      <button class="filter-pill-btn" data-bot-sec="config" onclick="showBotSection('config')">Config</button>
+      <button class="filter-pill-btn" data-bot-sec="strategy" onclick="showBotSection('strategy')">Strategy</button>
+      <button class="filter-pill-btn" data-bot-sec="orders" onclick="showBotSection('orders')">Orders</button>
+      <button class="filter-pill-btn" data-bot-sec="memory" onclick="showBotSection('memory')">Memory</button>
+      <button class="filter-pill-btn" data-bot-sec="logs" onclick="showBotSection('logs')">Logs</button>
+    </div>
     <!-- Top Control Bar -->
-    <div class="panel" style="margin-bottom: 1.5rem;">
+    <div class="panel" id="bot-sec-control" style="margin-bottom: 1.5rem;">
       <div class="panel-header">
         <div>
           <div class="panel-title">🤖 Autonomous Bot Process Controller</div>
@@ -3286,7 +3633,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
 
     <!-- Strategy Architecture & Active Status Banner -->
-    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(0, 229, 255, 0.08)); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1.5rem;">
+    <div id="bot-sec-strategy" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(0, 229, 255, 0.08)); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1.5rem;">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
         <div style="display: flex; align-items: center; gap: 0.6rem;">
           <span style="font-size: 1.3rem;">🧠</span>
@@ -3328,7 +3675,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
 
     <!-- Strategy Studio Split Layout -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+    <div id="bot-sec-config" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
       <!-- Left: Visual Strategy Configurator with Named Profiles -->
       <div class="panel">
         <div class="panel-header">
@@ -3478,7 +3825,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
 
     <!-- Specific Command Dispatcher & Task Interval Scheduler -->
-    <div class="panel" style="margin-bottom: 1.5rem; border-color: rgba(0, 229, 255, 0.35);">
+    <div class="panel" id="bot-sec-orders" style="margin-bottom: 1.5rem; border-color: rgba(0, 229, 255, 0.35);">
       <div class="panel-header">
         <div style="display: flex; align-items: center; gap: 0.6rem;">
           <span style="font-size: 1.25rem;">🎯</span>
@@ -3580,7 +3927,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
 
     <!-- Live Execution Console Stream -->
-    <div class="panel">
+    <div class="panel" id="bot-sec-logs">
       <div class="panel-header">
         <div class="panel-title">📟 Live Bot Decision Stream & Telemetry Logs</div>
         <div style="display: flex; align-items: center; gap: 1rem;">
@@ -3594,10 +3941,8 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       </div>
       <div class="result-box" id="bot-logs-box" style="height: 240px; color: #4ade80;">Loading bot logs...</div>
     </div>
-  </div>
 
-  <!-- TAB 5: Bot Memory -->
-  <div id="tab-memory" class="tab-content">
+    <div id="bot-sec-memory">
     <div class="panel" style="margin-bottom: 1.5rem;">
       <div class="panel-header">
         <div class="panel-title">🧠 Agent Memory Scratchpad</div>
@@ -3620,6 +3965,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       <div id="memory-keys-list" style="font-family: var(--font-mono); font-size: 0.9rem;">
         <div style="color: var(--text-dim);">Loading keys...</div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -3661,7 +4007,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   <div id="tab-battlecalc" class="tab-content">
 
     <!-- MULTI-CALCULATION SESSIONS BAR -->
-    <div id="calc-multi-tabs-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 1.25rem; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 8px; padding: 0.55rem 0.9rem; flex-wrap: wrap;">
+    <div id="calc-multi-tabs-bar" class="calc-sticky-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.85rem; background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 8px; padding: 0.45rem 0.75rem; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
         <span style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--cyan); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.3rem;">
           📑 Calculations:
@@ -3670,34 +4016,31 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <!-- Dynamically populated calculation session pills -->
         </div>
         <button class="btn-refresh" onclick="addNewCalcTab()" title="Open a new blank calculation from scratch in this window" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: var(--cyan); border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.08);">
-          ➕ New Tab
+          ➕ New
         </button>
       </div>
       <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-        <button class="btn-refresh" onclick="openDefenseScenarioModal()" title="Auto-plan defense: calculate available defender fleets vs inbound attacker fleets for a specific tick" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #38bdf8; border-color: rgba(56,189,248,0.45); background: rgba(56,189,248,0.1); font-weight: 700;">
-          🛡️ Plan Defense at Tick X
+        <button class="btn-refresh" onclick="openDefenseScenarioModal()" title="Auto-plan defense" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #38bdf8; border-color: rgba(56,189,248,0.45); background: rgba(56,189,248,0.1); font-weight: 700;">
+          🛡️ Plan Defense
         </button>
-        <button class="btn-refresh" onclick="openCalcShareModal()" title="Share calculation via public link or MCP" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: var(--cyan); border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.08);">
-          🔗 Share Link
+        <button class="btn-primary" onclick="runBattleSimulation()" title="Ctrl+Enter" style="padding: 0.32rem 0.9rem; font-size: 0.8rem; font-weight: 700;">
+          ⚡ Simulate
         </button>
-        <button class="btn-refresh" onclick="openCalcImportModal()" title="Import a shared calculation link or code string" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #86efac; border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.08);">
-          📥 Import
-        </button>
-        <button class="btn-refresh" onclick="openAllianceMessageModal()" title="Dispatch battle brief & public link to alliance member via MCP" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #fde047; border-color: rgba(234,179,8,0.4); background: rgba(234,179,8,0.08);">
-          💬 In-Game Msg
-        </button>
-        <button class="btn-refresh" onclick="downloadOfflineCalcHtml()" title="Download standalone offline battle calculator HTML file" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #cbd5e1; border-color: rgba(255,255,255,0.18);">
-          💾 Export HTML
-        </button>
-        <button class="btn-refresh" onclick="duplicateCurrentCalcTab()" title="Clone active calculation to a new tab" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #cbd5e1; border-color: rgba(255,255,255,0.18);">
-          📋 Duplicate
-        </button>
-        <button class="btn-refresh" onclick="renameCurrentCalcTab()" title="Rename active calculation tab" style="padding: 0.28rem 0.65rem; font-size: 0.78rem; color: #cbd5e1; border-color: rgba(255,255,255,0.18);">
-          ✏️ Rename
-        </button>
-        <button class="btn-refresh" onclick="popOutCalculatorToWindow()" title="Pop this calculation out into an independent browser window" style="padding: 0.28rem 0.75rem; font-size: 0.78rem; color: #a5b4fc; border-color: rgba(165,180,252,0.45); background: rgba(99,102,241,0.12);">
-          ↗️ Pop Out Window
-        </button>
+        <div class="more-wrap" id="calc-more-wrap">
+          <button class="btn-refresh" onclick="toggleCalcMoreMenu(event)" style="padding: 0.28rem 0.65rem; font-size: 0.78rem;">More ▾</button>
+          <div class="more-menu">
+            <button onclick="openCalcShareModal(); closeCalcMoreMenu()">🔗 Share Link</button>
+            <button onclick="openCalcImportModal(); closeCalcMoreMenu()">📥 Import</button>
+            <button onclick="openAllianceMessageModal(); closeCalcMoreMenu()">💬 In-Game Msg</button>
+            <button onclick="downloadOfflineCalcHtml(); closeCalcMoreMenu()">💾 Export HTML</button>
+            <button onclick="duplicateCurrentCalcTab(); closeCalcMoreMenu()">📋 Duplicate</button>
+            <button onclick="renameCurrentCalcTab(); closeCalcMoreMenu()">✏️ Rename</button>
+            <button onclick="popOutCalculatorToWindow(); closeCalcMoreMenu()">↗️ Pop Out</button>
+            <button onclick="startFreshCalculation(); closeCalcMoreMenu()">✨ Start Fresh</button>
+            <button onclick="resetCombatSimulator(); closeCalcMoreMenu()">🔄 Reset</button>
+            <button onclick="loadCombatSimulator(true); closeCalcMoreMenu()">🔄 Refresh Fleets</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3712,41 +4055,29 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         </div>
         <span class="badge badge-warning">Simulated Combat Sandbox</span>
       </div>
-      <p style="color: var(--text-dim); margin-bottom: 1rem; font-size: 0.92rem; line-height: 1.5;">
-        Simulate tactical fleet engagements between your active named fleets and enemy targets extracted automatically from live fleet scans (Deep Scans, Military Scans, and Fleet Scans). Accurately predicts initiative firing order, target class prioritization, planetary shield absorption, EMP disruption, and plunder capacity.
+      <p style="color: var(--text-dim); margin-bottom: 0.65rem; font-size: 0.85rem;">
+        Multi-fleet coalition calculator. Matrix is the default layout — switch to Cards if you want per-fleet editors.
       </p>
       <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-right: 0.25rem;">Simulation Mode:</div>
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-right: 0.25rem;">Mode:</div>
           <button id="sim-mode-defense-btn" class="sim-mode-btn active" onclick="setSimulationMode('defense')">
-            🛡️ Home Base Defense (User = Defender)
+            🛡️ Defense
           </button>
           <button id="sim-mode-assault-btn" class="sim-mode-btn" onclick="setSimulationMode('assault')">
-            ⚔️ Planetary Assault (User = Attacker)
+            ⚔️ Assault
           </button>
           <button class="btn-refresh" onclick="swapSimulatorSides()" title="Swap Attacker and Defender Sides" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; margin-left: 0.25rem;">
-            ⇄ Swap Sides
+            ⇄ Swap
           </button>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
           <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-dim);">Layout:</div>
           <button id="sim-layout-bcalc-btn" class="filter-pill-btn active" onclick="setSimulatorLayout('bcalc')">
-            📊 Matrix Mode
+            📊 Matrix
           </button>
           <button id="sim-layout-cards-btn" class="filter-pill-btn" onclick="setSimulatorLayout('cards')">
-            🗂️ Cards View
-          </button>
-          <button class="btn-refresh" onclick="popOutCalculatorToWindow()" title="Send this calculation to an independent new window" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; color: #a5b4fc; border-color: rgba(165,180,252,0.4); background: rgba(99,102,241,0.12);">
-            ↗️ Pop Out Window
-          </button>
-          <button class="btn-refresh" onclick="startFreshCalculation()" title="Reset calculator to clean state to start a new calculation from scratch" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; color: #38bdf8; border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.08);">
-            ✨ Start Fresh
-          </button>
-          <button class="btn-refresh" onclick="resetCombatSimulator()" title="Reset all fleets, coordinates, scans and results to clean default" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
-            🔄 Reset
-          </button>
-          <button class="btn-primary" onclick="loadCombatSimulator()" style="padding: 0.4rem 1rem; font-size: 0.85rem; margin-left: 0.25rem;">
-            🔄 Refresh Fleets
+            🗂️ Cards
           </button>
           <span id="combat-status-badge" style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-dim);">
             Ready to simulate.
@@ -3936,7 +4267,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div>
             <div class="panel-title" id="sim-def-title" style="color: #ff5252;">🛡️ Defender Forces (Base Garrison, Fleets & PDS)</div>
-            <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">Live intel or home base • Garrison & docked fleets auto-loaded</div>
+            <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">Live intel or home base • Load garrison or scans when you want them</div>
           </div>
           <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
             <button class="btn-refresh" style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 600; color: #ff5252; border-color: rgba(255,82,82,0.4);" onclick="addDefenderFleet()" title="Add an extra defender garrison or reinforcement fleet card">
@@ -3953,7 +4284,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
         <!-- Defender Target Notice -->
         <div style="background: rgba(56,189,248,0.05); border: 1px solid rgba(56,189,248,0.25); border-radius: 6px; padding: 0.55rem 0.8rem; margin-bottom: 0.85rem; font-size: 0.78rem; display: flex; justify-content: space-between; align-items: center;">
-          <span style="color: var(--text-dim);">Target intel auto-loaded from the <strong style="color: #38bdf8;">Defender Coordinates Explorer</strong> above.</span>
+          <span style="color: var(--text-dim);">Use the <strong style="color: #38bdf8;">Defender Coordinates Explorer</strong> above, then add fleets from scans or your empire.</span>
           <button class="btn-refresh" style="font-size: 0.72rem; padding: 0.15rem 0.45rem; color: #38bdf8; border-color: rgba(56,189,248,0.4);" onclick="document.getElementById('sim-coords-input').focus()">🎯 Focus Coordinates</button>
         </div>
 
@@ -4196,7 +4527,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
 
     <!-- ACTION BAR -->
-    <div style="background: rgba(10, 20, 36, 0.9); border: 1px solid var(--border-glow); border-radius: 8px; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+    <div style="background: rgba(10, 20, 36, 0.9); border: 1px solid var(--border-glow); border-radius: 8px; padding: 0.85rem 1.1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
       <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
         <span style="font-size: 0.9rem; font-weight: 600;">Max Combat Rounds:</span>
         <select id="sim-max-rounds" class="form-control" style="width: 80px;">
@@ -4205,24 +4536,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           <option value="6">6</option>
           <option value="10">10</option>
         </select>
-        <button class="btn-refresh" onclick="openCalcShareModal()" title="Share calculation via public link or MCP" style="padding: 0.45rem 1rem; font-size: 0.85rem; color: var(--cyan); border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.08);">
-          🔗 Share Link
-        </button>
-        <button class="btn-refresh" onclick="openCalcImportModal()" title="Import a calculation link or code string" style="padding: 0.45rem 1rem; font-size: 0.85rem; color: #86efac; border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.08);">
-          📥 Import
-        </button>
-        <button class="btn-refresh" onclick="resetCombatSimulator()" title="Reset all fleets, coordinates, scans and results to clean state" style="padding: 0.45rem 1rem; font-size: 0.85rem; color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1);">
-          🔄 Reset
-        </button>
-        <button class="btn-refresh" onclick="startFreshCalculation()" title="Start a fresh calculation from scratch" style="padding: 0.45rem 1rem; font-size: 0.85rem; color: #38bdf8; border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.08);">
-          ✨ Start Fresh
-        </button>
-        <button class="btn-refresh" onclick="popOutCalculatorToWindow()" title="Pop this calculation out into an independent browser window" style="padding: 0.45rem 1rem; font-size: 0.85rem; color: #a5b4fc; border-color: rgba(165,180,252,0.45); background: rgba(99,102,241,0.12);">
-          ↗️ Pop Out Window
-        </button>
       </div>
 
-      <button class="btn-primary" onclick="runBattleSimulation()" style="padding: 0.75rem 2.2rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.05em; background: linear-gradient(135deg, #00e5ff 0%, #0077b6 100%); box-shadow: 0 0 15px rgba(0,229,255,0.4);">
+      <button class="btn-primary" onclick="runBattleSimulation()" style="padding: 0.75rem 2.2rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.05em; background: linear-gradient(135deg, #00e5ff 0%, #0077b6 100%);">
         ⚡ RUN BATTLE SIMULATION
       </button>
     </div>
@@ -4233,7 +4549,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   <!-- Footer -->
   <footer style="text-align: center; padding: 1.5rem 0 2rem; color: var(--text-dim); font-size: 0.78rem; font-family: var(--font-mono); border-top: 1px solid rgba(255,255,255,0.06); margin-top: 2rem;">
-    <div>🌌 Pegasus Galaxy MCP Suite <strong style="color: var(--cyan);">v0.5</strong> • Cross-Platform (macOS / Linux / Windows)</div>
+    <div>🌌 Pegasus Galaxy MCP Suite <strong style="color: var(--cyan);">v0.6</strong> • Cross-Platform (macOS / Linux / Windows)</div>
     <div style="margin-top: 0.35rem;">GitHub: <a href="https://github.com/phuture707/PEGMCPCOMMAND" target="_blank" style="color: var(--cyan); text-decoration: none;">phuture707/PEGMCPCOMMAND</a> • 67 Live MCP Tools • Streamable HTTP</div>
   </footer>
 </div>
@@ -4260,7 +4576,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     </div>
 
     <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
-      <input type="text" id="sim-picker-search" class="form-control" placeholder="🔍 Filter by coords (e.g. 12:1:1), scan type, ship name, or ally..." style="font-size: 0.85rem; flex: 1; min-width: 220px;" oninput="renderScanPickerList()">
+      <input type="text" id="sim-picker-search" class="form-control" placeholder="🔍 Filter by coords (e.g. 12:1:1), scan type, ship name, or ally..." style="font-size: 0.85rem; flex: 1; min-width: 220px;" oninput="scheduleScanPickerList()">
       <div style="display: flex; gap: 0.3rem; align-items: center;">
         <button id="sim-picker-src-all-btn" class="filter-pill-btn active" onclick="setPickerSourceFilter('all')">🌐 All</button>
         <button id="sim-picker-src-user-btn" class="filter-pill-btn" onclick="setPickerSourceFilter('user')">👤 My Scans</button>
@@ -4731,6 +5047,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 <!-- Toast notification -->
 <div id="toast"></div>
 
+<div id="cmd-palette-overlay" onclick="if(event.target===this) closeCommandPalette()">
+  <div id="cmd-palette-box">
+    <input type="text" id="cmd-palette-input" class="form-control" placeholder="Jump to page or run a tool… (Esc to close)" oninput="filterCommandPalette()" onkeydown="onCommandPaletteKey(event)">
+    <div id="cmd-palette-list"></div>
+    <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.45rem; font-family: var(--font-mono);">Ctrl/Cmd+K · 1-6 tabs · [ ] cycle · Ctrl+Enter simulate</div>
+  </div>
+</div>
+
 <script>
   let allTools = [];
   let selectedTool = null;
@@ -4834,37 +5158,237 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     showToast("Quota tracker reset to 0 for current tick");
   }
 
-  function switchTab(tabId, btn) {
+  function switchTab(tabId, btn, opts) {
+    opts = opts || {};
+    if (tabId === 'memory') tabId = 'bot';
+    if (tabId === 'reference') {
+      tabId = 'ships';
+      opts.codexView = opts.codexView || 'ids';
+    }
+    const navId = tabId === 'battlecalc' ? 'battlecalc' : tabId;
+    currentTabId = tabId;
     try {
       document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      const activeBtn = btn || (typeof event !== 'undefined' && event && event.currentTarget) || document.querySelector(`.tabs .tab-btn[onclick*="'${tabId}'"]`);
+
+      const activeBtn = btn || document.querySelector(`.tabs .tab-btn[data-tab="${navId}"]`);
       if (activeBtn) activeBtn.classList.add('active');
 
       const targetTab = document.getElementById('tab-' + tabId);
       if (targetTab) targetTab.classList.add('active');
+      const refTab = document.getElementById('tab-reference');
+      if (refTab && tabId !== 'ships') refTab.style.display = 'none';
     } catch(err) {
       console.error("DOM tab activation error:", err);
     }
 
-    // Auto-refresh when switching tabs (wrapped in try-catch so failure in one never blocks tab display)
+    if (!opts.skipHash) {
+      const hashName = tabId === 'battlecalc' ? 'calc' : tabId;
+      const keepCalc = (window.location.hash || '').includes('c=') || (window.location.hash || '').includes('import=');
+      if (!keepCalc) {
+        try { history.replaceState(null, '', '#tab=' + hashName); } catch (e) {}
+      }
+    }
+
     try {
       if (tabId === 'dashboard') refreshDashboard();
       if (tabId === 'commands' && allTools.length === 0) loadTools();
       if (tabId === 'missions') loadMissions();
-      if (tabId === 'ships') loadShipsAndPds();
-      if (tabId === 'reference') loadReferenceTab();
-      if (tabId === 'bot') loadBotStudio();
-      if (tabId === 'memory') loadMemory();
-      if (tabId === 'battlecalc') loadCombatSimulator();
+      if (tabId === 'ships') {
+        loadShipsAndPds();
+        if (opts.codexView) setCodexView(opts.codexView);
+      }
+      if (tabId === 'bot') {
+        loadBotStudio();
+        if (opts.botSection) showBotSection(opts.botSection);
+        else loadMemory();
+      }
+      if (tabId === 'battlecalc') loadCombatSimulator(false);
     } catch(err) {
       console.error("Tab data loading error for " + tabId + ":", err);
     }
   }
 
+  function pageIsVisible() {
+    return typeof document.hidden === 'undefined' || !document.hidden;
+  }
+
+  function toggleCalcMoreMenu(ev) {
+    if (ev) ev.stopPropagation();
+    const wrap = document.getElementById('calc-more-wrap');
+    if (wrap) wrap.classList.toggle('open');
+  }
+  function closeCalcMoreMenu() {
+    const wrap = document.getElementById('calc-more-wrap');
+    if (wrap) wrap.classList.remove('open');
+  }
+
+  function showBotSection(sec) {
+    document.querySelectorAll('#bot-subnav [data-bot-sec]').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-bot-sec') === sec);
+    });
+    const el = document.getElementById('bot-sec-' + sec);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (sec === 'memory') loadMemory();
+  }
+
+  let codexView = 'ships';
+  function setCodexView(view) {
+    codexView = view;
+    ['ships', 'pds', 'ids'].forEach(v => {
+      const b = document.getElementById('codex-view-' + v + '-btn');
+      if (b) b.classList.toggle('active', v === view);
+    });
+    const race = document.getElementById('race-columns-wrapper');
+    const pds = document.getElementById('pds-section-wrapper');
+    const controls = document.querySelector('#tab-ships .codex-controls');
+    const refTab = document.getElementById('tab-reference');
+    const shipsTab = document.getElementById('tab-ships');
+    if (view === 'ids') {
+      if (race) race.style.display = 'none';
+      if (pds) pds.style.display = 'none';
+      if (controls) controls.style.display = 'none';
+      if (refTab && shipsTab && refTab.parentElement !== shipsTab) shipsTab.appendChild(refTab);
+      if (refTab) {
+        refTab.classList.add('active');
+        refTab.style.display = 'block';
+      }
+      loadReferenceTab();
+    } else {
+      if (controls) controls.style.display = '';
+      if (refTab) {
+        refTab.classList.remove('active');
+        refTab.style.display = 'none';
+      }
+      if (view === 'pds') {
+        if (race) race.style.display = 'none';
+        if (pds) pds.style.display = 'block';
+        setCodexFaction('PDS');
+      } else {
+        setCodexFaction('ALL');
+      }
+    }
+  }
+
+  async function quickOpenTool(name) {
+    switchTab('commands');
+    if (allTools.length === 0) await loadTools();
+    selectTool(name);
+    const search = document.getElementById('tool-search');
+    if (search) { search.value = name; filterTools(); }
+  }
+
+  const TAB_KEYS = ['dashboard', 'commands', 'missions', 'ships', 'bot', 'battlecalc'];
+  let currentTabId = 'dashboard';
+  let cmdPaletteIndex = 0;
+  let cmdPaletteItems = [];
+
+  function openCommandPalette() {
+    const overlay = document.getElementById('cmd-palette-overlay');
+    if (!overlay) return;
+    overlay.classList.add('open');
+    const input = document.getElementById('cmd-palette-input');
+    if (input) { input.value = ''; input.focus(); }
+    filterCommandPalette();
+  }
+  function closeCommandPalette() {
+    const overlay = document.getElementById('cmd-palette-overlay');
+    if (overlay) overlay.classList.remove('open');
+  }
+  function filterCommandPalette() {
+    const q = (document.getElementById('cmd-palette-input')?.value || '').toLowerCase();
+    const pages = [
+      { kind: 'page', id: 'dashboard', label: 'Mission Control' },
+      { kind: 'page', id: 'commands', label: 'Command Hub' },
+      { kind: 'page', id: 'missions', label: 'Quests & Missions' },
+      { kind: 'page', id: 'ships', label: 'Codex (Ships / PDS / IDs)' },
+      { kind: 'page', id: 'bot', label: 'Bot Studio' },
+      { kind: 'page', id: 'battlecalc', label: 'Battle Simulator' },
+    ];
+    const tools = (allTools || []).map(t => ({ kind: 'tool', id: t.name, label: t.name + ' — ' + (t.description || '') }));
+    cmdPaletteItems = pages.concat(tools).filter(item => !q || item.label.toLowerCase().includes(q) || item.id.toLowerCase().includes(q)).slice(0, 40);
+    cmdPaletteIndex = 0;
+    renderCommandPalette();
+  }
+  function renderCommandPalette() {
+    const list = document.getElementById('cmd-palette-list');
+    if (!list) return;
+    list.innerHTML = cmdPaletteItems.map((item, i) =>
+      `<div class="cmd-item${i === cmdPaletteIndex ? ' active' : ''}" data-idx="${i}">${item.kind === 'tool' ? '⚡ ' : ''}${item.label}</div>`
+    ).join('') || '<div class="cmd-item">No matches</div>';
+    list.querySelectorAll('.cmd-item[data-idx]').forEach(el => {
+      el.onmouseenter = () => { cmdPaletteIndex = Number(el.getAttribute('data-idx')); renderCommandPalette(); };
+      el.onclick = () => runCommandPaletteItem(cmdPaletteItems[Number(el.getAttribute('data-idx'))]);
+    });
+  }
+  function onCommandPaletteKey(ev) {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); cmdPaletteIndex = Math.min(cmdPaletteItems.length - 1, cmdPaletteIndex + 1); renderCommandPalette(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); cmdPaletteIndex = Math.max(0, cmdPaletteIndex - 1); renderCommandPalette(); }
+    else if (ev.key === 'Enter') { ev.preventDefault(); runCommandPaletteItem(cmdPaletteItems[cmdPaletteIndex]); }
+    else if (ev.key === 'Escape') { closeCommandPalette(); }
+  }
+  function runCommandPaletteItem(item) {
+    if (!item) return;
+    closeCommandPalette();
+    if (item.kind === 'page') switchTab(item.id);
+    else quickOpenTool(item.id);
+  }
+
+  function applyLocationHash() {
+    const h = window.location.hash || '';
+    if (h.includes('c=') || h.includes('import=') || h.includes('coords=')) {
+      switchTab('battlecalc', null, { skipHash: true });
+      if (typeof handleCalcUrlHash === 'function') handleCalcUrlHash();
+      return;
+    }
+    const m = h.match(/tab=([a-z]+)/i);
+    if (!m) return;
+    const map = { calc: 'battlecalc', control: 'dashboard', commands: 'commands', missions: 'missions', ships: 'ships', codex: 'ships', bot: 'bot', dashboard: 'dashboard', memory: 'bot', reference: 'ships' };
+    const tab = map[m[1].toLowerCase()];
+    if (tab) {
+      const extra = {};
+      extra.skipHash = true;
+      if (m[1].toLowerCase() === 'memory') extra.botSection = 'memory';
+      if (m[1].toLowerCase() === 'reference' || m[1].toLowerCase() === 'codex') extra.codexView = m[1].toLowerCase() === 'reference' ? 'ids' : 'ships';
+      switchTab(tab, null, extra);
+    }
+  }
+
+  document.addEventListener('click', () => closeCalcMoreMenu());
+  document.addEventListener('keydown', (ev) => {
+    const tag = (ev.target && ev.target.tagName) || '';
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ev.target.isContentEditable;
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'k') {
+      ev.preventDefault();
+      openCommandPalette();
+      return;
+    }
+    if (ev.key === 'Escape') {
+      closeCommandPalette();
+      closeCalcMoreMenu();
+      document.querySelectorAll('[id$="-modal"]').forEach(m => { if (m.style.display === 'flex') m.style.display = 'none'; });
+      return;
+    }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+      const calcOn = document.getElementById('tab-battlecalc')?.classList.contains('active');
+      if (calcOn) { ev.preventDefault(); runBattleSimulation(); }
+      return;
+    }
+    if (typing) return;
+    if (ev.key >= '1' && ev.key <= '6') {
+      switchTab(TAB_KEYS[Number(ev.key) - 1]);
+      return;
+    }
+    if (ev.key === '[' || ev.key === ']') {
+      const i = Math.max(0, TAB_KEYS.indexOf(currentTabId));
+      const next = ev.key === ']' ? (i + 1) % TAB_KEYS.length : (i - 1 + TAB_KEYS.length) % TAB_KEYS.length;
+      switchTab(TAB_KEYS[next]);
+    }
+  });
+
   // --- Telemetry & Dashboard ---
-  async function refreshDashboard() {
+  async function refreshDashboard(force) {
+    if (!force && !pageIsVisible()) return;
     try {
       const res = await fetch('/api/state');
       const json = await res.json();
@@ -4915,6 +5439,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
       document.getElementById('pop-shipwrights-val').textContent = `${formatNum(ships)} (${((ships/totPop)*100).toFixed(1)}%)`;
       document.getElementById('pop-shipwrights-bar').style.width = ((ships/totPop)*100) + '%';
+      setUnfocusedValue('pop-in-miners', miners);
+      setUnfocusedValue('pop-in-researchers', resers);
+      setUnfocusedValue('pop-in-builders', bldrs);
+      setUnfocusedValue('pop-in-shipwrights', ships);
 
       // Queues
       const constructions = summary.constructions || [];
@@ -4947,17 +5475,19 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         document.getElementById('research-bar').style.width = '0%';
         document.getElementById('research-pts').textContent = 'No active research';
       }
+      fillIdleQueueSelects(constructions, researchList, !!activeBuild, !!activeRes);
+      loadMissions(false);
 
       // Fleets
       const fleetTbody = document.getElementById('fleet-rows');
-      fleetTbody.innerHTML = '';
-      
+      const fleetRows = [];
+
       // Base Garrison
       if (planet.shipsBaseFleet) {
         const comp = Object.entries(planet.shipsBaseFleet)
           .map(([k, v]) => `${k.replace('main-vanguard-', '').replace('main-', '')}: ${formatNum(v)}`)
           .join(', ');
-        fleetTbody.innerHTML += `
+        fleetRows.push(`
           <tr>
             <td><strong>Stationary Garrison</strong></td>
             <td><span class="badge badge-info">ORBIT</span></td>
@@ -4965,7 +5495,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             <td>${comp || 'None'}</td>
             <td>Home Defense</td>
           </tr>
-        `;
+        `);
       }
 
       const fleets = summary.fleets || [];
@@ -4977,7 +5507,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           const comp = Object.entries(fl.ships || {})
             .map(([k, v]) => `${k.replace('main-vanguard-', '').replace('main-', '')}: ${formatNum(v)}`)
             .join(', ') || '<span style="color: var(--text-dim)">Empty</span>';
-          fleetTbody.innerHTML += `
+          fleetRows.push(`
             <tr>
               <td><strong>${fl.name || fl.id.slice(0, 8)}</strong></td>
               <td><span class="badge ${statusBadge}">${fl.status}</span></td>
@@ -4985,13 +5515,124 @@ HTML_CONTENT = r"""<!DOCTYPE html>
               <td>${comp}</td>
               <td>${fl.arrivesAt ? `Tick ${fl.arrivesAt}` : 'Docked'}</td>
             </tr>
-          `;
+          `);
         });
+        fleetTbody.innerHTML = fleetRows.join('');
       }
 
-      showToast("Telemetry synced with game server.");
+      if (force) showToast("Telemetry synced with game server.");
     } catch (e) {
       showToast("Error updating dashboard: " + e.message);
+    }
+  }
+
+  function setUnfocusedValue(id, val) {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = val;
+  }
+
+  async function apiCall(tool, args) {
+    const res = await fetch('/api/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool: tool, arguments: args || {} })
+    });
+    return res.json();
+  }
+
+  async function applyPopulation() {
+    const miners = Number(document.getElementById('pop-in-miners')?.value || 0);
+    const researchers = Number(document.getElementById('pop-in-researchers')?.value || 0);
+    const builders = Number(document.getElementById('pop-in-builders')?.value || 0);
+    const shipwrights = Number(document.getElementById('pop-in-shipwrights')?.value || 0);
+    if (!confirm('Apply population allocation? This consumes an action.')) return;
+    try {
+      const data = await apiCall('assign_population', { miners, researchers, builders, shipwrights, scientists: researchers });
+      if (!data.success) throw new Error(data.error || 'assign_population failed');
+      showToast('Population allocation applied.');
+      refreshDashboard(true);
+    } catch (e) {
+      showToast('Population apply failed: ' + e.message);
+    }
+  }
+
+  async function quickScanNow() {
+    const coords = (document.getElementById('qo-scan-coords')?.value || '').trim();
+    const scanType = document.getElementById('qo-scan-type')?.value || 'MILITARY_SCAN';
+    if (!coords) { showToast('Enter scan coordinates first.'); return; }
+    if (!confirm('Run ' + scanType + ' on ' + coords + '? This consumes a scan.')) return;
+    try {
+      const data = await apiCall('perform_scan', { coords: coords, scanType: scanType });
+      if (!data.success) throw new Error(data.error || 'scan failed');
+      showToast('Scan submitted for ' + coords);
+      refreshDashboard(true);
+    } catch (e) {
+      showToast('Scan failed: ' + e.message);
+    }
+  }
+
+  function fillIdleQueueSelects(constructions, researchList, hasActiveBuild, hasActiveResearch) {
+    const buildWrap = document.getElementById('qo-idle-build');
+    const resWrap = document.getElementById('qo-idle-research');
+    const buildSel = document.getElementById('qo-build-select');
+    const resSel = document.getElementById('qo-research-select');
+    const fillSelect = (sel, items, idKeys) => {
+      if (!sel) return 0;
+      const prev = sel.value;
+      sel.innerHTML = '';
+      let n = 0;
+      (items || []).forEach(item => {
+        if (!item || item.currentlyInProgress) return;
+        const id = idKeys.map(k => item[k]).find(Boolean);
+        if (!id) return;
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = (item.name || id) + (item.currentLevel != null ? ' (Lvl ' + item.currentLevel + ')' : '');
+        sel.appendChild(opt);
+        n++;
+      });
+      if (prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
+      return n;
+    };
+    const buildCount = fillSelect(buildSel, constructions, ['constructionId', 'id']);
+    const resCount = fillSelect(resSel, researchList, ['researchId', 'id']);
+    if (buildWrap) buildWrap.style.display = (!hasActiveBuild && buildCount) ? 'flex' : 'none';
+    if (resWrap) resWrap.style.display = (!hasActiveResearch && resCount) ? 'flex' : 'none';
+    if ((!buildCount || !resCount) && (!refData.constructions.length && !refData.research.length)) {
+      ensureRefData().then(() => {
+        if (!buildCount && buildSel) fillSelect(buildSel, refData.constructions, ['id', 'constructionId']);
+        if (!resCount && resSel) fillSelect(resSel, refData.research, ['id', 'researchId']);
+        if (buildWrap && !hasActiveBuild && buildSel && buildSel.options.length) buildWrap.style.display = 'flex';
+        if (resWrap && !hasActiveResearch && resSel && resSel.options.length) resWrap.style.display = 'flex';
+      });
+    }
+  }
+
+  async function quickStartBuild() {
+    const id = document.getElementById('qo-build-select')?.value;
+    if (!id) { showToast('Pick a construction first.'); return; }
+    if (!confirm('Start construction ' + id + '?')) return;
+    try {
+      const data = await apiCall('build_construction', { constructionId: id });
+      if (!data.success) throw new Error(data.error || 'build failed');
+      showToast('Construction started.');
+      refreshDashboard(true);
+    } catch (e) {
+      showToast('Build failed: ' + e.message);
+    }
+  }
+
+  async function quickStartResearch() {
+    const id = document.getElementById('qo-research-select')?.value;
+    if (!id) { showToast('Pick a research first.'); return; }
+    if (!confirm('Start research ' + id + '?')) return;
+    try {
+      const data = await apiCall('start_research', { researchId: id });
+      if (!data.success) throw new Error(data.error || 'research failed');
+      showToast('Research started.');
+      refreshDashboard(true);
+    } catch (e) {
+      showToast('Research failed: ' + e.message);
     }
   }
 
@@ -5002,7 +5643,8 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const json = await res.json();
       allTools = json.tools || [];
       filterTools();
-      if (allTools.length > 0) selectTool(allTools[0].name);
+      const last = localStorage.getItem('peg_last_tool');
+      if (last && allTools.some(t => t.name === last)) selectTool(last);
     } catch (e) {
       showToast("Error loading tools: " + e.message);
     }
@@ -5015,10 +5657,68 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     filterTools();
   }
 
+  const DEFAULT_PINS = ['perform_scan', 'launch_fleet', 'list_incoming_fleets'];
+  function getPinnedTools() {
+    try {
+      const raw = localStorage.getItem('peg_pinned_tools');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_PINS.slice();
+  }
+  function savePinnedTools(arr) {
+    try { localStorage.setItem('peg_pinned_tools', JSON.stringify(arr)); } catch (e) {}
+  }
+  function isToolPinned(name) {
+    return getPinnedTools().indexOf(name) >= 0;
+  }
+  function togglePinnedTool(name, ev) {
+    if (ev) ev.stopPropagation();
+    if (!name) return;
+    const pins = getPinnedTools();
+    const i = pins.indexOf(name);
+    if (i >= 0) pins.splice(i, 1);
+    else pins.push(name);
+    savePinnedTools(pins);
+    filterTools();
+    updatePinButton();
+  }
+  function updatePinButton() {
+    const btn = document.getElementById('pin-tool-btn');
+    if (!btn) return;
+    const pinned = selectedTool && isToolPinned(selectedTool.name);
+    btn.textContent = pinned ? '★' : '☆';
+    btn.classList.toggle('pinned', !!pinned);
+    btn.title = pinned ? 'Unpin favorite' : 'Pin to favorites';
+  }
+  function makeToolItem(t) {
+    const isAction = /build|start|cancel|produce|assign|change|trade|search|initiate|repair|launch|recall|perform|send|create|join|leave|accept|invite|kick|declare|decline|claim|set|delete/.test(t.name);
+    const item = document.createElement('div');
+    item.className = 'tool-item' + (selectedTool && selectedTool.name === t.name ? ' selected' : '');
+    item.onclick = () => selectTool(t.name);
+    const star = isToolPinned(t.name) ? '★' : '☆';
+    item.innerHTML = `
+        <span class="tool-item-name">${t.name}</span>
+        <span style="display:flex;align-items:center;gap:0.35rem;">
+          <button type="button" class="pin-btn${isToolPinned(t.name) ? ' pinned' : ''}" title="Toggle pin">${star}</button>
+          <span class="badge ${isAction ? 'badge-action' : 'badge-read'}" style="font-size: 0.65rem;">
+            ${isAction ? 'ACTION' : 'READ'}
+          </span>
+        </span>
+      `;
+    const pinBtn = item.querySelector('.pin-btn');
+    if (pinBtn) pinBtn.onclick = (ev) => togglePinnedTool(t.name, ev);
+    return item;
+  }
+
   function filterTools() {
-    const q = document.getElementById('tool-search').value.toLowerCase();
+    const q = (document.getElementById('tool-search')?.value || '').toLowerCase();
     const container = document.getElementById('tool-list-container');
-    container.innerHTML = '';
+    const pinRow = document.getElementById('pinned-tools-row');
+    if (!container) return;
+    const pinSet = new Set(getPinnedTools());
 
     const filtered = allTools.filter(t => {
       const name = t.name.toLowerCase();
@@ -5034,24 +5734,22 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       return true;
     });
 
-    filtered.forEach(t => {
-      const isAction = /build|start|cancel|produce|assign|change|trade|search|initiate|repair|launch|recall|perform|send|create|join|leave|accept|invite|kick|declare|decline|claim|set|delete/.test(t.name);
-      const item = document.createElement('div');
-      item.className = 'tool-item' + (selectedTool && selectedTool.name === t.name ? ' selected' : '');
-      item.onclick = () => selectTool(t.name);
-      item.innerHTML = `
-        <span class="tool-item-name">${t.name}</span>
-        <span class="badge ${isAction ? 'badge-action' : 'badge-read'}" style="font-size: 0.65rem;">
-          ${isAction ? 'ACTION' : 'READ'}
-        </span>
-      `;
-      container.appendChild(item);
-    });
+    if (pinRow) {
+      const pinFrag = document.createDocumentFragment();
+      filtered.filter(t => pinSet.has(t.name)).forEach(t => pinFrag.appendChild(makeToolItem(t)));
+      pinRow.replaceChildren(pinFrag);
+    }
+
+    const restFrag = document.createDocumentFragment();
+    filtered.filter(t => !pinSet.has(t.name)).forEach(t => restFrag.appendChild(makeToolItem(t)));
+    container.replaceChildren(restFrag);
+    updatePinButton();
   }
 
   function selectTool(toolName) {
     selectedTool = allTools.find(t => t.name === toolName);
     if (!selectedTool) return;
+    try { localStorage.setItem('peg_last_tool', toolName); } catch (e) {}
 
     document.querySelectorAll('.tool-item').forEach(el => {
       el.classList.toggle('selected', el.querySelector('.tool-item-name').textContent === toolName);
@@ -5066,6 +5764,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         ${isAction ? '⚠️ ACTION (Consumes Quota)' : '✨ READ (Free)'}
       </span>
     `;
+    updatePinButton();
 
     // Build dynamic form
     const formContainer = document.getElementById('tool-form-container');
@@ -5111,6 +5810,8 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   async function executeSelectedTool() {
     if (!selectedTool) return;
+    const isAction = /build|start|cancel|produce|assign|change|trade|search|initiate|repair|launch|recall|perform|send|create|join|leave|accept|invite|kick|declare|decline|claim|set|delete/.test(selectedTool.name);
+    if (isAction && !confirm(`Run ACTION '${selectedTool.name}'? This may consume quota.`)) return;
     const btn = document.getElementById('btn-run-tool');
     btn.disabled = true;
     btn.innerHTML = '<span>⏳</span> Executing...';
@@ -5191,10 +5892,33 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   }
 
   // --- Missions ---
-  async function loadMissions() {
+  let missionsCacheTick = null;
+  function updateMissionsBadge(count) {
+    const badge = document.getElementById('missions-nav-badge');
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = String(count);
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    const dash = document.getElementById('dash-claim-card');
+    if (dash) {
+      if (count > 0) {
+        dash.style.display = 'flex';
+        dash.innerHTML = `<div><strong>🎁 ${count} mission(s) ready to claim</strong><div style="font-size:0.75rem;opacity:0.85;">Collect rewards from Mission Control.</div></div><button class="btn-primary" style="background:white;color:#065f46;padding:0.35rem 0.7rem;font-size:0.8rem;" onclick="claimAllMissions()">Claim all</button>`;
+      } else {
+        dash.style.display = 'none';
+        dash.innerHTML = '';
+      }
+    }
+  }
+  async function loadMissions(force) {
     const container = document.getElementById('missions-list-container');
     const bannerArea = document.getElementById('claim-banner-area');
-    container.innerHTML = '<div class="panel" style="text-align: center;">Loading mission data...</div>';
+    if (!force && missionsCacheTick !== null && missionsCacheTick === currentTick && container && container.dataset.loaded === '1') return;
+    if (container) container.innerHTML = '<div class="panel" style="text-align: center;">Loading mission data...</div>';
 
     try {
       const res = await fetch('/api/missions');
@@ -5203,7 +5927,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const summary = json.data?.summary || {};
 
       const completedCount = summary.completed || 0;
-      if (completedCount > 0) {
+      updateMissionsBadge(completedCount);
+      missionsCacheTick = currentTick;
+      if (container) container.dataset.loaded = '1';
+      if (completedCount > 0 && bannerArea) {
         bannerArea.innerHTML = `
           <div class="btn-claim-banner">
             <div>
@@ -5215,19 +5942,19 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             </button>
           </div>
         `;
-      } else {
+      } else if (bannerArea) {
         bannerArea.innerHTML = '';
       }
 
-      container.innerHTML = '';
-      const order = { 'COMPLETED': 0, 'ACTIVE': 1, 'CLAIMED': 2, 'EXPIRED': 3 };
-      missions.sort((a, b) => (order[a.status] || 9) - (order[b.status] || 9));
-
-      missions.forEach(m => {
-        const isComp = m.status === 'COMPLETED';
-        const card = document.createElement('div');
-        card.className = 'mission-card' + (isComp ? ' completed' : '');
-        card.innerHTML = `
+      if (container) {
+        const order = { 'COMPLETED': 0, 'ACTIVE': 1, 'CLAIMED': 2, 'EXPIRED': 3 };
+        missions.sort((a, b) => (order[a.status] || 9) - (order[b.status] || 9));
+        const frag = document.createDocumentFragment();
+        missions.forEach(m => {
+          const isComp = m.status === 'COMPLETED';
+          const card = document.createElement('div');
+          card.className = 'mission-card' + (isComp ? ' completed' : '');
+          card.innerHTML = `
           <div>
             <div style="font-family: var(--font-display); font-weight: 700; color: var(--text-bright); margin-bottom: 0.2rem;">
               ${m.missionId}
@@ -5242,10 +5969,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
             </span>
           </div>
         `;
-        container.appendChild(card);
-      });
+          frag.appendChild(card);
+        });
+        container.replaceChildren(frag);
+      }
     } catch(e) {
-      container.innerHTML = `<div class="panel" style="color: var(--red);">Error loading missions: ${e.message}</div>`;
+      if (container) container.innerHTML = `<div class="panel" style="color: var(--red);">Error loading missions: ${e.message}</div>`;
     }
   }
 
@@ -5257,8 +5986,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         body: JSON.stringify({ tool: 'claim_missions', arguments: {} })
       });
       const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'claim failed');
       showToast("🎉 Mission rewards claimed successfully!");
-      loadMissions();
+      updateMissionsBadge(0);
+      loadMissions(true);
       refreshDashboard();
     } catch(e) {
       showToast("Error claiming missions: " + e.message);
@@ -5271,7 +6002,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   let codexFaction = 'ALL';
   let codexClass = 'ALL';
 
-  async function loadShipsAndPds() {
+  let shipsLoaded = false;
+  async function loadShipsAndPds(force) {
+    if (shipsLoaded && !force) { renderCodex(); return; }
     try {
       const [shipsRes, pdsRes] = await Promise.all([
         fetch('/api/ships').then(r => r.json()),
@@ -5279,6 +6012,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       ]);
       allShips = shipsRes.ships || [];
       allPds = pdsRes.pds || [];
+      shipsLoaded = true;
       renderCodex();
     } catch(e) {
       document.getElementById('pds-grid-container').innerHTML = `<div class="panel" style="color: var(--red);">Error loading defense data: ${e.message}</div>`;
@@ -5812,10 +6546,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       fetchBotLogs(),
       loadBotQueue(),
       loadBotSchedules(),
-      populateDispatchToolDropdown()
+      populateDispatchToolDropdown(),
+      loadMemory()
     ]);
     if (!botPollTimer) {
       botPollTimer = setInterval(() => {
+        if (!pageIsVisible()) return;
         const botTab = document.getElementById('tab-bot');
         if (botTab && botTab.classList.contains('active')) {
           refreshBotStatus();
@@ -5823,7 +6559,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           loadBotQueue();
           loadBotSchedules();
         }
-      }, 4000);
+      }, 8000);
     }
   }
 
@@ -5848,7 +6584,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     'governmentType': ['democracy', 'dictatorship', 'communism', 'anarchy', 'technocracy'],
     'sourceResource': ['metal', 'crystal', 'eonium'],
     'targetResource': ['metal', 'crystal', 'eonium'],
-    'role': ['miners', 'scientists', 'soldiers']
+    'role': ['miners', 'researchers', 'builders', 'shipwrights']
   };
 
   let dispatchRawMode = false;
@@ -6928,25 +7664,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
   }
 
-  async function saveBotStrategy() {
-    const code = document.getElementById('bot-strategy-code').value;
-    try {
-      const res = await fetch('/api/bot/strategy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code })
-      });
-      const json = await res.json();
-      if (json.success) {
-        showToast("Strategy script saved! Reloads automatically on next tick.");
-      } else {
-        showToast("Error saving strategy: " + (json.error || "Unknown"));
-      }
-    } catch(e) {
-      showToast("Error saving strategy: " + e.message);
-    }
-  }
-
   const STRATEGY_TEMPLATES = {
     economy: `\"\"\"\nEconomic Expansion Strategy Hook\nFocuses on resource mining, prospect scans, and maximizing metal/crystal.\n\"\"\"\n\ndef on_tick(client, state, config, logger):\n    logger("🚀 [Custom Strategy] Running Economic Expansion Strategy...")\n    planet = state.get("planet", {}).get("data", {}) or {}\n    res = planet.get("resources", {}) or {}\n    logger(f"   Current reserves: Metal={res.get('metal', 0):,}, Crystal={res.get('crystal', 0):,}")\n`,
     fortress: `\"\"\"\nFortress Colony Strategy Hook\nPrioritizes planetary defenses (PDS), shield generators, and defense research.\n\"\"\"\n\ndef on_tick(client, state, config, logger):\n    logger("🛡️ [Custom Strategy] Running Fortress Turtle Defense Hook...")\n    pds = state.get("pds", {}).get("data", []) or []\n    built_pds = [p for p in pds if p.get("level", 0) > 0]\n    logger(f"   Active defense emplacements: {len(built_pds)}")\n`,
@@ -7143,20 +7860,27 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       return;
     }
 
-    refreshDashboard();
-    refreshBotStatus();
-    // Auto-refresh telemetry every 30 seconds
-    setInterval(refreshDashboard, 30000);
-    startScanBackgroundSync();
-
-    if (window.location.hash.includes('c=') || window.location.hash.includes('import=') || window.location.hash.includes('coords=')) {
-      setTimeout(async () => {
-        if (typeof switchTab === 'function') switchTab('battlecalc');
-        await handleCalcUrlHash();
-      }, 500);
+    applyLocationHash();
+    if (!document.getElementById('tab-dashboard')?.classList.contains('active') &&
+        !document.getElementById('tab-battlecalc')?.classList.contains('active') &&
+        !document.getElementById('tab-bot')?.classList.contains('active') &&
+        !document.getElementById('tab-commands')?.classList.contains('active') &&
+        !document.getElementById('tab-missions')?.classList.contains('active') &&
+        !document.getElementById('tab-ships')?.classList.contains('active')) {
+      refreshDashboard();
+    } else if (document.getElementById('tab-dashboard')?.classList.contains('active')) {
+      refreshDashboard();
     }
+    refreshBotStatus();
+    setInterval(() => {
+      if (!pageIsVisible()) return;
+      if (document.getElementById('tab-dashboard')?.classList.contains('active')) refreshDashboard();
+    }, 30000);
+    startScanBackgroundSync();
+    loadMissions(true);
+
     window.addEventListener('hashchange', () => {
-      handleCalcUrlHash();
+      applyLocationHash();
     });
   };
 
@@ -7203,8 +7927,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   async function refreshScanTargets(isBackground = false) {
     try {
-      const scanRes = await fetch('/api/combat/scan_targets');
+      const qs = lastScanCount ? ('?sinceCount=' + encodeURIComponent(lastScanCount)) : '';
+      const scanRes = await fetch('/api/combat/scan_targets' + qs);
       const scanJson = await scanRes.json();
+      if (scanJson.success && scanJson.unchanged) {
+        return;
+      }
       if (scanJson.success) {
         const prevCount = simScanTargets.length;
         simScanTargets = scanJson.targets || [];
@@ -7233,7 +7961,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
         populateUniversePlanetQuickPick();
         populateScanTargetsDropdown();
-        populateQuickScanAddDropdowns();
         updateCoordsScansDropdown('atk');
         updateCoordsScansDropdown('def');
 
@@ -7254,7 +7981,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           showToast(`📡 ${diff} fresh scan(s) synced from alliance intel!`);
         }
 
-        lastScanCount = simScanTargets.length;
+        lastScanCount = allCount;
       }
     } catch(e) {
       console.warn("Scan targets refresh error:", e);
@@ -7264,48 +7991,53 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function startScanBackgroundSync() {
     if (scanPollTimer) return;
     scanPollTimer = setInterval(() => {
+      if (!pageIsVisible()) return;
       const isCalcActive = document.getElementById('tab-battlecalc')?.classList.contains('active');
       const isPickerOpen = document.getElementById('sim-scan-picker-modal')?.style.display === 'flex';
       const isPlannerOpen = document.getElementById('sim-defense-planner-modal')?.style.display === 'flex';
       if (isCalcActive || isPickerOpen || isPlannerOpen) {
         refreshScanTargets(true);
       }
-    }, 30000); // Auto-poll every 30 seconds
+    }, 30000);
   }
 
-  async function loadCombatSimulator() {
+  let combatSimulatorLoaded = false;
+  async function loadCombatSimulator(force) {
     const badge = document.getElementById('combat-status-badge');
-    badge.textContent = 'Fetching fleets, universe map & scan intel...';
+    if (combatSimulatorLoaded && !force) {
+      startScanBackgroundSync();
+      if (badge && (!badge.textContent || badge.textContent.indexOf('Fetching') === 0)) {
+        badge.textContent = 'Calculator ready';
+      }
+      return;
+    }
+    if (badge) badge.textContent = 'Fetching fleets, universe map & scan intel...';
 
     try {
       await ensureRefData();
 
-      // 1. Fetch attacker fleets + home defense
-      const atkRes = await fetch('/api/combat/attacker_fleets');
-      const atkJson = await atkRes.json();
-      if (atkJson.success) {
+      const [atkJson, ] = await Promise.all([
+        fetch('/api/combat/attacker_fleets').then(r => r.json()),
+        refreshScanTargets(false)
+      ]);
+      if (atkJson && atkJson.success) {
         simAttackerData = atkJson;
         homeDefenseData = atkJson.homeDefense || null;
         populateQuickEmpireAddDropdowns();
       }
 
-      // 2. Fetch fleet & planetary scan targets with universe map & alliance intel
-      await refreshScanTargets(false);
       startScanBackgroundSync();
 
       const hasSharedHash = window.location.hash.includes('c=') || window.location.hash.includes('import=');
 
-      // Initialize default attacker fleet if none exists (starts empty)
       if (simAttackerFleets.length === 0 && !hasSharedHash && !userClearedRoster.atk) {
         initDefaultAttackerFleet();
       }
-
-      // Initialize default defender fleet if none exists (starts empty)
       if (simDefenderFleets.length === 0 && !hasSharedHash && !userClearedRoster.def) {
         initDefaultDefenderFleet();
       }
 
-      if (!hasSharedHash && !userClearedRoster.def) {
+      if (!hasSharedHash) {
         setSimulationMode(currentSimMode, true);
       }
       setSimulatorLayout(currentBcalcLayout);
@@ -7313,10 +8045,11 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
       const userScansN = simScanTargets.filter(t => t.source === 'user').length;
       const allyScansN = simScanTargets.filter(t => t.source === 'ally').length;
-      badge.textContent = `Calculator Ready (Empty) • ${userScansN} personal scan(s), ${allyScansN} ally scan(s). Enter coords or load scans.`;
+      combatSimulatorLoaded = true;
+      if (badge) badge.textContent = `Calculator Ready • ${userScansN} personal scan(s), ${allyScansN} ally scan(s).`;
     } catch (e) {
       console.error("Combat simulator load error:", e);
-      badge.textContent = 'Error loading combat data: ' + e.message;
+      if (badge) badge.textContent = 'Error loading combat data: ' + e.message;
     }
   }
 
@@ -7406,7 +8139,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     });
 
     populateScanTargetsDropdown();
-    populateQuickScanAddDropdowns();
     updateCoordsScansDropdown('atk');
     updateCoordsScansDropdown('def');
     showToast(`Filtering scans by: ${src === 'all' ? 'All Scans' : (src === 'user' ? 'My Scans' : 'Alliance Intel')}`);
@@ -8024,7 +8756,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       if (atkTitle) { atkTitle.textContent = '🚀 Attacking Forces (Coalition Fleets)'; atkTitle.style.color = '#ef4444'; }
       if (defTitle) { defTitle.textContent = '🛡️ Defender Forces (Your Base Garrison, Docked Fleets & PDS)'; defTitle.style.color = '#38bdf8'; }
 
-      applyUserPdsToDefender(true);
+      if (!silent) applyUserPdsToDefender(true);
       if (!silent) showToast('Simulation Mode: Defense (Defender on Left, Attacker on Right)');
     } else {
       if (assaultBtn) assaultBtn.classList.add('active');
@@ -8566,10 +9298,16 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     if (modal) modal.style.display = 'none';
   }
 
+  let scanPickerRenderTimer = null;
+  function scheduleScanPickerList() {
+    clearTimeout(scanPickerRenderTimer);
+    scanPickerRenderTimer = setTimeout(() => renderScanPickerList(), 150);
+  }
+
   function renderScanPickerList(query) {
     const container = document.getElementById('sim-picker-list');
     if (!container) return;
-    container.innerHTML = '';
+    const frag = document.createDocumentFragment();
 
     const q = (query !== undefined ? query : (document.getElementById('sim-picker-search')?.value || '')).trim().toLowerCase();
 
@@ -8646,7 +9384,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         blockedRow.style.fontSize = '0.8rem';
         blockedRow.textContent = '⚠️ This scan was blocked by enemy Wave Distorters. No fleet data retrieved.';
         card.appendChild(blockedRow);
-        container.appendChild(card);
+        frag.appendChild(card);
         return;
       }
 
@@ -8761,11 +9499,13 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         card.appendChild(nfRow);
       });
 
-      container.appendChild(card);
+      frag.appendChild(card);
     });
 
     if (matchCount === 0) {
       container.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 2rem;">No scans matching "${escapeHtml(q)}".</div>`;
+    } else {
+      container.replaceChildren(frag);
     }
   }
 
@@ -8785,10 +9525,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       if (bottomCoords) bottomCoords.value = resolved.coords;
     }
     closeScanPickerModal();
-  }
-
-  function quickAddFleetFromScan(side) {
-    openExecuteScanModal(side);
   }
 
   let currentExecScanSide = 'def';
@@ -9130,88 +9866,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     renderAllFleetCards(side);
     recalcCoalitionSummary(side);
     renderBcalcMatrix();
-  }
-
-  function populateQuickScanAddDropdowns() {
-    ['atk', 'def'].forEach(side => {
-      const selIds = [`sim-${side}-add-scan-select`, `sim-bcalc-${side}-add-scan-select`];
-      selIds.forEach(id => {
-        const sel = document.getElementById(id);
-        if (!sel) return;
-        sel.innerHTML = '<option value="">📡 Add from Scan...</option>';
-
-        if (!simScanTargets || simScanTargets.length === 0) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.disabled = true;
-          opt.textContent = 'No fleet scans in history';
-          sel.appendChild(opt);
-          return;
-        }
-
-        const filteredList = (typeof getFilteredScans === 'function') ? getFilteredScans() : simScanTargets;
-        if (filteredList.length === 0) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.disabled = true;
-          opt.textContent = 'No scans match current filter';
-          sel.appendChild(opt);
-          return;
-        }
-
-        filteredList.forEach(t => {
-          if (t.status === 'blocked' || t.isBlocked) return;
-          const tIdx = simScanTargets.indexOf(t);
-          if (tIdx === -1) return;
-          const typeLabel = formatScanType(t.scanType);
-          const coords = t.coords || `Target ${tIdx + 1}`;
-          const gShips = t.garrisonShips || {};
-          const gTotal = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
-          const namedFleets = t.namedFleets || [];
-
-          // Consolidated option (if multi-fleet)
-          if (namedFleets.length > 0) {
-            const allTotal = (side === 'atk')
-              ? namedFleets.reduce((acc, nf) => acc + Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0), 0)
-              : gTotal + namedFleets.reduce((acc, nf) => acc + Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0), 0);
-            if (allTotal > 0 && (side === 'atk' ? namedFleets.length > 1 : (namedFleets.length > 0 && gTotal > 0))) {
-              const cOpt = document.createElement('option');
-              cOpt.value = `scan_${tIdx}_consolidated`;
-              cOpt.textContent = `⚡ [${typeLabel}] [${coords}] All Consolidated (${allTotal.toLocaleString()} ships)`;
-              sel.appendChild(cOpt);
-            }
-          }
-
-          // Garrison option (Defender only: PDS & Garrison are stationary planetary defenses)
-          if (side !== 'atk' && (gTotal > 0 || namedFleets.length === 0)) {
-            const gOpt = document.createElement('option');
-            gOpt.value = `scan_${tIdx}_garrison`;
-            gOpt.textContent = `[${typeLabel}] [${coords}] Garrison (${gTotal.toLocaleString()} ships)`;
-            sel.appendChild(gOpt);
-          }
-
-          // Named fleets options
-          namedFleets.forEach((nf, nfIdx) => {
-            const nfTotal = Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
-            const nfOpt = document.createElement('option');
-            nfOpt.value = `scan_${tIdx}_nf_${nfIdx}`;
-            nfOpt.textContent = `[${typeLabel}] [${coords}] Fleet "${nf.name || 'Unnamed'}" (${nfTotal.toLocaleString()} ships)`;
-            sel.appendChild(nfOpt);
-          });
-        });
-      });
-    });
-  }
-
-  function onQuickAddScanSelect(side, selectEl) {
-    const val = selectEl.value;
-    if (!val) return;
-    if (side === 'atk') {
-      addAttackerFleet(val);
-    } else {
-      addDefenderFleet(val);
-    }
-    selectEl.value = '';
   }
 
   function populateQuickEmpireAddDropdowns() {
@@ -11498,7 +12152,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       `Defender Total Force: ${def.totalAvailableShips || 0} ships across ${avail.length + 1} defending element(s)`,
       `Inbound Attackers: ${d.totalAttackerShips || 0} ships across ${atks.length} fleet(s)`,
       atks.map((a, i) => ` • Fleet ${i+1}: ${a.name} (${a.totalShips} ships) | Reliability: ${a.reliability?.score || 50}% | Decoy Chance: ${a.decoy?.decoyChance || 0}% [${a.decoy?.badge || 'NORMAL'}]`).join('\n'),
-      `Generated by Pegasus Galaxy MCP Suite v0.5`
+      `Generated by Pegasus Galaxy MCP Suite v0.6`
     ].join('\n');
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -11572,10 +12226,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         renderCalcTabs();
       }
     }
-  }
-
-  async function handleCalcUrlHashPostLoad() {
-    await handleCalcUrlHash();
   }
 
   async function initStandaloneCombatSimulator() {
@@ -13048,7 +13698,7 @@ def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, open_browser:
     display_host = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
     url = f"http://{display_host}:{port}"
     print("=" * 60)
-    print("🌌 PEGASUS GALAXY MCP CONTROL HUB GUI (v0.5)")
+    print("🌌 PEGASUS GALAXY MCP CONTROL HUB GUI (v0.6)")
     print(f"🚀 Server running at: http://{host}:{port}")
     if host == "0.0.0.0":
         print("🌐 Remote VPS Mode: Accessible from any device with network access to this server")

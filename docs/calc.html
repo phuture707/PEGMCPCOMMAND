@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pegasus Galaxy v0.5 • Public BattleCalc & Matrix Simulator</title>
+  <title>Pegasus Galaxy v0.6 • Public BattleCalc & Matrix Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
   <style>
     :root {
       --bg-space: #030712;
@@ -575,7 +576,7 @@
         <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
           <h1 style="margin: 0; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1.35rem;">
             <span>⚔️ Interstellar Battle Simulator</span>
-            <span style="font-size: 0.68rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.1rem 0.35rem; vertical-align: middle;">v0.5</span>
+            <span style="font-size: 0.68rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.1rem 0.35rem; vertical-align: middle;">v0.6</span>
           </h1>
           <!-- MCP Enhanced Mode Indicator (Inline next to Interstellar Battle Simulator text) -->
           <div id="mcp-enhanced-indicator" class="mcp-enhanced-pill probing" onclick="openMcpConnectModal()" title="MCP Enhanced Mode: Detecting local suite or PAT connection...">
@@ -826,7 +827,7 @@
 
   <!-- Footer -->
   <footer style="text-align: center; padding: 1.5rem 0; color: var(--text-dim); font-size: 0.78rem; font-family: var(--font-mono); border-top: 1px solid rgba(255,255,255,0.06);">
-    <div>🌌 Pegasus Galaxy Battle Matrix <strong style="color: var(--cyan);">v0.5</strong> • Zero-Installation Client-Side Simulator</div>
+    <div>🌌 Pegasus Galaxy Battle Matrix <strong style="color: var(--cyan);">v0.6</strong> • Zero-Installation Client-Side Simulator</div>
     <div style="margin-top: 0.35rem;">GitHub Repository: <a href="https://github.com/phuture707/PEGMCPCOMMAND" target="_blank" style="color: var(--cyan); text-decoration: none;">phuture707/PEGMCPCOMMAND</a> • Model Context Protocol Suite</div>
   </footer>
 </div>
@@ -2140,13 +2141,6 @@ let lastScanCount = 0;
 let calcSessions = [{ id: 'session_init', name: 'Calc #1', state: null }];
 let activeSessionId = 'session_init';
 
-function normalizeCoords(str) {
-  if (!str) return '';
-  let clean = String(str).trim().replace(/[^0-9:]/g, ':');
-  clean = clean.replace(/:+/g, ':').replace(/^:+|:+$/g, '');
-  return clean;
-}
-
 function formatScanType(type) {
   if (!type) return 'Scan';
   if (type === 'DEEP_SCAN') return 'Deep Scan';
@@ -2838,10 +2832,6 @@ async function applyImportedCode() {
     document.getElementById('bottom-coords-input').value = coords;
     closeImportModal();
     showToast(`Loaded target coordinates: ${coords}`);
-    if (simScanTargets && simScanTargets.length > 0) {
-      const matchIdx = simScanTargets.findIndex(t => t.coords && normalizeCoords(t.coords) === normalizeCoords(coords));
-      if (matchIdx !== -1) pickScanFleet(matchIdx, 'consolidated');
-    }
     return;
   }
   
@@ -3916,16 +3906,8 @@ async function loadCombatDataFromMcp() {
       simEmpireData = atkJson;
       homeDefenseData = atkJson.homeDefense || null;
       populateQuickEmpireAddDropdowns();
-
-      // If Defender roster is currently default empty (0 total ships) AND not opening a shared link (#c=...) AND user has not explicitly cleared/deleted the roster, auto-load Home Garrison & PDS!
-      const hasSharedHash = window.location.hash && window.location.hash.includes('c=');
-      const defTotal = defenderFleets.reduce((sum, f) => sum + (f.ships ? Object.values(f.ships).reduce((a, b) => a + (parseInt(b, 10) || 0), 0) : 0), 0);
-      if (!hasSharedHash && defTotal === 0 && !userClearedRoster['def'] && (homeDefenseData?.hangarShips || homeDefenseData?.garrisonShips || simEmpireData?.hangarShips)) {
-        loadMyEmpireIntoDefender();
-      }
     }
 
-    // 2. Fetch all personal and alliance scans
     await refreshScanTargets(false);
     populateScanTargetsDropdown();
     startScanBackgroundSync();
@@ -4172,7 +4154,10 @@ function onTargetSelectChange(side, selectEl) {
 function loadMyEmpireIntoDefender() {
   if (!simEmpireData && !homeDefenseData) {
     if (mcpConfig.connected) {
-      triggerLoadMyFleet();
+      loadCombatDataFromMcp().then(() => {
+        if (simEmpireData || homeDefenseData) loadMyEmpireIntoDefender();
+        else showToast('No home defense data available yet.');
+      });
     } else {
       openMcpConnectModal('Connect your local MCP suite to load your home base defense.');
     }
@@ -4683,13 +4668,8 @@ function addNewCalcTab() {
   defenderFleets = [{ id: 'def_1', name: 'Defender Garrison', enabled: true, ships: {} }];
   const coordsInput = document.getElementById('bottom-coords-input');
   if (coordsInput) coordsInput.value = '';
-
-  if (mcpConfig.connected && (homeDefenseData || simEmpireData)) {
-    loadMyEmpireIntoDefender();
-  } else {
-    renderMatrix();
-    updateTotals();
-  }
+  renderMatrix();
+  updateTotals();
 
   renderCalcTabs();
   showToast(`Opened ${newName}`);
@@ -5009,12 +4989,6 @@ async function loadCloudFleetsAndScans(pat) {
       };
       homeDefenseData = simEmpireData.homeDefense;
       populateQuickEmpireAddDropdowns();
-
-      const hasSharedHash = window.location.hash && window.location.hash.includes('c=');
-      const defTotal = defenderFleets.reduce((sum, f) => sum + (f.ships ? Object.values(f.ships).reduce((a, b) => a + (parseShipCount(b) || 0), 0) : 0), 0);
-      if (!hasSharedHash && defTotal === 0 && (Object.keys(hangar).length > 0 || Object.keys(homePds).length > 0)) {
-        loadMyEmpireIntoDefender();
-      }
     }
 
     try {
@@ -5180,14 +5154,6 @@ function triggerDefensePlanner() {
     return;
   }
   openDefenseScenarioModal();
-}
-
-async function triggerLoadMyFleet() {
-  loadMyEmpireIntoDefender();
-}
-
-async function triggerLoadInboundScans() {
-  openScanPickerModal('atk');
 }
 
 function triggerOpenMessageModal() {
@@ -5611,7 +5577,7 @@ function copyDefenseScenarioBrief() {
     `Defender Total Force: ${(def.totalAvailableShips || 0).toLocaleString()} ships across ${avail.length + 1} defending element(s)`,
     `Inbound Attackers: ${(d.totalAttackerShips || 0).toLocaleString()} ships across ${atks.length} fleet(s)`,
     atks.map((a, i) => ` • Fleet ${i+1}: ${a.name} (${(a.totalShips||0).toLocaleString()} ships) | Reliability: ${a.reliability?.score || 50}% | Decoy Chance: ${a.decoy?.decoyChance || 0}% [${a.decoy?.badge || 'NORMAL'}]`).join('\n'),
-    `Generated by Pegasus Galaxy MCP Suite v0.5`
+    `Generated by Pegasus Galaxy MCP Suite v0.6`
   ].join('\n');
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -5673,12 +5639,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       renderCalcTabs();
     }
     showToast(`Pre-targeted coordinates: ${coords}`);
-    if (simScanTargets && simScanTargets.length > 0) {
-      const matchIdx = simScanTargets.findIndex(t => t.coords && normalizeCoords(t.coords) === normalizeCoords(coords));
-      if (matchIdx !== -1) {
-        pickScanFleet(matchIdx, 'consolidated');
-      }
-    }
   }
 
   // Test / probe for Pegasus MCP Suite (.env credentials or PAT)
