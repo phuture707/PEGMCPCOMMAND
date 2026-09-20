@@ -4362,6 +4362,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         </div>
         <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.35rem; line-height: 1.45;">
           Recipient can open this in any browser on PC, tablet, or phone, view the full Battle Matrix, add fleets, and simulate battles directly.<br>
+          <span style="color: #38bdf8;">🚀 <em>Tip:</em> If you or an ally open the public link while running this local suite, click <strong>"🚀 Open in Local MCP"</strong> in the top bar to bridge instantly into your local .env session.</span><br>
           <span style="color: #fde047;">⚙️ <em>Note:</em> Requires GitHub Pages enabled on GitHub: <a href="https://github.com/phuture707/PEGMCPCOMMAND/settings/pages" target="_blank" style="color: #38bdf8; text-decoration: underline;">Settings → Pages → Deploy from branch: main, folder: /docs</a>.</span>
         </div>
       </div>

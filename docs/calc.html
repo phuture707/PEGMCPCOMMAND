@@ -523,6 +523,9 @@
         <span class="mcp-dot"></span>
         <span id="mcp-status-text">Probing MCP...</span>
       </div>
+      <a id="btn-open-local-suite" href="http://127.0.0.1:7890/calc" target="_blank" class="btn btn-refresh" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12); font-weight: 600; display: none;" title="Open this exact scenario in your local Pegasus MCP Suite (port 7890) for full automatic .env integration">
+        🚀 Open in Local MCP
+      </a>
       <button class="btn btn-primary" onclick="copyShareLink()" title="Copy shareable link with encoded calculation">
         🔗 Copy Share Link
       </button>
@@ -794,19 +797,37 @@
     </div>
 
     <!-- Active Status Banner -->
-    <div id="mcp-modal-status-box" style="padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.82rem; font-family: var(--font-mono); display: flex; align-items: center; justify-content: space-between; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.25);">
+    <div id="mcp-modal-status-box" style="padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.82rem; font-family: var(--font-mono); display: flex; align-items: center; justify-content: space-between; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.25);">
       <span id="mcp-modal-status-text">Status: ⚪ Standalone Client-Side Mode</span>
       <span id="mcp-modal-status-ping" style="font-size: 0.72rem; color: var(--text-dim);">Pure offline JS</span>
+    </div>
+
+    <!-- HTTPS Mixed Content Notice (Only shown when running on https://) -->
+    <div id="https-mixed-content-notice" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1rem; font-size: 0.79rem; line-height: 1.45;">
+      <div style="color: #fbbf24; font-weight: 700; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.4rem;">
+        <span>🔒 Why is Local MCP not detected on GitHub Pages?</span>
+      </div>
+      <div style="color: #cbd5e1;">
+        This page is loaded over <strong>HTTPS</strong>. Web browsers (Chrome, Edge, Firefox, Brave) automatically block public HTTPS websites from contacting local HTTP addresses (<code>http://127.0.0.1:7890</code>) for security.
+      </div>
+      <div style="margin-top: 0.6rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <a id="modal-open-local-btn" href="http://127.0.0.1:7890/calc" target="_blank" class="btn btn-primary" style="font-size: 0.78rem; text-decoration: none; padding: 0.3rem 0.8rem; background: linear-gradient(135deg, #0284c7, #2563eb);">
+          🚀 1-Click: Open in Local MCP Suite (Port 7890)
+        </a>
+        <button type="button" class="btn btn-refresh" onclick="showBrowserSettingGuide()" style="font-size: 0.78rem; color: #38bdf8; border-color: rgba(56,189,248,0.4); padding: 0.3rem 0.8rem;">
+          🔓 Or Allow Insecure Content in Chrome
+        </button>
+      </div>
     </div>
 
     <!-- Mode 1: Local MCP Suite (Automatic .env) -->
     <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(0,229,255,0.25); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <strong style="color: #38bdf8; font-size: 0.9rem;">Option 1: Local MCP Suite (.env Auto-Loaded)</strong>
-        <span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8;">Recommended</span>
+        <strong style="color: #38bdf8; font-size: 0.9rem;">Option 1: Local MCP Suite (Port 7890 • .env Auto-Loaded)</strong>
+        <span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8;">Local Daemon</span>
       </div>
       <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.75rem;">
-        If you have the Pegasus MCP Suite running on this PC (<code>python peg_gui.py</code>), your game token from <code>.env</code> is already active.
+        If you have the Pegasus MCP Suite running on this PC (<code>python peg_gui.py</code>), your game token from <code>.env</code> is already active. On GitHub Pages, use the 1-click button above or allow insecure content.
       </p>
       <div style="display: flex; gap: 0.5rem; align-items: center;">
         <input type="text" id="mcp-suite-url-input" class="form-control" style="flex: 1; font-size: 0.82rem;" value="http://127.0.0.1:7890" placeholder="http://127.0.0.1:7890">
@@ -816,19 +837,19 @@
       </div>
     </div>
 
-    <!-- Mode 2: Direct Pegasus PAT Login -->
+    <!-- Mode 2: Direct Pegasus Cloud PAT Login -->
     <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <strong style="color: #cbd5e1; font-size: 0.9rem;">Option 2: Pegasus Personal Access Token (PAT)</strong>
-        <span class="badge" style="background: rgba(255,255,255,0.08); color: var(--text-dim);">Web / Remote</span>
+        <strong style="color: #cbd5e1; font-size: 0.9rem;">Option 2: Pegasus Cloud MCP via PAT (HTTPS Direct)</strong>
+        <span class="badge" style="background: rgba(16,185,129,0.15); color: #86efac;">Works on GitHub Pages</span>
       </div>
       <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.75rem;">
-        Using GitHub Pages or a device without Python? Enter your Pegasus PAT below. It is stored securely only in your browser session.
+        Using GitHub Pages without Python? Enter your Pegasus Personal Access Token below. Connects directly over secure HTTPS to <code>https://mcp.pegasus-galaxy.net</code>.
       </p>
       <div style="display: flex; gap: 0.5rem; align-items: center;">
         <input type="password" id="mcp-pat-input" class="form-control" style="flex: 1; font-size: 0.82rem;" placeholder="Paste Pegasus PAT (pat_...)">
         <button type="button" class="btn btn-refresh" onclick="savePatFromModal()" style="font-size: 0.8rem; color: #86efac; border-color: rgba(16,185,129,0.4);">
-          🔑 Save PAT
+          🔑 Save &amp; Connect Cloud MCP
         </button>
       </div>
     </div>
@@ -3127,6 +3148,10 @@ function updateMcpEnhancedIndicators(status, details = {}) {
     const title = `MCP Enhanced Mode: Detected & Enabled! Connected to ${details.url || 'MCP'}${planetPart}. Live tick, garrison, empire fleets, and scan browser are active.`;
     setBadge(brandInd, brandText, 'enabled', '⚡ MCP Enhanced Mode: Detected & Enabled', title);
     setBadge(panelInd, panelText, 'enabled', '⚡ MCP Enhanced Mode: Detected & Enabled', title);
+  } else if (status === 'public_web') {
+    const title = 'Running on Public GitHub Pages (HTTPS). Browser blocks direct background connections to localhost HTTP. Click "🚀 Open in Local MCP" above to connect your local suite, or enter PAT below.';
+    setBadge(brandInd, brandText, 'disabled', '🌐 Public Web Mode (HTTPS)', title);
+    setBadge(panelInd, panelText, 'disabled', '🌐 Public Web Mode (HTTPS)', title);
   } else {
     const title = 'MCP Enhanced Mode: Not Detected / Disabled. Running in 100% Client-Side Standalone Mode. Click to connect local MCP Suite (port 7890) or enter PAT.';
     setBadge(brandInd, brandText, 'disabled', '⚪ MCP Enhanced Mode: Not Detected (Standalone)', title);
@@ -3135,6 +3160,14 @@ function updateMcpEnhancedIndicators(status, details = {}) {
 }
 
 async function probeMcpConnection(customUrl = null) {
+  const isHttps = window.location.protocol === 'https:';
+
+  // If user has a stored PAT and we are on HTTPS without an explicit local customUrl, test Cloud PAT first!
+  if (isHttps && mcpConfig.pat && !customUrl) {
+    const cloudOk = await connectWithCloudPat(mcpConfig.pat);
+    if (cloudOk) return true;
+  }
+
   const testUrl = (customUrl || mcpConfig.url || 'http://127.0.0.1:7890').replace(/\/+$/, '');
   const pill = document.getElementById('mcp-status-pill');
   const text = document.getElementById('mcp-status-text');
@@ -3218,6 +3251,7 @@ async function probeMcpConnection(customUrl = null) {
 
     // Auto-load combat data, empire fleets & all scans (ZERO clicks required to activate)
     await loadCombatDataFromMcp();
+    updateLocalSuiteLink();
 
     // Setup recurring ticker and intel check (every 30 seconds)
     if (!mcpPollTimer) {
@@ -3232,23 +3266,35 @@ async function probeMcpConnection(customUrl = null) {
     mcpConfig.connected = false;
     mcpConfig.mode = 'STANDALONE';
 
+    const isMixedContent = isHttps && testUrl.startsWith('http://');
+
     if (pill) {
       pill.className = 'mcp-status-badge standalone';
-      pill.title = 'Standalone Mode • Click to connect local MCP Suite or enter PAT';
-      if (text) text.textContent = '⚪ Standalone Mode • [🔌 Connect MCP]';
+      if (isMixedContent) {
+        pill.title = 'Public Web Mode (HTTPS) • Browser blocks http://127.0.0.1 • Click to open in Local Suite or enter PAT';
+        if (text) text.innerHTML = '🌐 Public Web Mode • [🔌 Connect MCP]';
+      } else {
+        pill.title = 'Standalone Mode • Click to connect local MCP Suite or enter PAT';
+        if (text) text.textContent = '⚪ Standalone Mode • [🔌 Connect MCP]';
+      }
     }
     if (tickVal) {
       tickVal.textContent = 'Offline / Standalone';
     }
     if (modalStatusText) {
-      modalStatusText.innerHTML = `Status: <span style="color: #cbd5e1;">⚪ Standalone Client-Side Mode</span>`;
+      if (isMixedContent) {
+        modalStatusText.innerHTML = `Status: <span style="color: #fbbf24;">⚠️ Browser Mixed Content Restriction</span>`;
+      } else {
+        modalStatusText.innerHTML = `Status: <span style="color: #cbd5e1;">⚪ Standalone Client-Side Mode</span>`;
+      }
     }
     if (modalStatusPing) {
-      modalStatusPing.textContent = 'Pure offline JS';
+      modalStatusPing.textContent = isMixedContent ? 'Browser blocked HTTP to localhost' : 'Pure offline JS';
     }
 
     // Update MCP Enhanced indicators inline next to Interstellar Battle Simulator text
-    updateMcpEnhancedIndicators('disabled');
+    updateMcpEnhancedIndicators(isMixedContent ? 'public_web' : 'disabled');
+    updateLocalSuiteLink();
 
     return false;
   }
@@ -4073,6 +4119,34 @@ function closeCalcSession(sessionId) {
   renderCalcTabs();
 }
 
+function updateLocalSuiteLink() {
+  const hash = window.location.hash || '';
+  const localUrl = `http://127.0.0.1:7890/calc${hash}`;
+  const btn = document.getElementById('btn-open-local-suite');
+  if (btn) {
+    btn.href = localUrl;
+    if (window.location.protocol === 'https:' || !mcpConfig.connected) {
+      btn.style.display = 'inline-flex';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+  const modalBtn = document.getElementById('modal-open-local-btn');
+  if (modalBtn) modalBtn.href = localUrl;
+}
+
+function showBrowserSettingGuide() {
+  alert(
+    `🔓 How to allow Local MCP on this HTTPS tab in Chrome / Edge / Brave:\n\n` +
+    `1. Click the tune/padlock icon at the far left of the address bar (next to https://phuture707.github.io).\n` +
+    `2. Click "Site settings".\n` +
+    `3. Scroll down to find "Insecure content".\n` +
+    `4. Change the dropdown setting from "Block (default)" to "Allow".\n` +
+    `5. Return to this tab and refresh (F5).\n\n` +
+    `Your browser will now allow this tab to connect directly to http://127.0.0.1:7890!`
+  );
+}
+
 function openMcpConnectModal(notice = null) {
   const modal = document.getElementById('mcp-connect-modal');
   if (modal) {
@@ -4081,6 +4155,13 @@ function openMcpConnectModal(notice = null) {
     if (urlInp) urlInp.value = mcpConfig.url || 'http://127.0.0.1:7890';
     const patInp = document.getElementById('mcp-pat-input');
     if (patInp && mcpConfig.pat) patInp.value = mcpConfig.pat;
+
+    const mixedNotice = document.getElementById('https-mixed-content-notice');
+    if (mixedNotice) {
+      mixedNotice.style.display = (window.location.protocol === 'https:' && (!mcpConfig.connected || mcpConfig.mode !== 'LOCAL_MCP')) ? 'block' : 'none';
+    }
+    updateLocalSuiteLink();
+
     if (notice) {
       showToast(notice);
     }
@@ -4093,6 +4174,7 @@ function closeMcpConnectModal() {
 }
 
 async function probeLocalMcpFromModal() {
+  const isHttps = window.location.protocol === 'https:';
   const urlInp = document.getElementById('mcp-suite-url-input');
   const targetUrl = (urlInp ? urlInp.value.trim() : '') || 'http://127.0.0.1:7890';
   showToast(`Probing ${targetUrl}...`);
@@ -4101,21 +4183,276 @@ async function probeLocalMcpFromModal() {
     showToast(`🟢 Successfully connected to Pegasus MCP Suite at ${targetUrl}!`);
     setTimeout(() => closeMcpConnectModal(), 1200);
   } else {
-    alert(`Could not connect to ${targetUrl}.\n\nMake sure python peg_gui.py is running on your machine and port 7890 is reachable.`);
+    if (isHttps && targetUrl.startsWith('http://')) {
+      alert(
+        `Browser Security Notice (Mixed Content):\n\n` +
+        `This public page is served over HTTPS (https://phuture707.github.io).\n` +
+        `Your web browser automatically blocks background requests to insecure HTTP addresses (${targetUrl}).\n\n` +
+        `Two quick solutions:\n` +
+        `1. Click "🚀 Open in Local MCP Suite" (or visit http://127.0.0.1:7890/calc) to open the calculator directly through your local daemon where .env is auto-connected.\n` +
+        `2. In Chrome/Edge, click the tune/padlock icon next to the URL -> Site settings -> set "Insecure content" to "Allow" -> reload this page.`
+      );
+    } else {
+      alert(`Could not connect to ${targetUrl}.\n\nMake sure python peg_gui.py is running on your machine and port 7890 is reachable.`);
+    }
   }
 }
 
-function savePatFromModal() {
+async function savePatFromModal() {
   const patInp = document.getElementById('mcp-pat-input');
   const pat = patInp ? patInp.value.trim() : '';
   if (!pat) {
     alert('Please enter a Personal Access Token or use Local Suite.');
     return;
   }
-  mcpConfig.pat = pat;
-  sessionStorage.setItem('peg_mcp_pat', pat);
-  showToast('🔑 PAT saved to session! Testing connection...');
-  probeMcpConnection();
+  showToast('🔑 Testing PAT connection with Pegasus Cloud MCP...');
+  const ok = await connectWithCloudPat(pat);
+  if (ok) {
+    showToast('🟢 Successfully authenticated with Pegasus Cloud MCP!');
+  }
+}
+
+async function connectWithCloudPat(pat) {
+  try {
+    const res = await fetch('https://mcp.pegasus-galaxy.net', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${pat}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { name: 'get_planet_status', arguments: {} },
+        id: 1
+      })
+    });
+    if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message || 'Authentication error');
+
+    let pData = {};
+    if (json.result && json.result.content && json.result.content[0] && json.result.content[0].text) {
+      const parsed = JSON.parse(json.result.content[0].text);
+      pData = parsed.data || parsed;
+    }
+
+    mcpConfig.connected = true;
+    mcpConfig.mode = 'CLOUD_PAT';
+    mcpConfig.pat = pat;
+    sessionStorage.setItem('peg_mcp_pat', pat);
+    localStorage.setItem('peg_mcp_pat', pat);
+
+    const coords = `${pData.coordX || 0}:${pData.coordY || 0}:${pData.coordZ || 0}`;
+    mcpConfig.planetName = pData.name || 'Home';
+    mcpConfig.coords = coords;
+
+    // Fetch live tick
+    try {
+      const tRes = await fetch('https://mcp.pegasus-galaxy.net', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${pat}`
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: { name: 'get_tick_info', arguments: {} },
+          id: 2
+        })
+      });
+      const tJson = await tRes.json();
+      if (tJson.result && tJson.result.content && tJson.result.content[0] && tJson.result.content[0].text) {
+        const tData = JSON.parse(tJson.result.content[0].text);
+        if (tData && tData.data && tData.data.tick !== undefined) {
+          mcpConfig.liveTick = tData.data.tick;
+          mcpConfig.nextTickIn = tData.data.nextTickIn || '';
+        }
+      }
+    } catch(e) {}
+
+    // Update UI Badges & Indicators
+    const pill = document.getElementById('mcp-status-pill');
+    const text = document.getElementById('mcp-status-text');
+    const tickVal = document.getElementById('mcp-live-tick-val');
+    const modalStatusText = document.getElementById('mcp-modal-status-text');
+    const modalStatusPing = document.getElementById('mcp-modal-status-ping');
+
+    if (pill) {
+      pill.className = 'mcp-status-badge connected';
+      pill.title = `Connected to Pegasus Cloud MCP • Planet: ${mcpConfig.planetName} [${mcpConfig.coords}]`;
+      if (text) text.textContent = `🟢 Cloud MCP • ${mcpConfig.planetName} [${mcpConfig.coords}]`;
+    }
+    if (tickVal) {
+      tickVal.textContent = `Tick ${mcpConfig.liveTick}${mcpConfig.nextTickIn ? ' (' + mcpConfig.nextTickIn + ')' : ''}`;
+    }
+    if (modalStatusText) {
+      modalStatusText.innerHTML = `Status: <strong style="color: #86efac;">🟢 Connected to Pegasus Cloud MCP</strong>`;
+    }
+    if (modalStatusPing) {
+      modalStatusPing.textContent = `Live Tick: ${mcpConfig.liveTick} • ${mcpConfig.planetName} [${mcpConfig.coords}]`;
+    }
+
+    updateMcpEnhancedIndicators('enabled', {
+      url: 'https://mcp.pegasus-galaxy.net',
+      planet: mcpConfig.planetName,
+      coords: mcpConfig.coords,
+      tick: mcpConfig.liveTick
+    });
+
+    const coordsInp = document.getElementById('bottom-coords-input');
+    if (coordsInp && !coordsInp.value && mcpConfig.coords) {
+      coordsInp.value = mcpConfig.coords;
+    }
+    const planCoords = document.getElementById('sim-plan-coords');
+    if (planCoords && !planCoords.value && mcpConfig.coords) {
+      planCoords.value = mcpConfig.coords;
+    }
+
+    // Auto-load cloud fleets & scans
+    await loadCloudFleetsAndScans(pat);
+    updateLocalSuiteLink();
+
+    if (!mcpPollTimer) {
+      mcpPollTimer = setInterval(() => {
+        if (mcpConfig.connected && mcpConfig.mode === 'CLOUD_PAT') refreshCloudMcpTicker(pat);
+      }, 30000);
+    }
+
+    setTimeout(() => closeMcpConnectModal(), 1200);
+    return true;
+  } catch(err) {
+    console.error('Cloud MCP connection error:', err);
+    alert(`Could not connect to Pegasus Cloud MCP: ${err.message}\n\nPlease verify that your PAT is valid.`);
+    return false;
+  }
+}
+
+async function loadCloudFleetsAndScans(pat) {
+  try {
+    const fRes = await fetch('https://mcp.pegasus-galaxy.net', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${pat}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { name: 'get_fleet_summary', arguments: {} },
+        id: 3
+      })
+    });
+    const fJson = await fRes.json();
+    if (fJson.result && fJson.result.content && fJson.result.content[0] && fJson.result.content[0].text) {
+      const fParsed = JSON.parse(fJson.result.content[0].text);
+      const fData = fParsed.data || {};
+      const fleets = fData.fleets || [];
+      const rawBase = fData.baseFleet || {};
+      const hangar = {};
+      const homePds = {};
+
+      for (const [sid, cnt] of Object.entries(rawBase)) {
+        if (sid.startsWith('pds-')) {
+          const sLower = sid.toLowerCase();
+          if (sLower.includes('laser')) homePds['Laser Battery'] = Math.max(homePds['Laser Battery'] || 0, parseInt(cnt, 10) || 0);
+          else if (sLower.includes('missile')) homePds['Missile Silo'] = Math.max(homePds['Missile Silo'] || 0, parseInt(cnt, 10) || 0);
+          else if (sLower.includes('ion')) homePds['Ion Cannon'] = Math.max(homePds['Ion Cannon'] || 0, parseInt(cnt, 10) || 0);
+          else if (sLower.includes('shield')) homePds['Shield Generator'] = Math.max(homePds['Shield Generator'] || 0, parseInt(cnt, 10) || 0);
+        } else {
+          hangar[sid] = parseInt(cnt, 10) || 0;
+        }
+      }
+
+      simEmpireData = {
+        success: true,
+        fleets: fleets,
+        hangarShips: hangar,
+        homeDefense: {
+          hangarShips: hangar,
+          pds: homePds
+        }
+      };
+      homeDefenseData = simEmpireData.homeDefense;
+      populateQuickEmpireAddDropdowns();
+
+      const hasSharedHash = window.location.hash && window.location.hash.includes('c=');
+      const defTotal = defenderFleets.reduce((sum, f) => sum + (f.ships ? Object.values(f.ships).reduce((a, b) => a + (parseShipCount(b) || 0), 0) : 0), 0);
+      if (!hasSharedHash && defTotal === 0 && (Object.keys(hangar).length > 0 || Object.keys(homePds).length > 0)) {
+        loadMyEmpireIntoDefender();
+      }
+    }
+
+    try {
+      const sRes = await fetch('https://mcp.pegasus-galaxy.net', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${pat}`
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: { name: 'get_scan_history', arguments: {} },
+          id: 4
+        })
+      });
+      const sJson = await sRes.json();
+      if (sJson.result && sJson.result.content && sJson.result.content[0] && sJson.result.content[0].text) {
+        const sParsed = JSON.parse(sJson.result.content[0].text);
+        const scans = sParsed.data || [];
+        simScanTargets = scans.map(s => {
+          let resObj = {};
+          try { resObj = typeof s.result === 'string' ? JSON.parse(s.result) : (s.result || {}); } catch(e) {}
+          return {
+            id: s.id,
+            tick: s.tick,
+            type: s.scanType,
+            source: 'user',
+            coords: resObj.coords || s.targetPlanetCoords || '',
+            planetName: resObj.planetName || s.targetPlanetName || '',
+            ownerName: resObj.playerName || s.targetPlayerName || '',
+            ships: resObj.ships || {},
+            pds: resObj.pds || {}
+          };
+        });
+        populateScanTargetsDropdown();
+      }
+    } catch(e) {}
+  } catch(err) {
+    console.warn('loadCloudFleetsAndScans error:', err);
+  }
+}
+
+async function refreshCloudMcpTicker(pat) {
+  try {
+    const tRes = await fetch('https://mcp.pegasus-galaxy.net', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${pat}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { name: 'get_tick_info', arguments: {} },
+        id: Date.now()
+      })
+    });
+    const tJson = await tRes.json();
+    if (tJson.result && tJson.result.content && tJson.result.content[0] && tJson.result.content[0].text) {
+      const tData = JSON.parse(tJson.result.content[0].text);
+      if (tData && tData.data && tData.data.tick !== undefined) {
+        mcpConfig.liveTick = tData.data.tick;
+        mcpConfig.nextTickIn = tData.data.nextTickIn || '';
+        const tickVal = document.getElementById('mcp-live-tick-val');
+        if (tickVal) {
+          tickVal.textContent = `Tick ${mcpConfig.liveTick}${mcpConfig.nextTickIn ? ' (' + mcpConfig.nextTickIn + ')' : ''}`;
+        }
+      }
+    }
+  } catch(e) {}
 }
 
 function disconnectMcpToStandalone() {
@@ -4600,6 +4937,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   initCalcSessions();
   renderMatrix();
   updateTotals();
+  updateLocalSuiteLink();
 
   // Test / probe for Pegasus MCP Suite (.env credentials or PAT)
   await probeMcpConnection();
@@ -4633,6 +4971,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   }
+  updateLocalSuiteLink();
+});
+
+window.addEventListener('hashchange', () => {
+  if (typeof updateLocalSuiteLink === 'function') updateLocalSuiteLink();
 });
 </script>
 
