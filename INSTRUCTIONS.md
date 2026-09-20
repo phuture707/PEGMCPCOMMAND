@@ -23,9 +23,10 @@ Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.5**. This 
 8. [Tool 3: Terminal CLI Inspector (`peg_tool.py`)](#-tool-3-terminal-cli-inspector-peg_toolpy)
 9. [Tool 4: Python Client SDK (`peg_client.py`)](#-tool-4-python-client-sdk-peg_clientpy)
 10. [Strategy Profiles & Custom Python Scripts](#-strategy-profiles--custom-python-scripts)
-11. [24/7 Cloud & VPS Deployment Guide](#-247-cloud--vps-deployment-guide)
-12. [Official Game IDs Reference (Buildings, Tech & Ships)](#-official-game-ids-reference-buildings-tech--ships)
-13. [Troubleshooting & FAQ](#-troubleshooting--faq)
+11. [Mobile Phone Access & Zero-PC Cloud Architecture](#-mobile-phone-access--zero-pc-cloud-architecture)
+12. [24/7 Cloud & VPS Deployment Guide](#-247-cloud--vps-deployment-guide)
+13. [Official Game IDs Reference (Buildings, Tech & Ships)](#-official-game-ids-reference-buildings-tech--ships)
+14. [Troubleshooting & FAQ](#-troubleshooting--faq)
 
 ---
 
@@ -429,6 +430,63 @@ Rules are saved as clean JSON files inside `config_profiles/`. Three presets are
 
 ### 2. Layer 2: Custom Python Hooks (`custom_strategies/`)
 Custom scripts reside in `custom_strategies/`. When a script is activated, it is copied to `bot_strategy.py` and reloaded live every tick without bot restart.
+
+---
+
+## 📱 Mobile Phone Access & Zero-PC Cloud Architecture
+
+The Pegasus Galaxy Standalone BattleCalc, Live Radar, and Intel Browser are fully mobile-responsive and engineered to work natively on **smartphones (iOS Safari, Android Chrome, iPad, tablets)** — **even while your personal computer is turned completely OFF**.
+
+### 1. Mobile-Optimized Responsive Experience
+- **Vertical Force Stacking**: On screens under 960px (mobile phones and narrow tablets), Defender forces (Blue) and Attacker coalitions (Red) automatically stack vertically instead of side-by-side. Each side gets **100% full-screen width**, providing ample space to navigate fleets.
+- **Sticky Ship Name Column**: Swiping horizontally through fleet columns locks the first column (**Ship / Class**) frozen on the left edge. Ship class names (Pulse Courier, Arc, Monolith, Oblivion, etc.) stay visible as you pan across up to 8–16 fleet columns.
+- **Touch Ergonomics & Input Sizing**: Number inputs and action buttons adapt with generous touch-friendly padding. Font sizes are set to prevent iOS Safari from auto-zooming when tapping numerical inputs.
+- **Adaptive Dialog Modals**: Share link, scan browser, and import modals scale responsively (`max-width: 96vw; max-height: 88vh;`) with smooth inertial touch-scrolling.
+
+### 2. How MCP Works While Your PC is Powered OFF
+When your home desktop or laptop computer is shut down, the local computer's processor, RAM, and `.env` file are physically unreachable.
+
+The architecture solves this through cloud persistence:
+1. **The Game's MCP Server is Cloud-Hosted**: The official Pegasus Galaxy MCP server operates 24/7 in the cloud at `https://mcp.pegasus-galaxy.net`.
+2. **The Web Calculator is Cloud-Hosted**: Hosted 24/7 on GitHub Pages at [`https://phuture707.github.io/PEGMCPCOMMAND/calc.html`](https://phuture707.github.io/PEGMCPCOMMAND/calc.html).
+3. **Persistent Flash Memory (`localStorage`)**: Your game credentials are saved in your phone's browser `localStorage` (`peg_mcp_pat`). Unlike `sessionStorage` (which wipes when closing a tab), `localStorage` is saved to your phone's persistent flash storage, surviving tab closures, browser restarts, and phone reboots.
+4. **Direct HTTPS Cloud Bridge**: Your mobile browser communicates directly with `https://mcp.pegasus-galaxy.net` over cellular data (5G/LTE) or Wi-Fi. It queries `get_planet_status`, `get_tick_info`, `get_fleet_summary`, and `get_scan_history` with zero local PC or Python required.
+
+### 3. Transferring Your Credentials to Your Phone
+
+#### Method A: 1-Click QR Code Transfer (Recommended — Zero Typing)
+1. On your PC, open the desktop Control Hub (`peg_gui.py`).
+2. Click **`📱 Connect Phone`** in the Standalone BattleCalc header (or **`📱 Phone Setup`** in the top navigation).
+3. A modal opens displaying a scannable **QR Code** pre-encoded with your active `.env` token:
+   `https://phuture707.github.io/PEGMCPCOMMAND/calc.html#setup_pat=<YOUR_TOKEN>`
+4. Point your phone's camera at your computer screen and tap the link notification.
+5. The mobile calculator opens, detects `#setup_pat=...`, automatically saves your token into phone `localStorage`, and instantly wipes the token from the URL bar for security and clean sharing.
+6. **You can now shut down your PC completely.** Your phone will remain connected to your empire whenever you open the link.
+
+#### Method B: Direct In-Game Copy/Paste (No PC Needed At All)
+1. On your phone's browser, navigate to [pegasus-galaxy.net](https://pegasus-galaxy.net) and log into your account.
+2. Go to **Settings** -> **Profile** -> **MCP Access Token** -> tap **Copy Token** (`pg_pat_...`).
+3. Open [`https://phuture707.github.io/PEGMCPCOMMAND/calc.html`](https://phuture707.github.io/PEGMCPCOMMAND/calc.html) on your phone.
+4. Tap **`⚙️ Settings`** (or the connection pill) -> scroll down to **Option 2: Pegasus Cloud MCP via PAT**.
+5. Paste your token into the field and tap **`🔑 Save & Connect Cloud MCP`**.
+6. The phone confirms authentication and saves your token permanently to local mobile storage.
+
+### 4. Local Wi-Fi Direct Access (While PC is Running)
+If your computer is on and you want to control the full desktop Control Hub (all 67 tools, Bot Studio, Codex) from your phone on the same local network:
+1. Start the GUI bound to all interfaces:
+   ```bash
+   python peg_gui.py --host 0.0.0.0
+   ```
+2. The console and `📱 Phone Setup` modal will display your local IP address:
+   ```text
+   📱 Mobile Phone Access: http://192.168.1.110:7890/calc
+   ```
+3. Open that address in your mobile browser while connected to your home Wi-Fi.
+
+### 5. Running the Autonomous Bot 24/7 With PC OFF
+A computer that is powered off cannot run Python code. While the **BattleCalc & Intel Radar** operate with the PC off (because the game server handles calculations), the **autonomous bot (`peg_bot.py`)** requires an active CPU to execute automated builds, mine upgrades, and attack-dodging logic.
+
+To run the bot around the clock with your home computer off, deploy the suite to a **$3/month Linux Cloud VPS** using our included installer below.
 
 ---
 

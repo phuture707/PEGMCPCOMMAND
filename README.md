@@ -336,6 +336,44 @@ python peg_bot.py
 
 ---
 
+## 📱 Mobile Phone Access & Zero-PC Cloud Architecture
+
+The Standalone BattleCalc and Live MCP Intel can be operated directly from your **mobile phone (iOS Safari / Android Chrome)** anywhere in the world — **even with your home PC completely turned OFF**.
+
+### 1. Mobile-Friendly Layout
+- **Vertical Auto-Stacking**: On screens under 960px, Defender forces (Blue) and Attacker coalitions (Red) stack vertically, giving each side 100% full-screen width.
+- **Sticky Ship Names**: Swiping horizontally through fleet columns locks the first column (**Ship / Class**) on the left so you always know which ship row you are editing.
+- **Touch Ergonomics & Responsive Modals**: Input fields and dialog modals automatically adapt to smartphone viewports (`max-width: 96vw; max-height: 88vh;`) and prevent iOS Safari auto-zoom.
+
+### 2. How MCP Works on a Phone with PC OFF
+When your home PC is turned off, the PC's hard drive and `.env` file cannot be reached. Instead:
+1. **The Game's MCP Server is in the Cloud**: Pegasus Galaxy hosts its official MCP server 24/7 at `https://mcp.pegasus-galaxy.net`.
+2. **The Web Calculator is in the Cloud**: Hosted 24/7 on GitHub Pages at `https://phuture707.github.io/PEGMCPCOMMAND/calc.html`.
+3. **Phone Browser Persistent Storage (`localStorage`)**: Your authentication token is stored in your phone's browser `localStorage` (`peg_mcp_pat`), which lives in your phone's physical flash storage across tab closures and device reboots.
+4. **Direct HTTPS Bridge**: Your phone talks directly to `https://mcp.pegasus-galaxy.net` over mobile data (5G/LTE) or Wi-Fi. Live radar, scans, and defense planning work with zero PC required!
+
+### 3. How to Transfer Your Token to Your Phone
+- **Method A: 1-Click QR Code Transfer (Fastest)**:
+  1. In the desktop GUI (`peg_gui.py`), click **`📱 Connect Phone`** (or **`📱 Phone Setup`** in the main header).
+  2. Point your phone's camera at the QR code on your PC monitor.
+  3. Tap the link: the calculator opens and automatically saves your token into phone `localStorage`, then removes it from the URL bar for privacy.
+  4. **You can now shut down your PC completely.**
+- **Method B: Direct In-Game Copy/Paste (No PC Needed)**:
+  1. On your phone browser, log into [pegasus-galaxy.net](https://pegasus-galaxy.net) -> **Settings / Profile / MCP Token** -> Copy token.
+  2. Open `https://phuture707.github.io/PEGMCPCOMMAND/calc.html` on your phone.
+  3. Tap **`⚙️ Settings`** -> scroll to **Option 2: Pegasus Cloud MCP via PAT**.
+  4. Paste your token and tap **`🔑 Save & Connect Cloud MCP`**.
+
+### 4. Local Wi-Fi Access (While PC is Running)
+If you want to view the full desktop Control Hub on your phone while your PC is on:
+1. Run `python peg_gui.py --host 0.0.0.0`.
+2. Open `http://<YOUR-PC-IP>:7890/calc` (e.g. `http://192.168.1.110:7890/calc`) on your phone browser.
+
+### 5. Running the Automated Bot While PC is OFF
+A powered-off computer cannot execute Python scripts. If you want the **automated bot (`peg_bot.py`)** to auto-build mines, repair defenses, and dodge incoming attacks 24/7 while your PC is off, run the suite on a cheap **$3/month Linux Cloud VPS** using our included `deploy_vps.sh` or Docker setup below.
+
+---
+
 ## ☁️ 24/7 VPS & Cloud Deployment (Optional)
 
 ### Option A: 1-Click Systemd Installer (Ubuntu / Debian VPS)
