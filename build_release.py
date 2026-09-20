@@ -239,13 +239,13 @@ def build_docs():
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pegasus Galaxy MCP Suite v0.3 — {doc_name}</title>
+  <title>Pegasus Galaxy MCP Suite v0.5 — {doc_name}</title>
   <style>{CSS}</style>
 </head>
 <body>
   <div class="doc-container">
     <div class="doc-badge-bar">
-      <span>🌌 Pegasus Galaxy MCP Suite v0.3</span>
+      <span>🌌 Pegasus Galaxy MCP Suite v0.5</span>
       <span>•</span>
       <span>{doc_name} Documentation</span>
     </div>
@@ -279,7 +279,10 @@ def build_zip():
     
     # Files to include in zip (NOTE: .md files are replaced by .pdf and .html)
     files_to_include = [
+        "setup_env.py",
+        "setup.py",
         "peg_gui.py",
+        "peg_calc.py",
         "peg_bot.py",
         "peg_tool.py",
         "peg_combat.py",
@@ -303,6 +306,7 @@ def build_zip():
     dirs_to_include = [
         "config_profiles",
         "custom_strategies",
+        "docs",
     ]
 
     # Update dist/ directory
@@ -338,7 +342,7 @@ def build_zip():
             if dir_path.exists():
                 for item in sorted(dir_path.rglob("*")):
                     if item.is_file() and not item.name.endswith(".pyc") and "__pycache__" not in str(item):
-                        arc = str(item.relative_to(BASE_DIR)).replace("\\\\", "/")
+                        arc = item.relative_to(BASE_DIR).as_posix()
                         z.write(item, arcname=arc)
                         print(f"Added: {arc} ({item.stat().st_size:,} bytes)")
 

@@ -17,3 +17,5 @@ dist/
 # Generated documentation artifacts (packaged into zip, kept as markdown in git)
 *.pdf
 *.html
+!docs/*.html
+!docs/**/*.html

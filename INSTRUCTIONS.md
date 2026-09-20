@@ -1,8 +1,8 @@
-# 🌌 Pegasus Galaxy MCP Suite v0.3 — Complete User & Operations Guide
+# 🌌 Pegasus Galaxy MCP Suite v0.5 — Complete User & Operations Guide
 
-Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.3**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
+Welcome to the **Pegasus Galaxy Model Context Protocol (MCP) Suite v0.5**. This package provides a comprehensive, production-ready suite of tools to interact with, inspect, automate, and dominate the interstellar universe of [Pegasus Galaxy](https://pegasus-galaxy.net).
 
-[![Suite Version](https://img.shields.io/badge/Version-0.3-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
+[![Suite Version](https://img.shields.io/badge/Version-0.5-orange)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-phuture707%2FPEGMCPCOMMAND-blue?logo=github)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-blueviolet)](https://github.com/phuture707/PEGMCPCOMMAND)
 [![MCP Version](https://img.shields.io/badge/MCP-2025--03--26-cyan)](https://pegasus-galaxy.net/mcp)
@@ -84,7 +84,16 @@ The suite requires Python 3.10+ and works seamlessly on **macOS (Intel & Apple S
   pip install -r requirements.txt
   ```
 
-### Step 2: Configure Your Personal Access Token
+### Step 2: Configure Your Personal Access Token (Automated or Manual)
+
+**Option A (Recommended — Automated Setup):**
+Run the interactive setup assistant:
+```bash
+python setup_env.py
+```
+*Prompts for your Pegasus Galaxy API key / Personal Access Token, automatically creates your `.env` file, tests connection to the server, and offers a 1-click launch into `peg_gui.py`!*
+
+**Option B (Manual):**
 1. Copy the sample environment file:
    ```bash
    cp .env.example .env      # macOS / Linux
@@ -172,10 +181,14 @@ journalctl -u pegasus-bot -f
 
 ```
 pegasus-mcp-suite/
-├── peg_gui.py              # Interactive sci-fi web control dashboard, Bot Studio & Combat Simulator v0.3
-├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.3
-├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.3
-├── peg_combat.py           # Tactical combat simulator & multi-fleet coalition battle engine v0.3
+├── peg_gui.py              # Interactive sci-fi web control dashboard, Bot Studio & Combat Simulator v0.5
+├── peg_calc.py             # Standalone BattleCalc launcher & multi-window coordinator v0.5
+├── peg_bot.py              # Autonomous 24/7 tick-synchronized background bot v0.5
+├── peg_tool.py             # Rich terminal CLI inspector & command runner v0.5
+├── peg_combat.py           # Tactical combat simulator & multi-fleet coalition battle engine v0.5
+├── docs/                   # Public static BattleCalc (GitHub Pages) & client-side combat engine v0.5
+│   ├── calc.html           # Zero-dependency browser battle calculator & JS combat simulator
+│   └── index.html          # Clean entry point with hash preservation
 ├── peg_client.py           # Core Python MCP client SDK (JSON-RPC / Streamable HTTP)
 ├── game_rules.json         # Official rules, tech modifiers, ship definitions & scan mechanics
 ├── bot_config.json         # Active Layer 1 automation rules & priorities
@@ -249,13 +262,57 @@ A full-featured, zero-external-frontend-dependency web application styled with a
    - **Live Log Streamer**: Real-time console showing tick evaluations, server responses, and decisions.
 7. **🧠 Bot Memory**:
    - Persistent key-value memory scratchpad backed by local `bot_memory.json` storage.
-8. **⚔️ Battle Simulator & Coalition Calculator (v0.3)**:
-   - **Multi-Fleet Coalitions**: Build and simulate coalitions of multiple attacking and defending fleets simultaneously. Add, remove, rename, and individually toggle fleets in combat calculations.
-   - **Live Telemetry & Capacity Aggregates**: Calculates total coalition firepower, armor, cargo capacity, and asteroid capture capacity in real time.
-   - **Comprehensive Scan Type Ingestion**: Ingests all combat-capable scan types (`FLEET_COMPOSITION_SCAN`, `MILITARY_SCAN`, `DEEP_SCAN`, `INCOMING_SCAN`) from your scan history.
-   - **Planetary Intelligence Resolution**: Automatically resolves coordinates and ownership across multiple scans for focused fleet scans. Ground PDS structures (`Laser Battery`, `Missile Silo`, `Ion Cannon`, `Shield Generator`) are parsed directly from scan records and applied strictly to base planet defenses.
-   - **Interactive Scan Chooser**: Choose scans directly from the inline dropdown (`📡 Add from Scan...`) or browse with the visual Scan Picker Modal (`🔍 Browse Scans`) with live search filtering and 1-click addition.
-   - **Planetary Assault & Home Defense Modes**: 1-click role inversion swaps rosters and applies your empire's live PDS levels when defending.
+8. **⚔️ Battle Simulator & Coalition Calculator (v0.5)**:
+    - **Hybrid Standalone & MCP Bridge Engine (`docs/calc.html`)**:
+      - **Zero-Dependency Public Standalone Mode**:
+        - Accessible directly via GitHub Pages (`https://phuture707.github.io/PEGMCPCOMMAND/calc.html`) or as an offline single-file HTML export.
+        - Requires **zero installation, zero Python, and zero server backend**. Anyone—including alliance members without MCP—can open the page on any device (desktop, tablet, mobile) and run client-side simulations.
+        - Pure JavaScript combat engine faithfully simulating Pegasus Galaxy mechanics: PDS battery pre-emptive strikes, class-based ship targeting, shield absorption, EMP system disabling, and 30% metal/crystal debris salvage.
+        - **URL Hash Scenario Sharing (`#c=...`)**: Battle scenarios (fleets, techs, coordinates, PDS structures) are compressed using native browser `CompressionStream('deflate-raw')` / Base64URL. Links are 100% serverless, never expire, and require no external database.
+        - **"💾 Export HTML"**: Generates a self-contained, standalone single-file HTML battle calculation that can be archived or shared on Discord.
+      - **Zero-Click MCP Auto-Activation (When Local Suite is Running)**:
+        - When opened by a commander running the Pegasus Control Suite (`python peg_gui.py` on port 7890), `docs/calc.html` silently probes `http://127.0.0.1:7890/api/state` and `/api/combat/attacker_fleets` on page load.
+        - **No button clicks or manual login required**: The page instantly shifts from ⚪ `Standalone Mode` to 🟢 `MCP Connected • Live Access`, auto-detects current tick and home planet coordinates, and unlocks the full suite of live MCP combat capabilities.
+        - **Secure `.env` Session Access**: The browser utilizes the local Python daemon's existing authenticated credentials, completely eliminating the need to expose `.env` files or grant filesystem access to the browser.
+        - **Live Empire Fleet & Base Garrison Auto-Ingestion**: Ingests your empire's active named fleets and docked hangar craft into the `🏰 Add Own Fleet...` dropdowns, and automatically initializes your home base Garrison and Planetary Defense Structures (PDS levels 1–4) into the Defender matrix on startup if empty.
+        - **Interactive Scan Browser & Fleet Picker Modal (`🔍 Browse Scans`)**: Browse, search, and import personal scans (`get_scan_history`) and alliance shared intel (`get_scan_intel`) directly into Defender or Attacker matrix columns with 1 click (Garrison, Named Fleets, or Consolidated Forces).
+        - **Automated 30-Second Background Scan Polling**: Background sync polls for new alliance intelligence every 30 seconds (`startScanBackgroundSync()`), alerting commanders with live notifications when fresh scans arrive and auto-updating intel badges.
+        - **Multi-Calculation Sessions System (`#calc-multi-tabs-bar`)**: Work on multiple simultaneous battle plans (`Calc #1`, `Calc #2`, `➕ New Tab`, `📋 Duplicate`, `✏️ Rename`, `✕ Close`) within the same standalone window.
+        - **Dual-Side Matrix Controls**: Full feature parity across Defender and Attacker—`+ Fleet`, `🏰 Load Base/Fleets`, `⚡ Consolidate`, `🔍 Browse Scans`, `🏰 Add Own Fleet...`, and `📡 Pick Scanned Target...` controls.
+        - **Tactical Defense Auto-Setup (`[🛡️ Plan Defense at Tick X]`)**: Evaluates arriving vs late fleets at target tick $T$, inbound attacker coalitions, scan reliability ratings (0–100%), and decoy/feint detection.
+        - **1-Click MCP In-Game Message Dispatch (`send_message`)**: Automatically formats tactical battle briefings, casualty projections, and public calculation links, transmitting them directly to an alliance mate's in-game inbox.
+        - **Remote / Mobile Token Fallback**: Commanders opening `docs/calc.html` on mobile phones or remote devices without `peg_gui.py` running locally can optionally enter their Personal Access Token (`pat_...`) in the connection modal for direct game access.
+      - **Shared Link Recipient Experience (MCP vs Standalone Comparison)**:
+        When a commander shares a calculation link (e.g. `https://phuture707.github.io/PEGMCPCOMMAND/calc.html#c=...`), anyone can open it. If the recipient has the local Control Suite (`python peg_gui.py`) running, their browser automatically upgrades to full MCP capability connected to their own empire, pre-populated with the sender's tactical scenario:
+
+        | Feature / Capability | Recipient Has MCP (`peg_gui.py` running) | Recipient Does NOT Have MCP (Offline / Standalone) |
+        | :--- | :---: | :---: |
+        | **View Shared Battle & Scenarios** | ✅ Yes (Decompresses `#c=...` hash) | ✅ Yes (Decompresses `#c=...` hash) |
+        | **Run Combat Simulations & Salvage** | ✅ Yes (Client-Side JS) | ✅ Yes (Client-Side JS) |
+        | **Edit Fleets & Export New Links** | ✅ Yes | ✅ Yes |
+        | **Auto-Detect `.env` & Live Game Tick** | ✅ Yes (Zero clicks / auto-probed) | ❌ No (Shows offline/standalone badge) |
+        | **`🏰 Add Own Fleet...` (Hangar / Fleets)** | ✅ Yes (Auto-loads recipient's empire) | ❌ No (Manual fleet entry) |
+        | **`🔍 Browse Scans` (Personal & Ally Intel)** | ✅ Yes (Auto-polled every 30s) | ❌ No (Manual scan entry) |
+        | **`[🛡️ Plan Defense at Tick X]`** | ✅ Yes (Arrival margins & decoy detection) | ❌ No |
+        | **`[💬 In-Game Msg]` Dispatch** | ✅ Yes (Direct in-game MCP send) | ❌ No |
+    - **Standalone Mode & Zero-Overhead Multi-Window (`/calc`)**:
+      - Access `http://127.0.0.1:7890/calc` (or `python peg_calc.py`) for a pure, dedicated Battle Matrix interface without background polling or dashboard tabs.
+      - A single background Python server handles unlimited calculation windows and tabs simultaneously without duplicate processes.
+    - **1-Click "↗️ Pop Out to Window"**:
+      - Click `↗️ Pop Out Window` in the toolbar or action bar to snapshot current fleets, scans, coordinates, and PDS into an independent new browser window.
+      - Provides a 1-click prompt to reset the original window back to clean scratch state, enabling parallel multi-target planning.
+    - **Combat Matrix Mode (Default View)**: Default layout provides a high-density side-by-side combat grid matching classic BattleCalc engines (`bcalc.pl`). Forces are rendered in side-by-side columns with per-fleet input columns, `(E)` empty buttons, disable checkboxes, totals, destroyed casualties, and EMP disabled counts. You can also toggle to **🗂️ Cards View** anytime.
+    - **Report of Losses from [Fleet]**: Replicates signature per-fleet casualty manifests, followed by exact Salvage and Plunder/Asteroid reports.
+    - **CLI BattleCalc Format (`--format bcalc`)**: Generates copy-pasteable battle reports in terminal or for Discord/alliance comms (`python peg_tool.py --battle-calc --defender 12:1:1 --format bcalc`).
+    - **Direct Coordinate Entry & Latest Scans Dropdown**: Enter coordinates directly (e.g. `12:1:1`, `12, 1, 1`, `12 1 1`) or jump via universe planet picker to instantly view a dedicated dropdown of the latest scans for those coordinates (sorted newest tick first) with auto-population of garrison, fleets, and PDS.
+    - **Alliance Scan Intelligence Ingestion (`get_scan_intel`)**: Automatically detects alliance membership and queries shared alliance scans alongside personal scan history (`get_scan_history`), with universe map coordinate enrichment and error resilience.
+    - **Source Search & Filtering**: Segmented filter pills (`🌐 All Scans`, `👤 My Scans`, `🤝 Ally Intel`) across target selectors, dropdowns, and the Scan Picker modal.
+    - **CLI Battle Simulator Coordinate & Source Support**: Run `python peg_tool.py --battle-calc --defender <COORDS> [--source {all,user,ally}]` with automatic multi-scan comparison tables and latest scan selection.
+    - **Multi-Fleet Coalitions**: Build and simulate coalitions of multiple attacking and defending fleets simultaneously. Add, remove, rename, and individually toggle fleets in combat calculations.
+    - **Live Telemetry & Capacity Aggregates**: Calculates total coalition firepower, armor, cargo capacity, and asteroid capture capacity in real time.
+    - **Comprehensive Scan Type Ingestion**: Ingests all combat-capable scan types (`FLEET_COMPOSITION_SCAN`, `MILITARY_SCAN`, `DEEP_SCAN`, `INCOMING_SCAN`) from your scan history.
+    - **Planetary Intelligence Resolution**: Automatically resolves coordinates and ownership across multiple scans for focused fleet scans. Ground PDS structures (`Laser Battery`, `Missile Silo`, `Ion Cannon`, `Shield Generator`) are parsed directly from scan records and applied strictly to base planet defenses.
+    - **Planetary Assault & Home Defense Modes**: 1-click role inversion swaps rosters and applies your empire's live PDS levels when defending.
 
 ---
 
@@ -532,5 +589,4 @@ Used with: `produce_ships` (`{"shipDefinitionId": "...", "quantity": 10}`) and `
 * **Issue: "Port 7890 is already in use"**
   * *Fix*: Specify a different port using `python3 peg_gui.py --port 8080`.
 
----
-*Developed for the Pegasus Galaxy interstellar commander community • Version 0.2*\n
+*Developed for the Pegasus Galaxy interstellar commander community • Version 0.5*

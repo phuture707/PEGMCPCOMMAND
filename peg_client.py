@@ -157,9 +157,15 @@ class PegasusMCPClient:
             args["shipDefinitionId"] = args.pop("shipId")
         elif tool_name == "send_message":
             if "recipientPlanetId" in args and "recipientId" not in args:
-                args["recipientId"] = args.pop("recipientPlanetId")
+                args["recipientId"] = args["recipientPlanetId"]
+            if "recipient" in args and "recipientId" not in args:
+                args["recipientId"] = args["recipient"]
+            if "recipientId" in args and "recipient" not in args:
+                args["recipient"] = args["recipientId"]
             if "message" in args and "body" not in args:
-                args["body"] = args.pop("message")
+                args["body"] = args["message"]
+            if "body" in args and "message" not in args:
+                args["message"] = args["body"]
 
         # Local memory tool interception — these don't exist on the server
         if tool_name == "get_memory":
@@ -273,6 +279,45 @@ class PegasusMCPClient:
         """Get game rules documentation."""
         args = {"topic": topic} if topic else {}
         return self.call_tool("get_game_rules", args)
+
+    def get_universe_map(self) -> Dict[str, Any]:
+        """Fetch universe map showing all planet coordinates and owners."""
+        return self.call_tool("get_universe_map")
+
+    def get_planet_fleet_activity(self) -> Dict[str, Any]:
+        """Fetch fleet activity and movements for the player's planet."""
+        return self.call_tool("get_planet_fleet_activity")
+
+    def get_events(self, limit: int = 50) -> Dict[str, Any]:
+        """Fetch recent game events including score changes, attacks, and reports."""
+        return self.call_tool("get_events", {"limit": limit})
+
+    def get_scan_history(self, limit: int = 100) -> Dict[str, Any]:
+        """Get scan history records for the player."""
+        return self.call_tool("get_scan_history", {"limit": limit})
+
+    def get_scan_intel(self, alliance_id: str, limit: int = 100) -> Dict[str, Any]:
+        """Get shared scan intelligence from alliance members."""
+        return self.call_tool("get_scan_intel", {"allianceId": alliance_id, "limit": limit})
+
+    def get_user_alliance(self) -> Optional[Dict[str, Any]]:
+        """Find the alliance the current player belongs to."""
+        try:
+            p_resp = self.get_planet_status()
+            player_id = p_resp.get("data", {}).get("playerId") if isinstance(p_resp, dict) else None
+            if not player_id:
+                return None
+            alliances_resp = self.call_tool("list_alliances") or {}
+            alliances = alliances_resp.get("data", []) if isinstance(alliances_resp, dict) else []
+            for a in alliances:
+                members = a.get("members", {})
+                if isinstance(members, dict) and player_id in members:
+                    return a
+                elif isinstance(members, list) and any(m.get("playerId") == player_id for m in members if isinstance(m, dict)):
+                    return a
+        except Exception:
+            pass
+        return None
 
     def _get_memory_file(self) -> Path:
         return Path(__file__).parent / "bot_memory.json"

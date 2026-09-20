@@ -1,0 +1,4571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pegasus Galaxy v0.5 • Public BattleCalc & Matrix Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-space: #030712;
+      --bg-panel: rgba(15, 23, 42, 0.85);
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --border-glow: rgba(0, 229, 255, 0.25);
+      --border-accent: rgba(77, 157, 224, 0.3);
+      --cyan: #00e5ff;
+      --cyan-dim: rgba(0, 229, 255, 0.15);
+      --purple: #a855f7;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ff5252;
+      --text-bright: #f8fafc;
+      --text-dim: #94a3b8;
+      --font-display: 'Orbitron', sans-serif;
+      --font-body: 'Rajdhani', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --bcalc-cell-pad: 0.35rem 0.45rem;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-space);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(0, 229, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+        linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+      color: var(--text-bright);
+      font-family: var(--font-body);
+      font-size: 15px;
+      min-height: 100vh;
+      padding: 0.75rem 1rem;
+    }
+
+    .container {
+      max-width: 99vw;
+      width: 99vw;
+      margin: 0 auto;
+    }
+
+    /* Top Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-glow);
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      font-size: 1.6rem;
+      filter: drop-shadow(0 0 8px var(--cyan));
+    }
+
+    .brand h1 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: var(--text-bright);
+      text-transform: uppercase;
+    }
+
+    .brand .subtitle {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--cyan);
+      letter-spacing: 0.05em;
+    }
+
+    .btn {
+      padding: 0.38rem 0.85rem;
+      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      color: #fff;
+      border: 1px solid rgba(99,102,241,0.6);
+      box-shadow: 0 0 12px rgba(14,165,233,0.3);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 18px rgba(14,165,233,0.5);
+    }
+    .btn-refresh {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-glow);
+      color: var(--text-bright);
+    }
+    .btn-refresh:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-glow);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    /* Filter Pills */
+    .filter-pill-btn {
+      padding: 0.28rem 0.65rem;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text-dim);
+      transition: all 0.15s;
+    }
+    .filter-pill-btn:hover {
+      border-color: var(--cyan);
+      color: var(--text-bright);
+    }
+    .filter-pill-btn.active {
+      background: rgba(0, 229, 255, 0.18);
+      border-color: var(--cyan);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(0,229,255,0.25);
+    }
+
+    /* Matrix Table Layout */
+    .bcalc-dual-container {
+      display: flex;
+      gap: 0.75rem;
+      width: 100%;
+    }
+    .bcalc-side-col {
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      border-radius: 8px;
+      background: rgba(10, 16, 30, 0.6);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 0.65rem;
+    }
+    .bcalc-side-def {
+      border-left: 3px solid #38bdf8;
+    }
+    .bcalc-side-atk {
+      border-left: 3px solid #ef4444;
+    }
+
+    .bcalc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+    .bcalc-table th, .bcalc-table td {
+      padding: var(--bcalc-cell-pad);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      white-space: nowrap;
+    }
+    .bcalc-table th {
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: rgba(0,0,0,0.35);
+    }
+    .bcalc-table tr:hover td {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .ship-input {
+      width: 76px;
+      padding: 0.22rem 0.4rem;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      text-align: right;
+      background: #050b14;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      color: #fff;
+    }
+    .ship-input:focus {
+      outline: none;
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px rgba(0,229,255,0.3);
+    }
+
+    .pds-input {
+      width: 55px;
+      padding: 0.22rem 0.35rem;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      text-align: center;
+      background: #050b14;
+      border: 1px solid rgba(56,189,248,0.4);
+      border-radius: 4px;
+      color: #38bdf8;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #0f172a;
+      border: 1px solid var(--cyan);
+      box-shadow: 0 8px 24px rgba(0, 229, 255, 0.3);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #fff;
+      display: none;
+      z-index: 10000;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 7, 15, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .modal-box {
+      background: #0f172a;
+      border: 1px solid var(--border-glow);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 600px;
+      padding: 1.5rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+    }
+
+    /* MCP Status Badges & Animations */
+    .mcp-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .mcp-status-badge.connected {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #86efac;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    }
+    .mcp-status-badge.standalone {
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #cbd5e1;
+    }
+    .mcp-status-badge.standalone:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 229, 255, 0.08);
+    }
+    .mcp-status-badge.probing {
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: var(--cyan);
+    }
+    .mcp-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .connected .mcp-dot {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseGlow 2s infinite;
+    }
+    .standalone .mcp-dot {
+      background: #94a3b8;
+    }
+    .probing .mcp-dot {
+      background: var(--cyan);
+      animation: pulseGlow 1s infinite;
+    }
+
+    /* MCP Enhanced Mode Indicator (Inline next to Interstellar Battle Simulator) */
+    .mcp-enhanced-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.28rem 0.75rem;
+      font-size: 0.76rem;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      border-radius: 9999px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.25s ease;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+    }
+    .mcp-enhanced-pill.enabled {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1.5px solid rgba(16, 185, 129, 0.75);
+      color: #86efac;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.4);
+    }
+    .mcp-enhanced-pill.enabled:hover {
+      background: rgba(16, 185, 129, 0.3);
+      border-color: #34d399;
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.6);
+    }
+    .mcp-enhanced-pill.disabled {
+      background: rgba(100, 116, 139, 0.18);
+      border: 1.5px solid rgba(148, 163, 184, 0.45);
+      color: #cbd5e1;
+    }
+    .mcp-enhanced-pill.disabled:hover {
+      background: rgba(0, 229, 255, 0.12);
+      border-color: rgba(0, 229, 255, 0.6);
+      color: var(--cyan);
+    }
+    .mcp-enhanced-pill.probing {
+      background: rgba(0, 229, 255, 0.12);
+      border: 1.5px solid rgba(0, 229, 255, 0.45);
+      color: var(--cyan);
+    }
+    .mcp-enhanced-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .mcp-enhanced-pill.enabled .mcp-enhanced-dot {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseGlow 2s infinite;
+    }
+    .mcp-enhanced-pill.disabled .mcp-enhanced-dot {
+      background: #64748b;
+      box-shadow: none;
+    }
+    .mcp-enhanced-pill.probing .mcp-enhanced-dot {
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+      animation: pulseGlow 1.5s infinite;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .form-control {
+      background: #070b14;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #fff;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+    }
+    .spinner {
+      border: 3px solid rgba(0, 229, 255, 0.2);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .calc-session-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.22rem 0.62rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(15,23,42,0.6);
+      color: var(--text-dim);
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .calc-session-pill:hover {
+      border-color: var(--cyan);
+      color: #fff;
+    }
+    .calc-session-pill.active {
+      border-color: var(--cyan);
+      background: rgba(0,229,255,0.18);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 0 10px rgba(0,229,255,0.25);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="logo-icon">🪐</div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+          <h1 style="margin: 0; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1.35rem;">
+            <span>⚔️ Interstellar Battle Simulator</span>
+            <span style="font-size: 0.68rem; font-family: var(--font-mono); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); border-radius: 4px; padding: 0.1rem 0.35rem; vertical-align: middle;">v0.5</span>
+          </h1>
+          <!-- MCP Enhanced Mode Indicator (Inline next to Interstellar Battle Simulator text) -->
+          <div id="mcp-enhanced-indicator" class="mcp-enhanced-pill probing" onclick="openMcpConnectModal()" title="MCP Enhanced Mode: Detecting local suite or PAT connection...">
+            <span class="mcp-enhanced-dot"></span>
+            <span id="mcp-enhanced-text">🟡 MCP Enhanced Mode: Detecting...</span>
+          </div>
+        </div>
+        <div class="subtitle">Pegasus Galaxy • Hybrid Standalone &amp; MCP Edition • Zero Installation Required • Interstellar Coalition Sandbox</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+      <div id="mcp-status-pill" class="mcp-status-badge probing" onclick="openMcpConnectModal()" title="Click to view MCP suite status or connect">
+        <span class="mcp-dot"></span>
+        <span id="mcp-status-text">Probing MCP...</span>
+      </div>
+      <button class="btn btn-primary" onclick="copyShareLink()" title="Copy shareable link with encoded calculation">
+        🔗 Copy Share Link
+      </button>
+      <button class="btn btn-refresh" onclick="openImportModal()" title="Import a calculation from a link or code">
+        📥 Import Link / Code
+      </button>
+      <button class="btn btn-refresh" onclick="startFreshCalculation()" title="Start a fresh calculation from scratch" style="color: #38bdf8; border-color: rgba(56,189,248,0.4);">
+        ✨ Start Fresh
+      </button>
+      <button class="btn btn-refresh" onclick="downloadOfflineHtml()" title="Download as single self-contained offline HTML file" style="color: #a5b4fc; border-color: rgba(165,180,252,0.4);">
+        💾 Download Offline HTML
+      </button>
+      <a href="https://github.com/phuture707/PEGMCPCOMMAND" target="_blank" class="btn btn-refresh" style="color: #86efac; border-color: rgba(16,185,129,0.4);">
+        ⭐ GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- MULTI-CALCULATION SESSIONS BAR -->
+  <div id="calc-multi-tabs-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.85rem; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 8px; padding: 0.55rem 0.9rem; flex-wrap: wrap; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+    <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+      <span style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--cyan); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.3rem;">
+        📑 Calcs:
+      </span>
+      <div id="calc-tab-list" style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
+        <!-- Dynamically populated calculation session pills -->
+      </div>
+      <button type="button" class="btn btn-refresh" onclick="addNewCalcTab()" title="Open a new blank calculation from scratch in this window" style="padding: 0.24rem 0.55rem; font-size: 0.74rem; color: var(--cyan); border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.08);">
+        ➕ New Tab
+      </button>
+      <button type="button" class="btn btn-refresh" onclick="duplicateCurrentCalcTab()" title="Clone active calculation to a new tab" style="padding: 0.24rem 0.55rem; font-size: 0.74rem; color: #cbd5e1; border-color: rgba(255,255,255,0.18);">
+        📋 Duplicate
+      </button>
+      <button type="button" class="btn btn-refresh" onclick="renameCurrentCalcTab()" title="Rename active calculation tab" style="padding: 0.24rem 0.55rem; font-size: 0.74rem; color: #cbd5e1; border-color: rgba(255,255,255,0.18);">
+        ✏️ Rename
+      </button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+      <button type="button" class="btn btn-primary" onclick="triggerDefensePlanner()" title="Auto-plan defense: calculate available defender fleets vs inbound attacker fleets for a specific tick" style="padding: 0.28rem 0.75rem; font-size: 0.78rem; background: linear-gradient(135deg, #0284c7, #2563eb); border: 1px solid rgba(56,189,248,0.6); font-weight: 700;">
+        🛡️ Plan Defense at Tick X
+      </button>
+      <button type="button" class="btn btn-refresh" onclick="openScanPickerModal('atk')" title="Browse personal and alliance intel scans and deploy fleets" style="padding: 0.28rem 0.75rem; font-size: 0.78rem; color: #a78bfa; border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.08);">
+        📡 Scan Browser
+      </button>
+      <button type="button" class="btn btn-refresh" onclick="triggerOpenMessageModal()" title="Dispatch battle brief to alliance member in-game via MCP" style="padding: 0.28rem 0.75rem; font-size: 0.78rem; color: #fde047; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.08);">
+        💬 In-Game Msg
+      </button>
+      <div id="mcp-live-ticker-badge" style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-dim); background: rgba(0,0,0,0.3); padding: 0.25rem 0.55rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">
+        ⏱️ <span id="mcp-live-tick-val" style="color: var(--cyan); font-weight: 700;">Offline / Standalone</span>
+      </div>
+      <button type="button" class="filter-pill-btn" onclick="openMcpConnectModal()" style="padding: 0.22rem 0.55rem; font-size: 0.74rem;" title="Configure MCP connection or PAT login">
+        ⚙️ Settings
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Calculator Panel -->
+  <div class="panel">
+    <!-- Panel Header with Inline MCP Enhanced Mode Indicator -->
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.65rem; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;">
+        <span style="font-size: 1.02rem; font-weight: 700; color: #fff; letter-spacing: 0.02em; display: flex; align-items: center; gap: 0.4rem;">
+          ⚔️ Interstellar Battle Simulator
+        </span>
+        <!-- MCP Enhanced Mode Indicator (In-Panel) -->
+        <span id="mcp-panel-enhanced-badge" class="mcp-enhanced-pill probing" onclick="openMcpConnectModal()" title="MCP Enhanced Mode: Detecting local suite or PAT connection...">
+          <span class="mcp-enhanced-dot"></span>
+          <span id="mcp-panel-enhanced-text">🟡 MCP Enhanced Mode: Detecting...</span>
+        </span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.4rem;">
+        <span class="badge badge-warning" style="font-size: 0.72rem; padding: 0.2rem 0.5rem; background: rgba(245,158,11,0.15); color: #fde047; border: 1px solid rgba(245,158,11,0.4); border-radius: 4px;">Matrix Sandbox</span>
+      </div>
+    </div>
+
+    <!-- Top Filter Bar & Controls -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.6rem;">
+      <div style="display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); margin-right: 0.3rem;">Hulls:</span>
+        <button class="filter-pill-btn active" onclick="setCategoryFilter('ALL', this)">All (35)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('FIGHTER', this)">Fi (6)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('CORVETTE', this)">Co (6)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('FRIGATE', this)">Fr (8)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('DESTROYER', this)">De (6)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('CRUISER', this)">Cr (5)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('BATTLESHIP', this)">Bs (4)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('PDS', this)">PDS (5)</button>
+      </div>
+
+      <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+        <button class="btn btn-refresh" style="color: #38bdf8; border-color: rgba(56,189,248,0.4);" onclick="addDefenderFleet()">
+          + Def Fleet
+        </button>
+        <button class="btn btn-refresh" style="color: #f87171; border-color: rgba(239,68,68,0.4);" onclick="addAttackerFleet()">
+          + Att Fleet
+        </button>
+        <button class="btn btn-refresh" onclick="swapSides()" title="Invert Attacker and Defender rosters">
+          ⇄ Swap Sides
+        </button>
+      </div>
+    </div>
+
+    <!-- Dual Side-by-Side Matrix Table Wrapper -->
+    <div class="bcalc-dual-container">
+      <!-- Defender Side (Left - Blue Theme) -->
+      <div class="bcalc-side-col bcalc-side-def" id="def-matrix-col">
+        <!-- Defender Controls Header -->
+        <div style="border-bottom: 1px solid rgba(56,189,248,0.25); padding-bottom: 0.5rem; margin-bottom: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem;">
+          <!-- Row 1: Title + Primary Action Buttons -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
+            <div style="font-size: 0.92rem; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 0.35rem;">
+              🛡️ Defender Forces <span style="font-size: 0.7rem; color: var(--text-dim); font-weight: 400;">(Base &amp; Garrison)</span>
+            </div>
+            <div style="display: flex; gap: 0.25rem; align-items: center; flex-wrap: wrap;">
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 700; color: #38bdf8; border-color: rgba(56,189,248,0.45);" onclick="addDefenderFleet()" title="Add a custom defender fleet column">
+                + Def Fleet
+              </button>
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 600; color: #38bdf8; border-color: rgba(56,189,248,0.45);" onclick="loadMyEmpireIntoDefender()" title="Load your home defense garrison &amp; PDS into defender">
+                🏰 Load Base
+              </button>
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 600; color: #ffd54f; border-color: rgba(255,213,79,0.4);" onclick="consolidateFleets('def')" title="Consolidate all defender fleets into 1 unified column">
+                ⚡ Consolidate
+              </button>
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 600; color: #7dd3fc; border-color: rgba(125,211,252,0.4);" onclick="openScanPickerModal('def')" title="Browse all personal &amp; alliance scans to pick into Defender side">
+                🔍 Browse Scans
+              </button>
+              <button type="button" class="btn btn-refresh" style="font-size: 0.72rem; padding: 0.2rem 0.45rem; color: #38bdf8;" onclick="emptyAllFleets('def')" title="Zero out all defender ships">
+                Empty
+              </button>
+            </div>
+          </div>
+          <!-- Row 2: Selectors for Quick Empire Add and Scanned Targets -->
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; font-size: 0.75rem;">
+            <select id="sim-bcalc-def-add-empire-select" class="form-control" style="font-size: 0.74rem; padding: 0.18rem 0.45rem; max-width: 175px; border-color: rgba(56,189,248,0.4); color: #38bdf8; background: rgba(56,189,248,0.06);" onchange="onQuickAddEmpireSelect('def', this)" title="Add one of your own fleets or base garrison to defense">
+              <option value="">🏰 Add Own Fleet...</option>
+            </select>
+            <select id="sim-bcalc-def-target-select" class="form-control" onchange="onTargetSelectChange('def', this)" style="font-size: 0.74rem; padding: 0.18rem 0.45rem; flex: 1; min-width: 160px; border-color: rgba(56,189,248,0.35);" title="Pick from recent personal &amp; alliance scans">
+              <option value="">📡 Pick Scanned Target...</option>
+            </select>
+          </div>
+        </div>
+        <div id="def-matrix-table-container"></div>
+      </div>
+
+      <!-- Attacker Side (Right - Red Theme) -->
+      <div class="bcalc-side-col bcalc-side-atk" id="atk-matrix-col">
+        <!-- Attacker Controls Header -->
+        <div style="border-bottom: 1px solid rgba(239,68,68,0.25); padding-bottom: 0.5rem; margin-bottom: 0.6rem; display: flex; flex-direction: column; gap: 0.4rem;">
+          <!-- Row 1: Title + Primary Action Buttons -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
+            <div style="font-size: 0.92rem; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 0.35rem;">
+              🚀 Attacking Forces <span style="font-size: 0.7rem; color: var(--text-dim); font-weight: 400;">(Coalition &amp; Strikes)</span>
+            </div>
+            <div style="display: flex; gap: 0.25rem; align-items: center; flex-wrap: wrap;">
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 700; color: #f87171; border-color: rgba(239,68,68,0.45);" onclick="addAttackerFleet()" title="Add a custom attacker fleet column">
+                + Att Fleet
+              </button>
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 600; color: #f87171; border-color: rgba(239,68,68,0.45);" onclick="loadMyEmpireIntoAttacker()" title="Load your active empire fleets into attacker">
+                🏰 Load Fleets
+              </button>
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 600; color: #ffd54f; border-color: rgba(255,213,79,0.4);" onclick="consolidateFleets('atk')" title="Consolidate all attacker fleets into 1 unified column">
+                ⚡ Consolidate
+              </button>
+              <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem; font-size: 0.74rem; font-weight: 600; color: #fca5a5; border-color: rgba(252,165,165,0.4);" onclick="openScanPickerModal('atk')" title="Browse all personal &amp; alliance scans to pick into Attacker side">
+                🔍 Browse Scans
+              </button>
+              <button type="button" class="btn btn-refresh" style="font-size: 0.72rem; padding: 0.2rem 0.45rem; color: #f87171;" onclick="emptyAllFleets('atk')" title="Zero out all attacker ships">
+                Empty
+              </button>
+            </div>
+          </div>
+          <!-- Row 2: Selectors for Quick Empire Add and Scanned Targets -->
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; font-size: 0.75rem;">
+            <select id="sim-bcalc-atk-add-empire-select" class="form-control" style="font-size: 0.74rem; padding: 0.18rem 0.45rem; max-width: 175px; border-color: rgba(239,68,68,0.4); color: #f87171; background: rgba(239,68,68,0.06);" onchange="onQuickAddEmpireSelect('atk', this)" title="Add one of your own fleets to attack">
+              <option value="">🏰 Add Own Fleet...</option>
+            </select>
+            <select id="sim-bcalc-atk-target-select" class="form-control" onchange="onTargetSelectChange('atk', this)" style="font-size: 0.74rem; padding: 0.18rem 0.45rem; flex: 1; min-width: 160px; border-color: rgba(239,68,68,0.35);" title="Pick from recent personal &amp; alliance scans">
+              <option value="">📡 Pick Scanned Target...</option>
+            </select>
+          </div>
+        </div>
+        <div id="atk-matrix-table-container"></div>
+      </div>
+    </div>
+
+    <!-- Bottom Reference Bar -->
+    <div style="margin-top: 0.75rem; padding: 0.6rem 0.95rem; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.09); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+        <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; font-family: var(--font-mono);">
+          📍 Coordinates of Scan:
+        </span>
+        <input type="text" id="bottom-coords-input" placeholder="e.g. 12:1:1" style="width: 110px; padding: 0.22rem 0.5rem; font-size: 0.8rem; font-family: var(--font-mono); background: #050b14; border: 1px solid rgba(56,189,248,0.45); color: #fff; border-radius: 4px; text-align: center; font-weight: 700;" title="Coordinates label for battle reports and share links">
+        <span style="font-size: 0.72rem; color: var(--text-dim); font-style: italic;">
+          (Saved with share link • Used for Discord / alliance notes)
+        </span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.78rem; font-family: var(--font-mono);">
+        <span style="color: #38bdf8;">🛡️ Def Total: <strong id="bottom-def-count" style="color: #fff;">0</strong></span>
+        <span style="color: rgba(255,255,255,0.2);">|</span>
+        <span style="color: #f87171;">🚀 Atk Total: <strong id="bottom-atk-count" style="color: #fff;">0</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="background: rgba(10, 20, 36, 0.9); border: 1px solid var(--border-glow); border-radius: 8px; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <span style="font-size: 0.88rem; font-weight: 600; font-family: var(--font-mono);">Combat Rounds:</span>
+      <select id="sim-max-rounds" style="padding: 0.35rem 0.6rem; font-size: 0.85rem; font-family: var(--font-mono); background: #050b14; border: 1px solid rgba(0,229,255,0.4); color: #fff; border-radius: 4px;">
+        <option value="1" selected>1 Round</option>
+        <option value="3">3 Rounds</option>
+        <option value="6">6 Rounds</option>
+        <option value="10">10 Rounds (Full)</option>
+      </select>
+      <button class="btn btn-refresh" onclick="startFreshCalculation()" style="color: #38bdf8; border-color: rgba(56,189,248,0.4);">
+        ✨ Start Fresh
+      </button>
+      <button class="btn btn-primary" onclick="copyShareLink()">
+        🔗 Copy Share Link
+      </button>
+    </div>
+
+    <button class="btn btn-primary" onclick="runSimulation()" style="padding: 0.65rem 2rem; font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; background: linear-gradient(135deg, #00e5ff 0%, #0077b6 100%); box-shadow: 0 0 15px rgba(0,229,255,0.4);">
+      ⚡ RUN BATTLE SIMULATION
+    </button>
+  </div>
+
+  <!-- Simulation Results Container -->
+  <div id="sim-results-container" style="display: none; margin-bottom: 2rem;"></div>
+
+  <!-- Footer -->
+  <footer style="text-align: center; padding: 1.5rem 0; color: var(--text-dim); font-size: 0.78rem; font-family: var(--font-mono); border-top: 1px solid rgba(255,255,255,0.06);">
+    <div>🌌 Pegasus Galaxy Battle Matrix <strong style="color: var(--cyan);">v0.5</strong> • Zero-Installation Client-Side Simulator</div>
+    <div style="margin-top: 0.35rem;">GitHub Repository: <a href="https://github.com/phuture707/PEGMCPCOMMAND" target="_blank" style="color: var(--cyan); text-decoration: none;">phuture707/PEGMCPCOMMAND</a> • Model Context Protocol Suite</div>
+  </footer>
+</div>
+
+<!-- Import Modal -->
+<div id="import-modal" class="modal-overlay" onclick="if(event.target === this) closeImportModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h3 style="font-family: var(--font-display); font-size: 1.1rem; color: var(--cyan);">📥 Import Shared Battle</h3>
+      <button class="btn btn-refresh" style="padding: 0.2rem 0.5rem;" onclick="closeImportModal()">✕</button>
+    </div>
+    <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.75rem;">
+      Paste a shared BattleCalc URL (e.g. <code>https://...calc.html#c=...</code>) or raw base64 code below:
+    </p>
+    <textarea id="import-code-input" rows="4" style="width: 100%; padding: 0.6rem; font-family: var(--font-mono); font-size: 0.8rem; background: #050b14; border: 1px solid rgba(0,229,255,0.4); color: #fff; border-radius: 6px; margin-bottom: 1rem;" placeholder="Paste shared URL or code here..."></textarea>
+    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+      <button class="btn btn-refresh" onclick="closeImportModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyImportedCode()">Import Calculation</button>
+    </div>
+  </div>
+</div>
+
+<!-- MCP Connection & PAT Login Modal -->
+<div id="mcp-connect-modal" class="modal-overlay" onclick="if(event.target === this) closeMcpConnectModal()">
+  <div class="modal-box" style="max-width: 650px;" onclick="event.stopPropagation()">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem;">
+      <div>
+        <h3 style="font-family: var(--font-display); font-size: 1.15rem; color: var(--cyan); display: flex; align-items: center; gap: 0.5rem;">
+          🔌 Pegasus MCP &amp; Game Connection
+        </h3>
+        <div style="font-size: 0.76rem; color: var(--text-dim); margin-top: 0.2rem;">
+          Connect to your local MCP Suite daemon or enter your PAT to unlock live radar, fleet loading, and defense planning.
+        </div>
+      </div>
+      <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem;" onclick="closeMcpConnectModal()">✕</button>
+    </div>
+
+    <!-- Active Status Banner -->
+    <div id="mcp-modal-status-box" style="padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.82rem; font-family: var(--font-mono); display: flex; align-items: center; justify-content: space-between; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.25);">
+      <span id="mcp-modal-status-text">Status: ⚪ Standalone Client-Side Mode</span>
+      <span id="mcp-modal-status-ping" style="font-size: 0.72rem; color: var(--text-dim);">Pure offline JS</span>
+    </div>
+
+    <!-- Mode 1: Local MCP Suite (Automatic .env) -->
+    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(0,229,255,0.25); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <strong style="color: #38bdf8; font-size: 0.9rem;">Option 1: Local MCP Suite (.env Auto-Loaded)</strong>
+        <span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8;">Recommended</span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.75rem;">
+        If you have the Pegasus MCP Suite running on this PC (<code>python peg_gui.py</code>), your game token from <code>.env</code> is already active.
+      </p>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <input type="text" id="mcp-suite-url-input" class="form-control" style="flex: 1; font-size: 0.82rem;" value="http://127.0.0.1:7890" placeholder="http://127.0.0.1:7890">
+        <button type="button" class="btn btn-primary" onclick="probeLocalMcpFromModal()" style="font-size: 0.8rem;">
+          🔄 Test &amp; Connect
+        </button>
+      </div>
+    </div>
+
+    <!-- Mode 2: Direct Pegasus PAT Login -->
+    <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <strong style="color: #cbd5e1; font-size: 0.9rem;">Option 2: Pegasus Personal Access Token (PAT)</strong>
+        <span class="badge" style="background: rgba(255,255,255,0.08); color: var(--text-dim);">Web / Remote</span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.75rem;">
+        Using GitHub Pages or a device without Python? Enter your Pegasus PAT below. It is stored securely only in your browser session.
+      </p>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <input type="password" id="mcp-pat-input" class="form-control" style="flex: 1; font-size: 0.82rem;" placeholder="Paste Pegasus PAT (pat_...)">
+        <button type="button" class="btn btn-refresh" onclick="savePatFromModal()" style="font-size: 0.8rem; color: #86efac; border-color: rgba(16,185,129,0.4);">
+          🔑 Save PAT
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer Controls -->
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <button type="button" class="btn btn-refresh" onclick="disconnectMcpToStandalone()" style="font-size: 0.78rem; color: #fca5a5; border-color: rgba(239,68,68,0.3);">
+        ⚪ Use Pure Standalone Mode
+      </button>
+      <button type="button" class="btn btn-refresh" onclick="closeMcpConnectModal()" style="font-size: 0.82rem;">
+        Done
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tactical Defense Auto-Planner Modal -->
+<div id="sim-defense-planner-modal" class="modal-overlay" onclick="if(event.target === this) closeDefenseScenarioModal()">
+  <div style="background: #0d1222; border: 1px solid rgba(56,189,248,0.5); border-radius: 12px; width: 100%; max-width: 980px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 16px 60px rgba(0,0,0,0.95); overflow: hidden;" onclick="event.stopPropagation()">
+    
+    <!-- Modal Header -->
+    <div style="padding: 1.1rem 1.4rem; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
+      <div>
+        <div style="font-size: 1.15rem; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 0.5rem;">
+          🛡️ Tactical Defense Auto-Planner at Specific Tick
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 0.2rem;">
+          Calculates available defending forces (garrison + arriving fleets) vs inbound hostile attackers with scan reliability &amp; decoy analysis
+        </div>
+      </div>
+      <button type="button" class="btn btn-refresh" style="font-size: 1.2rem; padding: 0.2rem 0.6rem; line-height: 1;" onclick="closeDefenseScenarioModal()">✕</button>
+    </div>
+
+    <!-- Parameter Controls Bar -->
+    <div style="padding: 0.9rem 1.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(15,23,42,0.6); display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 190px;">
+        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.3rem;">
+          🎯 Defender Planet / Coords:
+        </label>
+        <div style="display: flex; gap: 0.4rem;">
+          <input type="text" id="sim-plan-coords" class="form-control" placeholder="e.g. 12:1:1" style="font-size: 0.85rem; width: 100%;">
+        </div>
+      </div>
+
+      <div style="width: 145px;">
+        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.3rem;">
+          ⏱️ Battle Tick <span id="sim-plan-cur-tick-badge" style="color:var(--cyan); font-weight: normal;">(Now: ...)</span>:
+        </label>
+        <input type="number" id="sim-plan-tick" class="form-control" placeholder="e.g. 1118" style="font-size: 0.85rem; width: 100%;">
+      </div>
+
+      <div style="width: 115px;">
+        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.3rem;">
+          🎯 Window (±):
+        </label>
+        <select id="sim-plan-window" class="form-control" style="font-size: 0.8rem; width: 100%;">
+          <option value="0">±0 Ticks</option>
+          <option value="1">±1 Tick</option>
+          <option value="2">±2 Ticks</option>
+        </select>
+      </div>
+
+      <button type="button" class="btn btn-refresh" onclick="loadDefenseScenarioPreview()" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem 1rem; color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12);">
+        🔄 Analyze Tick
+      </button>
+    </div>
+
+    <!-- Live Preview Split Container -->
+    <div id="sim-plan-body" style="padding: 1.25rem 1.4rem; overflow-y: auto; flex: 1; display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 1.25rem;">
+      <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-dim);">
+        Select target coordinates and battle tick to run tactical analysis.
+      </div>
+    </div>
+
+    <!-- Modal Footer Actions -->
+    <div style="padding: 0.9rem 1.4rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
+      <div style="display: flex; gap: 0.5rem;">
+        <button type="button" class="btn btn-refresh" onclick="copyDefenseScenarioBrief()" style="font-size: 0.82rem; padding: 0.4rem 0.9rem;">
+          📋 Copy Brief
+        </button>
+        <button type="button" class="btn btn-refresh" onclick="shareDefenseScenarioLink()" style="font-size: 0.82rem; padding: 0.4rem 0.9rem; color: var(--cyan); border-color: rgba(0,229,255,0.4);">
+          🔗 Share Plan
+        </button>
+      </div>
+      <div style="display: flex; gap: 0.6rem;">
+        <button type="button" class="btn btn-refresh" onclick="closeDefenseScenarioModal()" style="font-size: 0.85rem; padding: 0.4rem 1.1rem;">
+          Close
+        </button>
+        <button type="button" id="sim-plan-apply-btn" class="btn-primary" onclick="applyDefenseScenarioToCalculator()" style="font-size: 0.85rem; font-weight: 700; padding: 0.45rem 1.5rem; background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff;">
+          ⚡ Populate Calculator &amp; Simulate
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- In-Game Alliance / Direct Message Modal -->
+<div id="mcp-msg-modal" class="modal-overlay" onclick="if(event.target === this) closeMcpMsgModal()">
+  <div class="modal-box" style="max-width: 600px;" onclick="event.stopPropagation()">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.6rem;">
+      <h3 style="font-family: var(--font-display); font-size: 1.1rem; color: #fde047; display: flex; align-items: center; gap: 0.4rem;">
+        💬 Send In-Game / Alliance Brief
+      </h3>
+      <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.5rem;" onclick="closeMcpMsgModal()">✕</button>
+    </div>
+
+    <div style="margin-bottom: 0.75rem;">
+      <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.25rem;">
+        Recipient (Commander Name or Coords):
+      </label>
+      <input type="text" id="sim-msg-recipient" class="form-control" style="width: 100%; font-size: 0.85rem;" placeholder="e.g. Alliance Commander or Coords">
+    </div>
+
+    <div style="margin-bottom: 0.75rem;">
+      <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.25rem;">
+        Subject:
+      </label>
+      <input type="text" id="sim-msg-subject" class="form-control" style="width: 100%; font-size: 0.85rem;" placeholder="Tactical Battle Matrix Brief">
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.25rem;">
+        Message Body:
+      </label>
+      <textarea id="sim-msg-body" rows="6" class="form-control" style="width: 100%; font-size: 0.8rem; resize: vertical;"></textarea>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+      <button type="button" class="btn btn-refresh" onclick="closeMcpMsgModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="sendMcpInGameMessage()" style="background: linear-gradient(135deg, #d97706, #b45309); border-color: rgba(245,158,11,0.6); color: #fff;">
+        🚀 Send Message via MCP
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Fleet Picker / Intel Browser Modal -->
+<div id="sim-scan-picker-modal" class="modal-overlay" onclick="if(event.target === this) closeScanPickerModal()">
+  <div class="modal-box" style="max-width: 800px; max-height: 88vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;" onclick="event.stopPropagation()">
+    <!-- Modal Header -->
+    <div style="padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
+      <div>
+        <div id="sim-picker-title" style="font-size: 1.05rem; font-weight: 700; color: var(--cyan); display: flex; align-items: center; gap: 0.5rem;">
+          📡 Choose a Scanned Fleet to Add
+        </div>
+        <div id="sim-picker-subtitle" style="font-size: 0.76rem; color: var(--text-dim); margin-top: 0.2rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+          <span>Select any scanned garrison or fleet from your recent personal &amp; alliance intel</span>
+          <span id="sim-picker-sync-status" style="color: #86efac; font-family: var(--font-mono); font-size: 0.72rem;">🟢 Auto-syncing intel</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-refresh" style="font-size: 0.76rem; padding: 0.25rem 0.65rem; color: var(--cyan); border-color: rgba(0,229,255,0.4);" onclick="refreshScanTargets(false)" title="Fetch latest scans from server &amp; alliance">
+          🔄 Sync Intel Now
+        </button>
+        <button type="button" class="btn btn-refresh" style="font-size: 1.2rem; padding: 0.2rem 0.6rem; line-height: 1;" onclick="closeScanPickerModal()">✕</button>
+      </div>
+    </div>
+
+    <!-- Filters & Search Bar -->
+    <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; background: rgba(0,0,0,0.18);">
+      <input type="text" id="sim-picker-search" class="form-control" placeholder="🔍 Filter by coords (e.g. 12:1:1), scan type, ship name, or ally..." style="font-size: 0.85rem; flex: 1; min-width: 220px;" oninput="renderScanPickerList()">
+      <div style="display: flex; gap: 0.3rem; align-items: center;">
+        <button id="sim-picker-src-all-btn" class="filter-pill-btn active" onclick="setPickerSourceFilter('all')">🌐 All (<span id="sim-picker-count-all">0</span>)</button>
+        <button id="sim-picker-src-user-btn" class="filter-pill-btn" onclick="setPickerSourceFilter('user')">👤 My Scans (<span id="sim-picker-count-user">0</span>)</button>
+        <button id="sim-picker-src-ally-btn" class="filter-pill-btn" onclick="setPickerSourceFilter('ally')">🤝 Ally Intel (<span id="sim-picker-count-ally">0</span>)</button>
+      </div>
+    </div>
+
+    <!-- Scan List Body -->
+    <div id="sim-picker-list" style="overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1; min-height: 250px; max-height: 60vh;">
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast">Link copied to clipboard!</div>
+
+<script>
+// =========================================================================
+// EMBEDDED PEGASUS GALAXY GAME DEFINITIONS (35 SHIPS & 5 PDS)
+// =========================================================================
+const SHIP_DEFINITIONS = {
+  "main-ashkari-claw-extractor": {
+    "armor": 200,
+    "asteroidCapacity": 5,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 6000,
+      "eonium": 4000,
+      "metal": 10000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 10,
+    "faction": "ASHKARI",
+    "gun": 0,
+    "id": "main-ashkari-claw-extractor",
+    "init": 12,
+    "name": "Claw Extractor",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-ashkari-fang": {
+    "armor": 20,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FIGHTER",
+    "cloak": false,
+    "cost": {
+      "crystal": 500,
+      "eonium": 500,
+      "metal": 900
+    },
+    "damage": 16,
+    "empDamage": 0,
+    "empResistance": 0,
+    "faction": "ASHKARI",
+    "gun": 8,
+    "id": "main-ashkari-fang",
+    "init": 3,
+    "name": "Fang",
+    "resourceCapacity": 0,
+    "shipClass": "LIGHT",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "LIGHT",
+    "targetClass3": "HEAVY"
+  },
+  "main-ashkari-marauder": {
+    "armor": 66,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "DESTROYER",
+    "cloak": false,
+    "cost": {
+      "crystal": 2400,
+      "eonium": 2400,
+      "metal": 4200
+    },
+    "damage": 54,
+    "empDamage": 0,
+    "empResistance": 0,
+    "faction": "ASHKARI",
+    "gun": 17,
+    "id": "main-ashkari-marauder",
+    "init": 5,
+    "name": "Marauder",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "LIGHT",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "HEAVY"
+  },
+  "main-ashkari-oblivion": {
+    "armor": 470,
+    "asteroidCapacity": 0,
+    "capitalAbility": {
+      "damageReflectPercent": 15,
+      "type": "siege_barrier"
+    },
+    "category": "BATTLESHIP",
+    "cloak": false,
+    "cost": {
+      "crystal": 18000,
+      "eonium": 19000,
+      "metal": 30000
+    },
+    "damage": 250,
+    "empDamage": 0,
+    "empResistance": 100,
+    "faction": "ASHKARI",
+    "gun": 55,
+    "id": "main-ashkari-oblivion",
+    "init": 7,
+    "name": "Oblivion",
+    "resourceCapacity": 0,
+    "shipClass": "SPECIAL",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-ashkari-plunder-barge": {
+    "armor": 150,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 4000,
+      "eonium": 2500,
+      "metal": 8000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 10,
+    "faction": "ASHKARI",
+    "gun": 0,
+    "id": "main-ashkari-plunder-barge",
+    "init": 12,
+    "name": "Plunder Barge",
+    "resourceCapacity": 50000,
+    "shipClass": "MEDIUM",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-ashkari-raid-runner": {
+    "armor": 80,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CORVETTE",
+    "cloak": false,
+    "cost": {
+      "crystal": 2500,
+      "eonium": 1500,
+      "metal": 5000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 5,
+    "faction": "ASHKARI",
+    "gun": 0,
+    "id": "main-ashkari-raid-runner",
+    "init": 12,
+    "name": "Raid Runner",
+    "resourceCapacity": 25000,
+    "shipClass": "LIGHT",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-ashkari-ravager": {
+    "armor": 54,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 1800,
+      "eonium": 1800,
+      "metal": 3200
+    },
+    "damage": 44,
+    "empDamage": 0,
+    "empResistance": 0,
+    "faction": "ASHKARI",
+    "gun": 15,
+    "id": "main-ashkari-ravager",
+    "init": 4,
+    "name": "Ravager",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "LIGHT",
+    "targetClass3": "HEAVY"
+  },
+  "main-ashkari-reaper": {
+    "armor": 80,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "DESTROYER",
+    "cloak": false,
+    "cost": {
+      "crystal": 3000,
+      "eonium": 3000,
+      "metal": 5200
+    },
+    "damage": 62,
+    "empDamage": 0,
+    "empResistance": 0,
+    "faction": "ASHKARI",
+    "gun": 19,
+    "id": "main-ashkari-reaper",
+    "init": 5,
+    "name": "Reaper",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT"
+  },
+  "main-ashkari-talon": {
+    "armor": 26,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FIGHTER",
+    "cloak": false,
+    "cost": {
+      "crystal": 700,
+      "eonium": 700,
+      "metal": 1250
+    },
+    "damage": 21,
+    "empDamage": 0,
+    "empResistance": 0,
+    "faction": "ASHKARI",
+    "gun": 10,
+    "id": "main-ashkari-talon",
+    "init": 3,
+    "name": "Talon",
+    "resourceCapacity": 0,
+    "shipClass": "LIGHT",
+    "targetClass1": "LIGHT",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "HEAVY"
+  },
+  "main-ashkari-viper": {
+    "armor": 30,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FIGHTER",
+    "cloak": false,
+    "cost": {
+      "crystal": 850,
+      "eonium": 850,
+      "metal": 1500
+    },
+    "damage": 24,
+    "empDamage": 0,
+    "empResistance": 0,
+    "faction": "ASHKARI",
+    "gun": 11,
+    "id": "main-ashkari-viper",
+    "init": 4,
+    "name": "Viper",
+    "resourceCapacity": 0,
+    "shipClass": "LIGHT",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT"
+  },
+  "main-synthara-arc": {
+    "armor": 46,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FIGHTER",
+    "cloak": false,
+    "cost": {
+      "crystal": 1200,
+      "eonium": 500,
+      "metal": 1100
+    },
+    "damage": 0,
+    "empDamage": 14,
+    "empResistance": 14,
+    "faction": "SYNTHARA",
+    "gun": 7,
+    "id": "main-synthara-arc",
+    "init": 5,
+    "name": "Arc",
+    "resourceCapacity": 0,
+    "shipClass": "LIGHT",
+    "targetClass1": "LIGHT",
+    "targetClass2": "HEAVY",
+    "targetClass3": "MEDIUM"
+  },
+  "main-synthara-crystal-borer": {
+    "armor": 280,
+    "asteroidCapacity": 10,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 9000,
+      "eonium": 6000,
+      "metal": 15000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 15,
+    "faction": "SYNTHARA",
+    "gun": 0,
+    "id": "main-synthara-crystal-borer",
+    "init": 12,
+    "name": "Crystal Borer",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-synthara-monolith": {
+    "armor": 250,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 8000,
+      "eonium": 3500,
+      "metal": 7500
+    },
+    "damage": 0,
+    "empDamage": 30,
+    "empResistance": 40,
+    "faction": "SYNTHARA",
+    "gun": 20,
+    "id": "main-synthara-monolith",
+    "init": 8,
+    "name": "Monolith",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-synthara-nexus": {
+    "armor": 54,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FIGHTER",
+    "cloak": false,
+    "cost": {
+      "crystal": 1450,
+      "eonium": 600,
+      "metal": 1300
+    },
+    "damage": 0,
+    "empDamage": 16,
+    "empResistance": 16,
+    "faction": "SYNTHARA",
+    "gun": 8,
+    "id": "main-synthara-nexus",
+    "init": 6,
+    "name": "Nexus",
+    "resourceCapacity": 0,
+    "shipClass": "LIGHT",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-synthara-nexus-freighter": {
+    "armor": 220,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 6000,
+      "eonium": 4000,
+      "metal": 12000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 15,
+    "faction": "SYNTHARA",
+    "gun": 0,
+    "id": "main-synthara-nexus-freighter",
+    "init": 12,
+    "name": "Nexus Freighter",
+    "resourceCapacity": 100000,
+    "shipClass": "HEAVY",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-synthara-obelisk": {
+    "armor": 330,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "BATTLESHIP",
+    "cloak": false,
+    "cost": {
+      "crystal": 11000,
+      "eonium": 5500,
+      "metal": 10500
+    },
+    "damage": 0,
+    "empDamage": 36,
+    "empResistance": 50,
+    "faction": "SYNTHARA",
+    "gun": 24,
+    "id": "main-synthara-obelisk",
+    "init": 9,
+    "name": "Obelisk",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT"
+  },
+  "main-synthara-oracle": {
+    "armor": 640,
+    "asteroidCapacity": 0,
+    "capitalAbility": {
+      "fleetEmpChanceMultiplier": 0.3,
+      "type": "disruption_field"
+    },
+    "category": "BATTLESHIP",
+    "cloak": true,
+    "cost": {
+      "crystal": 29000,
+      "eonium": 12000,
+      "metal": 24000
+    },
+    "damage": 0,
+    "empDamage": 60,
+    "empResistance": 80,
+    "faction": "SYNTHARA",
+    "gun": 30,
+    "id": "main-synthara-oracle",
+    "init": 8,
+    "name": "Oracle",
+    "resourceCapacity": 0,
+    "shipClass": "SPECIAL",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-synthara-pulse": {
+    "armor": 40,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FIGHTER",
+    "cloak": false,
+    "cost": {
+      "crystal": 1000,
+      "eonium": 400,
+      "metal": 900
+    },
+    "damage": 0,
+    "empDamage": 12,
+    "empResistance": 12,
+    "faction": "SYNTHARA",
+    "gun": 6,
+    "id": "main-synthara-pulse",
+    "init": 5,
+    "name": "Pulse",
+    "resourceCapacity": 0,
+    "shipClass": "LIGHT",
+    "targetClass1": "HEAVY",
+    "targetClass2": "LIGHT",
+    "targetClass3": "MEDIUM"
+  },
+  "main-synthara-pulse-courier": {
+    "armor": 80,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CORVETTE",
+    "cloak": false,
+    "cost": {
+      "crystal": 2500,
+      "eonium": 1500,
+      "metal": 5000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 5,
+    "faction": "SYNTHARA",
+    "gun": 0,
+    "id": "main-synthara-pulse-courier",
+    "init": 12,
+    "name": "Pulse Courier",
+    "resourceCapacity": 25000,
+    "shipClass": "LIGHT",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-synthara-singularity": {
+    "armor": 420,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "BATTLESHIP",
+    "cloak": false,
+    "cost": {
+      "crystal": 14000,
+      "eonium": 7500,
+      "metal": 13000
+    },
+    "damage": 0,
+    "empDamage": 42,
+    "empResistance": 60,
+    "faction": "SYNTHARA",
+    "gun": 28,
+    "id": "main-synthara-singularity",
+    "init": 9,
+    "name": "Singularity",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-synthara-singularity-hauler": {
+    "armor": 400,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 12000,
+      "eonium": 8000,
+      "metal": 20000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 20,
+    "faction": "SYNTHARA",
+    "gun": 0,
+    "id": "main-synthara-singularity-hauler",
+    "init": 12,
+    "name": "Singularity Hauler",
+    "resourceCapacity": 200000,
+    "shipClass": "HEAVY",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-synthara-void-harvester": {
+    "armor": 380,
+    "asteroidCapacity": 18,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 13000,
+      "eonium": 9000,
+      "metal": 22000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 20,
+    "faction": "SYNTHARA",
+    "gun": 0,
+    "id": "main-synthara-void-harvester",
+    "init": 12,
+    "name": "Void Harvester",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-centurion": {
+    "armor": 74,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 1400,
+      "eonium": 900,
+      "metal": 2200
+    },
+    "damage": 44,
+    "empDamage": 0,
+    "empResistance": 10,
+    "faction": "VANGUARD",
+    "gun": 15,
+    "id": "main-vanguard-centurion",
+    "init": 4,
+    "name": "Centurion",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT"
+  },
+  "main-vanguard-colossus": {
+    "armor": 340,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "BATTLESHIP",
+    "cloak": false,
+    "cost": {
+      "crystal": 7600,
+      "eonium": 5400,
+      "metal": 11200
+    },
+    "damage": 156,
+    "empDamage": 0,
+    "empResistance": 30,
+    "faction": "VANGUARD",
+    "gun": 30,
+    "id": "main-vanguard-colossus",
+    "init": 6,
+    "name": "Colossus",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-vanguard-core-driller": {
+    "armor": 280,
+    "asteroidCapacity": 10,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 9000,
+      "eonium": 6000,
+      "metal": 15000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 15,
+    "faction": "VANGUARD",
+    "gun": 0,
+    "id": "main-vanguard-core-driller",
+    "init": 12,
+    "name": "Core Driller",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-fortress-transport": {
+    "armor": 400,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 12000,
+      "eonium": 8000,
+      "metal": 20000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 20,
+    "faction": "VANGUARD",
+    "gun": 0,
+    "id": "main-vanguard-fortress-transport",
+    "init": 12,
+    "name": "Fortress Transport",
+    "resourceCapacity": 200000,
+    "shipClass": "HEAVY",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-guardian": {
+    "armor": 94,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 1900,
+      "eonium": 1200,
+      "metal": 3000
+    },
+    "damage": 58,
+    "empDamage": 0,
+    "empResistance": 14,
+    "faction": "VANGUARD",
+    "gun": 17,
+    "id": "main-vanguard-guardian",
+    "init": 4,
+    "name": "Guardian",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-vanguard-imperator": {
+    "armor": 720,
+    "asteroidCapacity": 0,
+    "capitalAbility": {
+      "maxAbsorptionPercent": 25,
+      "shieldAbsorptionPercent": 8,
+      "type": "shield_aura"
+    },
+    "category": "BATTLESHIP",
+    "cloak": false,
+    "cost": {
+      "crystal": 22000,
+      "eonium": 17000,
+      "metal": 34000
+    },
+    "damage": 170,
+    "empDamage": 0,
+    "empResistance": 45,
+    "faction": "VANGUARD",
+    "gun": 42,
+    "id": "main-vanguard-imperator",
+    "init": 11,
+    "name": "Imperator",
+    "resourceCapacity": 0,
+    "shipClass": "SPECIAL",
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT"
+  },
+  "main-vanguard-ironclad-freighter": {
+    "armor": 220,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 6000,
+      "eonium": 4000,
+      "metal": 12000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 15,
+    "faction": "VANGUARD",
+    "gun": 0,
+    "id": "main-vanguard-ironclad-freighter",
+    "init": 12,
+    "name": "Ironclad Freighter",
+    "resourceCapacity": 100000,
+    "shipClass": "HEAVY",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-ore-extractor": {
+    "armor": 200,
+    "asteroidCapacity": 5,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 6000,
+      "eonium": 4000,
+      "metal": 10000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 10,
+    "faction": "VANGUARD",
+    "gun": 0,
+    "id": "main-vanguard-ore-extractor",
+    "init": 12,
+    "name": "Ore Extractor",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-sentinel": {
+    "armor": 116,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "DESTROYER",
+    "cloak": false,
+    "cost": {
+      "crystal": 2400,
+      "eonium": 1500,
+      "metal": 3800
+    },
+    "damage": 72,
+    "empDamage": 0,
+    "empResistance": 16,
+    "faction": "VANGUARD",
+    "gun": 19,
+    "id": "main-vanguard-sentinel",
+    "init": 4,
+    "name": "Sentinel",
+    "resourceCapacity": 0,
+    "shipClass": "MEDIUM",
+    "targetClass1": "LIGHT",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "HEAVY"
+  },
+  "main-vanguard-siege-harvester": {
+    "armor": 380,
+    "asteroidCapacity": 18,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 13000,
+      "eonium": 9000,
+      "metal": 22000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 20,
+    "faction": "VANGUARD",
+    "gun": 0,
+    "id": "main-vanguard-siege-harvester",
+    "init": 12,
+    "name": "Siege Harvester",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-sovereign": {
+    "armor": 420,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "BATTLESHIP",
+    "cloak": false,
+    "cost": {
+      "crystal": 9900,
+      "eonium": 7200,
+      "metal": 14400
+    },
+    "damage": 200,
+    "empDamage": 0,
+    "empResistance": 35,
+    "faction": "VANGUARD",
+    "gun": 34,
+    "id": "main-vanguard-sovereign",
+    "init": 6,
+    "name": "Sovereign",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT"
+  },
+  "main-vanguard-supply-runner": {
+    "armor": 150,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "FRIGATE",
+    "cloak": false,
+    "cost": {
+      "crystal": 4000,
+      "eonium": 2500,
+      "metal": 8000
+    },
+    "damage": 0,
+    "empDamage": 0,
+    "empResistance": 10,
+    "faction": "VANGUARD",
+    "gun": 0,
+    "id": "main-vanguard-supply-runner",
+    "init": 12,
+    "name": "Supply Runner",
+    "resourceCapacity": 50000,
+    "shipClass": "MEDIUM",
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": ""
+  },
+  "main-vanguard-titan": {
+    "armor": 250,
+    "asteroidCapacity": 0,
+    "capitalAbility": null,
+    "category": "CRUISER",
+    "cloak": false,
+    "cost": {
+      "crystal": 4900,
+      "eonium": 3500,
+      "metal": 7800
+    },
+    "damage": 112,
+    "empDamage": 0,
+    "empResistance": 24,
+    "faction": "VANGUARD",
+    "gun": 25,
+    "id": "main-vanguard-titan",
+    "init": 5,
+    "name": "Titan",
+    "resourceCapacity": 0,
+    "shipClass": "HEAVY",
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT"
+  }
+};
+const PDS_DEFINITIONS = {
+  "main-ion-cannon": {
+    "id": "main-ion-cannon",
+    "name": "Ion Cannon",
+    "category": "PDS",
+    "shipClass": "PDS",
+    "armor": 893,
+    "gun": 17,
+    "damage": 189,
+    "init": 1,
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT",
+    "cost": {
+      "metal": 20000,
+      "crystal": 15000,
+      "eonium": 10000
+    }
+  },
+  "main-missile-silo": {
+    "id": "main-missile-silo",
+    "name": "Missile Silo",
+    "category": "PDS",
+    "shipClass": "PDS",
+    "armor": 546,
+    "gun": 15,
+    "damage": 116,
+    "init": 2,
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT",
+    "cost": {
+      "metal": 12000,
+      "crystal": 8000,
+      "eonium": 5000
+    }
+  },
+  "main-laser-battery": {
+    "id": "main-laser-battery",
+    "name": "Laser Battery",
+    "category": "PDS",
+    "shipClass": "PDS",
+    "armor": 336,
+    "gun": 13,
+    "damage": 74,
+    "init": 3,
+    "targetClass1": "LIGHT",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "HEAVY",
+    "cost": {
+      "metal": 8000,
+      "crystal": 5000,
+      "eonium": 3000
+    }
+  },
+  "main-shield-generator": {
+    "id": "main-shield-generator",
+    "name": "Shield Generator",
+    "category": "PDS",
+    "shipClass": "PDS",
+    "armor": 683,
+    "gun": 0,
+    "damage": 0,
+    "init": 0,
+    "maxAbsorption": 50,
+    "absorptionPerLevel": 10,
+    "targetClass1": "",
+    "targetClass2": "",
+    "targetClass3": "",
+    "cost": {
+      "metal": 15000,
+      "crystal": 12000,
+      "eonium": 8000
+    }
+  },
+  "main-sensor-array": {
+    "id": "main-sensor-array",
+    "name": "Sensor Array",
+    "category": "PDS",
+    "shipClass": "PDS",
+    "armor": 30,
+    "gun": 0,
+    "damage": 0,
+    "init": 0,
+    "targetClass1": "",
+    "targetClass2": "",
+    "targetClass3": "",
+    "cost": {
+      "metal": 10000,
+      "crystal": 15000,
+      "eonium": 5000
+    }
+  }
+};
+
+// =========================================================================
+// STATE MANAGEMENT & DATA STRUCTURES
+// =========================================================================
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+let mcpConfig = {
+  url: localStorage.getItem('peg_mcp_url') || 'http://127.0.0.1:7890',
+  pat: sessionStorage.getItem('peg_mcp_pat') || '',
+  connected: false,
+  liveTick: null,
+  nextTickIn: null,
+  planetName: null,
+  coords: null,
+  mode: 'STANDALONE'
+};
+let currentDefenseScenarioData = null;
+let mcpPollTimer = null;
+
+let currentCategory = 'ALL';
+let simFleetSeq = 1;
+let attackerFleets = [
+  { id: 'atk_1', name: 'Coalition Fleet 1', enabled: true, ships: {} }
+];
+let defenderFleets = [
+  { id: 'def_1', name: 'Defender Garrison', enabled: true, ships: {} }
+];
+let defenderPds = {
+  'main-shield-generator': 3,
+  'main-laser-battery': 2,
+  'main-missile-silo': 2,
+  'main-ion-cannon': 2
+};
+let techLevels = {
+  atkHulls: 5,
+  atkShipTech: 5,
+  defHulls: 5,
+  defPds: 5
+};
+
+// Global MCP Live Combat & Session State
+let simEmpireData = null;
+let homeDefenseData = null;
+let simScanTargets = [];
+let simPickerSourceFilter = 'all';
+let currentPickerSide = 'def';
+let scanPollTimer = null;
+let lastScanCount = 0;
+let calcSessions = [{ id: 'session_init', name: 'Calc #1', state: null }];
+let activeSessionId = 'session_init';
+
+function normalizeCoords(str) {
+  if (!str) return '';
+  let clean = String(str).trim().replace(/[^0-9:]/g, ':');
+  clean = clean.replace(/:+/g, ':').replace(/^:+|:+$/g, '');
+  return clean;
+}
+
+function formatScanType(type) {
+  if (!type) return 'Scan';
+  if (type === 'DEEP_SCAN') return 'Deep Scan';
+  if (type === 'MILITARY_SCAN') return 'Military Scan';
+  if (type === 'FLEET_COMPOSITION_SCAN') return 'Fleet Scan';
+  if (type === 'INCOMING_SCAN') return 'Incoming Scan';
+  if (type === 'SURFACE_SCAN') return 'Surface Scan';
+  return type.replace('_SCAN', '').replace(/_/g, ' ');
+}
+
+// Ordered ship keys
+const ALL_SHIP_KEYS = Object.keys(SHIP_DEFINITIONS);
+const HULL_CATEGORIES = ['FIGHTER', 'CORVETTE', 'FRIGATE', 'DESTROYER', 'CRUISER', 'BATTLESHIP'];
+
+// =========================================================================
+// COMPRESSION & SHAREABLE LINK ENGINE (NATIVE BROWSER DEFLATE-RAW)
+// =========================================================================
+async function compressToUrlSafe(obj) {
+  try {
+    const jsonStr = JSON.stringify(obj);
+    if (typeof CompressionStream !== 'undefined') {
+      const stream = new Blob([jsonStr]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      const buf = await new Response(stream).arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    } else {
+      // Fallback standard Base64
+      return btoa(unescape(encodeURIComponent(jsonStr))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+  } catch(e) {
+    console.error("Compression failed:", e);
+    return null;
+  }
+}
+
+async function decompressFromUrlSafe(b64url) {
+  try {
+    let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    if (typeof DecompressionStream !== 'undefined') {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      const txt = await new Response(stream).text();
+      return JSON.parse(txt);
+    } else {
+      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+    }
+  } catch(e) {
+    console.error("Decompression failed:", e);
+    return null;
+  }
+}
+
+function captureCalcSnapshot() {
+  const coords = document.getElementById('bottom-coords-input')?.value?.trim() || '';
+  return {
+    version: 1,
+    title: coords ? `Target ${coords}` : 'Battle Calculation',
+    coords: coords,
+    atk: attackerFleets,
+    def: defenderFleets,
+    pds: {
+      'main-shield-generator': defenderPds['main-shield-generator'] || 0,
+      'main-laser-battery': defenderPds['main-laser-battery'] || 0,
+      'main-missile-silo': defenderPds['main-missile-silo'] || 0,
+      'main-ion-cannon': defenderPds['main-ion-cannon'] || 0,
+      'shield': { enabled: true, level: defenderPds['main-shield-generator'] || 0 },
+      'laser': { enabled: true, level: defenderPds['main-laser-battery'] || 0 },
+      'silo': { enabled: true, level: defenderPds['main-missile-silo'] || 0 },
+      'ion': { enabled: true, level: defenderPds['main-ion-cannon'] || 0 }
+    },
+    tech: techLevels,
+    rounds: parseInt(document.getElementById('sim-max-rounds')?.value || '1', 10),
+    timestamp: Date.now()
+  };
+}
+
+function applyCalcSnapshot(data) {
+  if (!data) return;
+
+  // Check for expired / stale intel (> 7 days)
+  if (data.timestamp) {
+    const ageMs = Date.now() - data.timestamp;
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    if (ageMs > SEVEN_DAYS_MS) {
+      const daysAgo = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+      showExpiredIntelBanner(daysAgo, data.timestamp);
+    } else {
+      hideExpiredIntelBanner();
+    }
+  }
+
+  const rawAtk = data.atk || data.attackerFleets;
+  if (Array.isArray(rawAtk)) {
+    attackerFleets = rawAtk.map((f, i) => ({
+      id: f.id || ('atk_' + (i + 1)),
+      name: f.name || ('Coalition Fleet ' + (i + 1)),
+      enabled: f.enabled !== false && !f.disabled,
+      ships: Object.assign({}, f.ships || {})
+    }));
+  }
+  const rawDef = data.def || data.defenderFleets;
+  if (Array.isArray(rawDef)) {
+    defenderFleets = rawDef.map((f, i) => ({
+      id: f.id || ('def_' + (i + 1)),
+      name: f.name || (i === 0 ? 'Defender Garrison' : ('Defender Fleet ' + (i + 1))),
+      enabled: f.enabled !== false && !f.disabled,
+      ships: Object.assign({}, f.ships || {})
+    }));
+  }
+  const rawPds = data.pds || data.pdsLevels;
+  if (rawPds) {
+    function extractPdsLevel(raw, ...keys) {
+      for (const k of keys) {
+        if (raw[k] !== undefined && raw[k] !== null) {
+          if (typeof raw[k] === 'number') return raw[k];
+          if (typeof raw[k] === 'object' && raw[k].level !== undefined) {
+            const num = parseInt(raw[k].level, 10);
+            if (!isNaN(num)) return num;
+          }
+          const num = parseInt(raw[k], 10);
+          if (!isNaN(num)) return num;
+        }
+      }
+      return 0;
+    }
+    defenderPds['main-shield-generator'] = extractPdsLevel(rawPds, 'main-shield-generator', 'shield', 'Shield Generator');
+    defenderPds['main-laser-battery'] = extractPdsLevel(rawPds, 'main-laser-battery', 'laser', 'Laser Battery');
+    defenderPds['main-missile-silo'] = extractPdsLevel(rawPds, 'main-missile-silo', 'silo', 'Missile Silo');
+    defenderPds['main-ion-cannon'] = extractPdsLevel(rawPds, 'main-ion-cannon', 'ion', 'Ion Cannon');
+  }
+  if (data.tech) {
+    techLevels = Object.assign({}, data.tech);
+  } else if (data.atkHulls !== undefined || data.atkShipTech !== undefined) {
+    techLevels.atkHulls = parseInt(data.atkHulls || 5, 10);
+    techLevels.atkShipTech = parseInt(data.atkShipTech || 5, 10);
+  }
+  const coordsVal = data.coords || data.bottomCoords || data.enteredCoordsDef || '';
+  if (coordsVal) {
+    const inp = document.getElementById('bottom-coords-input');
+    if (inp) inp.value = coordsVal;
+  }
+  if (data.rounds) {
+    const rSel = document.getElementById('sim-max-rounds');
+    if (rSel) rSel.value = String(data.rounds);
+  }
+  renderMatrix();
+  updateTotals();
+}
+
+function showExpiredIntelBanner(daysAgo, ts) {
+  let banner = document.getElementById('calc-expired-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'calc-expired-banner';
+    banner.style.cssText = `
+      background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 8px;
+      padding: 0.85rem 1.25rem; margin-bottom: 1rem; display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 0.75rem; box-shadow: 0 4px 20px rgba(239, 68, 68, 0.2);
+    `;
+    const container = document.querySelector('.container');
+    const header = document.querySelector('header');
+    if (container && header) {
+      container.insertBefore(banner, header.nextSibling);
+    }
+  }
+  const dateStr = ts ? new Date(ts).toLocaleDateString() : '';
+  banner.innerHTML = `
+    <div>
+      <div style="font-weight: 700; color: #f87171; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem;">
+        ⏳ Expired Battle Intel (${daysAgo} days old)
+      </div>
+      <div style="font-size: 0.78rem; color: #fca5a5; margin-top: 0.2rem;">
+        This battle calculation was generated ${daysAgo} days ago (${dateStr}). In Pegasus Galaxy, defenses, fleets, and techs change frequently.
+      </div>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button class="btn-refresh" onclick="startFreshCalculation()" style="padding: 0.35rem 0.85rem; font-size: 0.8rem; color: #38bdf8; border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.08);">
+        ✨ Start Fresh
+      </button>
+      <button class="btn-refresh" onclick="hideExpiredIntelBanner()" style="padding: 0.35rem 0.85rem; font-size: 0.8rem; color: #cbd5e1; border-color: rgba(255,255,255,0.2);">
+        Dismiss &amp; View
+      </button>
+    </div>
+  `;
+  banner.style.display = 'flex';
+}
+
+function hideExpiredIntelBanner() {
+  const banner = document.getElementById('calc-expired-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+function pruneOldLocalStorage() {
+  try {
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('peg_calc_') || key.startsWith('peg_transfer_'))) {
+        try {
+          const item = JSON.parse(localStorage.getItem(key));
+          if (item && item.timestamp && (now - item.timestamp > SEVEN_DAYS_MS)) {
+            toRemove.push(key);
+          }
+        } catch(e) {
+          const parts = key.split('_');
+          const ts = parseInt(parts[2] || parts[1], 10);
+          if (ts && (now - ts > SEVEN_DAYS_MS)) {
+            toRemove.push(key);
+          }
+        }
+      }
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
+  } catch(e) {}
+}
+
+async function copyShareLink() {
+  const snap = captureCalcSnapshot();
+  const code = await compressToUrlSafe(snap);
+  if (!code) {
+    showToast("Error compressing calculation");
+    return;
+  }
+  
+  // Prefer current URL without hash, append #c=...
+  const baseUrl = window.location.href.split('#')[0];
+  const shareUrl = `${baseUrl}#c=${code}`;
+  
+  // Update browser hash without scrolling
+  history.replaceState(null, '', `#c=${code}`);
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showToast("🔗 Public Share Link copied to clipboard!");
+    }).catch(() => {
+      prompt("Copy public share link:", shareUrl);
+    });
+  } else {
+    prompt("Copy public share link:", shareUrl);
+  }
+}
+
+function openImportModal() {
+  document.getElementById('import-code-input').value = '';
+  document.getElementById('import-modal').style.display = 'flex';
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').style.display = 'none';
+}
+
+async function applyImportedCode() {
+  let raw = document.getElementById('import-code-input').value.trim();
+  if (!raw) return;
+  
+  // Extract #c= if whole URL was pasted
+  if (raw.includes('#c=')) {
+    raw = raw.split('#c=')[1].split('&')[0];
+  } else if (raw.includes('#coords=')) {
+    const coords = decodeURIComponent(raw.split('#coords=')[1].split('&')[0]);
+    document.getElementById('bottom-coords-input').value = coords;
+    closeImportModal();
+    showToast(`Loaded target coordinates: ${coords}`);
+    return;
+  } else if (/^(\d+)[:,\s]+(\d+)[:,\s]+(\d+)$/.test(raw)) {
+    const m = raw.match(/^(\d+)[:,\s]+(\d+)[:,\s]+(\d+)$/);
+    const coords = `${m[1]}:${m[2]}:${m[3]}`;
+    document.getElementById('bottom-coords-input').value = coords;
+    closeImportModal();
+    showToast(`Loaded target coordinates: ${coords}`);
+    if (simScanTargets && simScanTargets.length > 0) {
+      const matchIdx = simScanTargets.findIndex(t => t.coords && normalizeCoords(t.coords) === normalizeCoords(coords));
+      if (matchIdx !== -1) pickScanFleet(matchIdx, 'consolidated');
+    }
+    return;
+  }
+  
+  const data = await decompressFromUrlSafe(raw);
+  if (data) {
+    applyCalcSnapshot(data);
+    closeImportModal();
+    showToast(`Successfully imported ${data.title || 'Battle Calculation'}!`);
+  } else {
+    alert("Could not decode battle calculation. Please check the link or code.");
+  }
+}
+
+function downloadOfflineHtml() {
+  const htmlContent = document.documentElement.outerHTML;
+  const coords = document.getElementById('bottom-coords-input')?.value?.trim() || 'battle';
+  const cleanName = coords.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pegasus_battlecalc_${cleanName}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("Offline BattleCalc HTML downloaded!");
+}
+
+function startFreshCalculation() {
+  if (confirm("Start a clean calculation from scratch? This will reset all fleets in this window.")) {
+    attackerFleets = [{ id: 'atk_' + (simFleetSeq++), name: 'Coalition Fleet 1', enabled: true, ships: {} }];
+    defenderFleets = [{ id: 'def_' + (simFleetSeq++), name: 'Defender Garrison', enabled: true, ships: {} }];
+    document.getElementById('bottom-coords-input').value = '';
+    const resDiv = document.getElementById('sim-results-container');
+    if (resDiv) {
+      resDiv.innerHTML = '';
+      resDiv.style.display = 'none';
+    }
+    history.replaceState(null, '', window.location.pathname);
+    renderMatrix();
+    updateTotals();
+    showToast("Calculator reset to scratch.");
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+// =========================================================================
+// MATRIX RENDERING & UI INTERACTIONS
+// =========================================================================
+function setCategoryFilter(cat, btn) {
+  currentCategory = cat;
+  document.querySelectorAll('.filter-pill-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderMatrix();
+}
+
+function addAttackerFleet() {
+  attackerFleets.push({
+    id: 'atk_' + (simFleetSeq++),
+    name: `Coalition Fleet ${attackerFleets.length + 1}`,
+    enabled: true,
+    ships: {}
+  });
+  renderMatrix();
+  updateTotals();
+}
+
+function addDefenderFleet() {
+  defenderFleets.push({
+    id: 'def_' + (simFleetSeq++),
+    name: `Support Fleet ${defenderFleets.length + 1}`,
+    enabled: true,
+    ships: {}
+  });
+  renderMatrix();
+  updateTotals();
+}
+
+function emptyAllFleets(side) {
+  if (side === 'atk') {
+    attackerFleets.forEach(f => { f.ships = {}; });
+  } else {
+    defenderFleets.forEach(f => { f.ships = {}; });
+  }
+  renderMatrix();
+  updateTotals();
+}
+
+function swapSides() {
+  const hasPds = Object.values(defenderPds || {}).some(lvl => (parseInt(lvl, 10) || 0) > 0);
+  if (hasPds) {
+    const proceed = confirm(
+      "⚠️ PDS REMOVAL WARNING:\n\n" +
+      "The current Defender forces have Planetary Defense Structures (PDS) installed.\n" +
+      "Planetary defenses are stationary ground emplacements and CANNOT be assigned to attackers.\n\n" +
+      "Swapping sides will remove all PDS installations from defense. Do you wish to proceed?"
+    );
+    if (!proceed) return;
+    defenderPds = {};
+  }
+  const tmp = attackerFleets;
+  attackerFleets = defenderFleets;
+  defenderFleets = tmp;
+  attackerFleets.forEach((f, i) => { if (!f.name || f.name.startsWith('Defender')) f.name = `Attacker Fleet ${i+1}`; });
+  defenderFleets.forEach((f, i) => { if (!f.name || f.name.startsWith('Coalition')) f.name = `Defender Garrison ${i+1}`; });
+  renderMatrix();
+  updateTotals();
+  showToast("Swapped Attacker and Defender sides.");
+}
+
+function getFilteredShips() {
+  if (currentCategory === 'ALL') {
+    return ALL_SHIP_KEYS;
+  }
+  if (currentCategory === 'PDS') {
+    return [];
+  }
+  return ALL_SHIP_KEYS.filter(k => SHIP_DEFINITIONS[k].category === currentCategory);
+}
+
+function renderMatrix() {
+  renderSideTable('def', defenderFleets, 'def-matrix-table-container');
+  renderSideTable('atk', attackerFleets, 'atk-matrix-table-container');
+}
+
+function renderSideTable(side, fleets, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const filteredShips = getFilteredShips();
+  const isDef = side === 'def';
+  const showPds = isDef && (currentCategory === 'ALL' || currentCategory === 'PDS');
+
+  let html = `<table class="bcalc-table"><thead><tr>`;
+  html += `<th style="width: 140px; text-align: left;">Ship / Class</th>`;
+
+  // Fleet Header Columns
+  fleets.forEach((f, idx) => {
+    html += `<th style="text-align: right; min-width: 95px;">
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.25rem;">
+        <input type="checkbox" ${f.enabled ? 'checked' : ''} title="Include fleet in combat" onchange="toggleFleetEnabled('${side}', ${idx}, this.checked)">
+        <span style="cursor: pointer;" title="Click to rename fleet" onclick="renameFleet('${side}', ${idx})">${f.name}</span>
+        <button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem;" title="Empty this fleet" onclick="emptySingleFleet('${side}', ${idx})">E</button>
+        ${fleets.length > 1 ? `<button class="filter-pill-btn" style="padding: 0.1rem 0.3rem; font-size: 0.65rem; color: #f87171;" title="Delete fleet" onclick="deleteFleet('${side}', ${idx})">×</button>` : ''}
+      </div>
+    </th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // 1. PDS Structures (Defender Only)
+  if (showPds) {
+    Object.keys(PDS_DEFINITIONS).forEach(pid => {
+      const pdef = PDS_DEFINITIONS[pid];
+      const curLvl = defenderPds[pid] || 0;
+      html += `<tr style="background: rgba(56, 189, 248, 0.08);">
+        <td style="color: #38bdf8; font-weight: 600;">
+          🛡️ ${pdef.name}
+        </td>`;
+      // PDS is attached to Garrison (Col 0), rest are disabled
+      fleets.forEach((f, idx) => {
+        if (idx === 0) {
+          html += `<td style="text-align: right;">
+            <span style="font-size: 0.7rem; color: var(--text-dim); margin-right: 0.2rem;">Lvl</span>
+            <input type="number" min="0" max="30" class="pds-input" value="${curLvl}" oninput="onPdsInput('${pid}', this.value)">
+          </td>`;
+        } else {
+          html += `<td style="text-align: right; color: rgba(255,255,255,0.2); font-size: 0.72rem;">—</td>`;
+        }
+      });
+      html += `</tr>`;
+    });
+  }
+
+  // 2. Ships
+  filteredShips.forEach(sId => {
+    const sDef = SHIP_DEFINITIONS[sId];
+    const catShort = (sDef.category || '').substring(0, 2);
+    html += `<tr>
+      <td title="${sDef.name} (${sDef.category} • ${sDef.shipClass} • Init ${sDef.init})">
+        <span style="font-size: 0.72rem; color: var(--text-dim); margin-right: 0.3rem;">[${catShort}]</span>
+        <span style="font-weight: 500;">${sDef.name}</span>
+      </td>`;
+
+    fleets.forEach((f, idx) => {
+      const count = f.ships[sId] || 0;
+      html += `<td style="text-align: right;">
+        <input type="number" min="0" class="ship-input" value="${count > 0 ? count : ''}" placeholder="0" oninput="onShipInput('${side}', ${idx}, '${sId}', this.value)">
+      </td>`;
+    });
+
+    html += `</tr>`;
+  });
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+}
+
+function onShipInput(side, fleetIdx, shipId, val) {
+  const count = parseInt(val, 10) || 0;
+  const fleets = side === 'atk' ? attackerFleets : defenderFleets;
+  if (fleets[fleetIdx]) {
+    if (count > 0) {
+      fleets[fleetIdx].ships[shipId] = count;
+    } else {
+      delete fleets[fleetIdx].ships[shipId];
+    }
+  }
+  updateTotals();
+}
+
+function onPdsInput(pdsId, val) {
+  const lvl = parseInt(val, 10) || 0;
+  defenderPds[pdsId] = lvl;
+}
+
+function toggleFleetEnabled(side, fleetIdx, checked) {
+  const fleets = side === 'atk' ? attackerFleets : defenderFleets;
+  if (fleets[fleetIdx]) {
+    fleets[fleetIdx].enabled = checked;
+  }
+  updateTotals();
+}
+
+function renameFleet(side, fleetIdx) {
+  const fleets = side === 'atk' ? attackerFleets : defenderFleets;
+  if (!fleets[fleetIdx]) return;
+  const newName = prompt("Enter fleet name:", fleets[fleetIdx].name);
+  if (newName && newName.trim()) {
+    fleets[fleetIdx].name = newName.trim();
+    renderMatrix();
+  }
+}
+
+function emptySingleFleet(side, fleetIdx) {
+  const fleets = side === 'atk' ? attackerFleets : defenderFleets;
+  if (fleets[fleetIdx]) {
+    fleets[fleetIdx].ships = {};
+    renderMatrix();
+    updateTotals();
+  }
+}
+
+function deleteFleet(side, fleetIdx) {
+  const fleets = side === 'atk' ? attackerFleets : defenderFleets;
+  if (fleets.length <= 1) return;
+  if (confirm(`Delete "${fleets[fleetIdx].name}"?`)) {
+    if (side === 'atk') {
+      attackerFleets.splice(fleetIdx, 1);
+    } else {
+      defenderFleets.splice(fleetIdx, 1);
+    }
+    renderMatrix();
+    updateTotals();
+  }
+}
+
+function updateTotals() {
+  let defTotal = 0;
+  defenderFleets.forEach(f => {
+    if (f.enabled) {
+      Object.values(f.ships).forEach(c => defTotal += (parseInt(c, 10) || 0));
+    }
+  });
+
+  let atkTotal = 0;
+  attackerFleets.forEach(f => {
+    if (f.enabled) {
+      Object.values(f.ships).forEach(c => atkTotal += (parseInt(c, 10) || 0));
+    }
+  });
+
+  const defEl = document.getElementById('bottom-def-count');
+  if (defEl) defEl.textContent = defTotal.toLocaleString();
+  const atkEl = document.getElementById('bottom-atk-count');
+  if (atkEl) atkEl.textContent = atkTotal.toLocaleString();
+}
+
+// =========================================================================
+// PURE CLIENT-SIDE COMBAT SIMULATION ENGINE (JS PORT OF PEG_COMBAT.PY)
+// =========================================================================
+function checkFriendlyFireConflict() {
+  const conflicts = [];
+  const defHasOwn = defenderFleets.some(f => f.enabled && (
+    f.name.includes('Base Garrison') || f.name.includes('Own Fleet') || f.name.includes('🏠') || f.id.includes('hangar')
+  ));
+  const atkHasOwn = attackerFleets.some(f => f.enabled && (
+    f.name.includes('Base Garrison') || f.name.includes('Own Fleet') || f.name.includes('🏠') || f.id.includes('hangar')
+  ));
+  if (defHasOwn && atkHasOwn) {
+    conflicts.push("Your own Empire forces are assigned to BOTH Attacker and Defender sides.");
+  }
+  const defAlly = defenderFleets.some(f => f.enabled && (f.name.includes('Ally') || f.name.includes('🤝')));
+  const atkAlly = attackerFleets.some(f => f.enabled && (f.name.includes('Ally') || f.name.includes('🤝')));
+  if (defAlly && atkAlly) {
+    conflicts.push("Allied coalition fleets are assigned to BOTH sides against each other.");
+  }
+  if ((defHasOwn && atkAlly) || (atkHasOwn && defAlly)) {
+    conflicts.push("Your own Empire forces are pitted directly against Allied forces.");
+  }
+  return conflicts;
+}
+
+function runSimulation() {
+  const ffConflicts = checkFriendlyFireConflict();
+  if (ffConflicts.length > 0) {
+    const proceed = confirm(
+      "⚠️ FRIENDLY FIRE / ALLIANCE CONFLICT WARNING:\n\n" +
+      ffConflicts.map(c => `• ${c}`).join('\n') +
+      "\n\nPitting friendly forces against each other will calculate mutual casualties and score damage.\n\nDo you want to proceed anyway?"
+    );
+    if (!proceed) return;
+  }
+
+  const maxRounds = parseInt(document.getElementById('sim-max-rounds')?.value || '1', 10);
+  
+  // Build deep clones of attacker and defender combat groups
+  const atkArmorMult = 1.0 + (techLevels.atkHulls * 0.05);
+  const defArmorMult = 1.10 * (1.0 + (techLevels.defHulls * 0.05));
+  const pdsMult = 1.0 + (techLevels.defPds * 0.03);
+
+  const atkGroups = [];
+  attackerFleets.forEach(f => {
+    if (!f.enabled) return;
+    for (const [sId, count] of Object.entries(f.ships)) {
+      if (count <= 0) continue;
+      const sDef = SHIP_DEFINITIONS[sId] || { armor: 50, damage: 20, init: 6, shipClass: 'MEDIUM', cost: {} };
+      atkGroups.push({
+        unitId: sId,
+        name: sDef.name || sId,
+        fleetId: f.id,
+        fleetName: f.name,
+        side: 'attacker',
+        count: count,
+        initialCount: count,
+        armor: Math.floor((sDef.armor || 50) * atkArmorMult),
+        damage: sDef.damage || ((sDef.gun || 0) * 2.5),
+        empDamage: sDef.empDamage || 0,
+        empResistance: sDef.empResistance || 0,
+        init: sDef.init || 6,
+        shipClass: sDef.shipClass || 'MEDIUM',
+        targetClass1: sDef.targetClass1 || 'MEDIUM',
+        targetClass2: sDef.targetClass2 || 'LIGHT',
+        targetClass3: sDef.targetClass3 || 'HEAVY',
+        cost: sDef.cost || { metal: 2000, crystal: 1000, eonium: 500 },
+        asteroidCapacity: sDef.asteroidCapacity || 0,
+        resourceCapacity: sDef.resourceCapacity || 0,
+        empDisabled: false
+      });
+    }
+  });
+
+  const defGroups = [];
+  defenderFleets.forEach(f => {
+    if (!f.enabled) return;
+    for (const [sId, count] of Object.entries(f.ships)) {
+      if (count <= 0) continue;
+      const sDef = SHIP_DEFINITIONS[sId] || { armor: 50, damage: 20, init: 6, shipClass: 'MEDIUM', cost: {} };
+      defGroups.push({
+        unitId: sId,
+        name: sDef.name || sId,
+        fleetId: f.id,
+        fleetName: f.name,
+        side: 'defender',
+        count: count,
+        initialCount: count,
+        armor: Math.floor((sDef.armor || 50) * defArmorMult),
+        damage: sDef.damage || ((sDef.gun || 0) * 2.5),
+        empDamage: sDef.empDamage || 0,
+        empResistance: sDef.empResistance || 0,
+        init: sDef.init || 6,
+        shipClass: sDef.shipClass || 'MEDIUM',
+        targetClass1: sDef.targetClass1 || 'MEDIUM',
+        targetClass2: sDef.targetClass2 || 'LIGHT',
+        targetClass3: sDef.targetClass3 || 'HEAVY',
+        cost: sDef.cost || { metal: 2000, crystal: 1000, eonium: 500 },
+        asteroidCapacity: sDef.asteroidCapacity || 0,
+        resourceCapacity: sDef.resourceCapacity || 0,
+        empDisabled: false
+      });
+    }
+  });
+
+  // Planetary Shield calculation
+  const shieldLvl = defenderPds['main-shield-generator'] || 0;
+  const shieldAbsorbPct = Math.min(0.50, shieldLvl * 0.10);
+  let currentShieldHp = 3000 * shieldLvl * pdsMult;
+
+  const roundEvents = [];
+
+  // Round Simulation Loop
+  for (let round = 1; round <= maxRounds; round++) {
+    const aliveAtk = atkGroups.filter(g => g.count > 0);
+    const aliveDef = defGroups.filter(g => g.count > 0);
+    if (aliveAtk.length === 0 || aliveDef.length === 0) break;
+
+    // Reset round EMP
+    atkGroups.forEach(g => g.empDisabled = false);
+    defGroups.forEach(g => g.empDisabled = false);
+
+    // 1. PDS Firing Phase
+    ['main-laser-battery', 'main-missile-silo', 'main-ion-cannon'].forEach(pid => {
+      const pLvl = defenderPds[pid] || 0;
+      if (pLvl <= 0) return;
+      const pDef = PDS_DEFINITIONS[pid];
+      let pDmg = (pDef.damage || 80) * pLvl * pdsMult;
+      
+      // Target matching ships
+      const pdsTargets = aliveAtk.filter(g => g.shipClass === pDef.targetClass1 && g.count > 0);
+      const chosenList = pdsTargets.length > 0 ? pdsTargets : aliveAtk;
+      if (chosenList.length === 0) return;
+
+      for (const target of chosenList) {
+        if (pDmg <= 0 || target.count <= 0) break;
+        const destroyed = Math.min(target.count, Math.floor(pDmg / target.armor));
+        if (destroyed > 0) {
+          target.count -= destroyed;
+          const dmgUsed = destroyed * target.armor;
+          pDmg -= dmgUsed;
+          roundEvents.push(`🛡️ DEFENDER [Base PDS] ${pDef.name} (Lvl ${pLvl}) fired at [${target.fleetName}] ${target.name} -> dealt ${dmgUsed.toLocaleString()} dmg, destroyed ${destroyed.toLocaleString()} ships (Round ${round})`);
+        }
+      }
+    });
+
+    // 2. Ships Firing Phase in Initiative Order (lowest init number shoots first)
+    const allShooters = [...atkGroups.filter(g => g.count > 0), ...defGroups.filter(g => g.count > 0)];
+    allShooters.sort((a, b) => a.init - b.init);
+
+    for (const shooter of allShooters) {
+      if (shooter.count <= 0 || shooter.empDisabled) continue;
+      const enemies = shooter.side === 'attacker' ? defGroups.filter(g => g.count > 0) : atkGroups.filter(g => g.count > 0);
+      if (enemies.length === 0) break;
+
+      // Select target matching priority classes
+      let candidates = enemies.filter(e => e.shipClass === shooter.targetClass1);
+      let eff = 1.0;
+      if (candidates.length === 0) {
+        candidates = enemies.filter(e => e.shipClass === shooter.targetClass2);
+        eff = 0.80;
+      }
+      if (candidates.length === 0) {
+        candidates = enemies.filter(e => e.shipClass === shooter.targetClass3);
+        eff = 0.70;
+      }
+      if (candidates.length === 0) {
+        candidates = enemies;
+        eff = 1.0;
+      }
+
+      let dmg = shooter.count * shooter.damage * eff;
+      if (shooter.side === 'attacker' && currentShieldHp > 0 && shieldAbsorbPct > 0) {
+        const absorbed = Math.min(dmg * shieldAbsorbPct, currentShieldHp);
+        currentShieldHp -= absorbed;
+        dmg -= absorbed;
+      }
+
+      // Apply damage
+      for (const target of candidates) {
+        if (dmg <= 0 || target.count <= 0) break;
+        let destroyed = Math.min(target.count, Math.floor(dmg / target.armor));
+        if (destroyed === 0 && dmg > target.armor * 0.75) destroyed = 1;
+        if (destroyed > 0) {
+          target.count -= destroyed;
+          const dmgUsed = destroyed * target.armor;
+          dmg -= dmgUsed;
+          const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
+          const effNote = eff < 1.0 ? ` (${Math.round(eff * 100)}% eff)` : '';
+          roundEvents.push(`${sideTag} [${shooter.fleetName}] ${shooter.count.toLocaleString()}x ${shooter.name} (Init ${shooter.init}) fired at [${target.fleetName}] ${target.name} -> dealt ${dmgUsed.toLocaleString()} dmg${effNote}, destroyed ${destroyed.toLocaleString()} ships (Round ${round})`);
+        }
+      }
+
+      // EMP weapons
+      if (shooter.empDamage > 0) {
+        for (const target of candidates) {
+          if (target.count <= 0 || target.empDisabled) continue;
+          const empChance = Math.max(0, Math.min(1.0, 0.5 - (target.empResistance / 100)));
+          if (empChance > 0.3) {
+            target.empDisabled = true;
+            const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
+            roundEvents.push(`⚡ ${sideTag} [${shooter.fleetName}] ${shooter.name} EMP disrupted ${target.name} [${target.fleetName}] (Round ${round})`);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  renderSimulationResults(atkGroups, defGroups, roundEvents);
+}
+
+function renderSimulationResults(atkGroups, defGroups, events) {
+  const resDiv = document.getElementById('sim-results-container');
+  if (!resDiv) return;
+
+  let atkArrived = 0, atkSurv = 0;
+  atkGroups.forEach(g => { atkArrived += g.initialCount; atkSurv += g.count; });
+  const atkLost = atkArrived - atkSurv;
+
+  let defArrived = 0, defSurv = 0;
+  defGroups.forEach(g => { defArrived += g.initialCount; defSurv += g.count; });
+  const defLost = defArrived - defSurv;
+
+  const atkWin = atkSurv > 0 && defSurv === 0;
+  const defWin = defSurv > 0 && atkSurv === 0;
+  const bannerColor = atkWin ? '#ef4444' : (defWin ? '#38bdf8' : '#f59e0b');
+  const bannerText = atkWin ? '⚔️ DECISIVE ATTACKER VICTORY' : (defWin ? '🛡️ DECISIVE DEFENDER VICTORY' : '⚖️ CONTESTED BATTLE STALEMATE');
+
+  // Salvage (30%)
+  let salvMetal = 0, salvCrystal = 0, salvEonium = 0;
+  [...atkGroups, ...defGroups].forEach(g => {
+    const lost = g.initialCount - g.count;
+    if (lost > 0) {
+      salvMetal += Math.floor((g.cost.metal || 0) * lost * 0.30);
+      salvCrystal += Math.floor((g.cost.crystal || 0) * lost * 0.30);
+      salvEonium += Math.floor((g.cost.eonium || 0) * lost * 0.30);
+    }
+  });
+  const salvTotalRes = salvMetal + salvCrystal + salvEonium;
+  const salvScoreEquiv = Math.round(salvTotalRes / 9);
+
+  // Per-fleet losses & comprehensive score dynamics calculation
+  const fleetLosses = {};
+  [...defGroups, ...atkGroups].forEach(g => {
+    if (!fleetLosses[g.fleetId]) {
+      fleetLosses[g.fleetId] = {
+        name: g.fleetName,
+        side: g.side,
+        arrived: 0,
+        lost: 0,
+        surv: 0,
+        valStart: 0,
+        valLost: 0,
+        valSurv: 0,
+        scoreStart: 0,
+        scoreLost: 0,
+        scoreSurv: 0
+      };
+    }
+    const unitCost = (g.cost.metal || 0) + (g.cost.crystal || 0) + (g.cost.eonium || 0);
+    const lostUnits = g.initialCount - g.count;
+    fleetLosses[g.fleetId].arrived += g.initialCount;
+    fleetLosses[g.fleetId].surv += g.count;
+    fleetLosses[g.fleetId].lost += lostUnits;
+    fleetLosses[g.fleetId].valStart += g.initialCount * unitCost;
+    fleetLosses[g.fleetId].valLost += lostUnits * unitCost;
+    fleetLosses[g.fleetId].valSurv += g.count * unitCost;
+  });
+
+  Object.values(fleetLosses).forEach(fl => {
+    fl.scoreStart = Math.round(fl.valStart / 9);
+    fl.scoreLost = Math.round(fl.valLost / 9);
+    fl.scoreSurv = Math.round(fl.valSurv / 9);
+  });
+
+  // Defender vs Attacker Total Score Impacts
+  let defTotalValLost = 0, defTotalScoreLost = 0, defTotalValStart = 0, defTotalScoreStart = 0;
+  let atkTotalValLost = 0, atkTotalScoreLost = 0, atkTotalValStart = 0, atkTotalScoreStart = 0;
+
+  Object.values(fleetLosses).forEach(fl => {
+    if (fl.side === 'defender') {
+      defTotalValStart += fl.valStart;
+      defTotalScoreStart += fl.scoreStart;
+      defTotalValLost += fl.valLost;
+      defTotalScoreLost += fl.scoreLost;
+    } else {
+      atkTotalValStart += fl.valStart;
+      atkTotalScoreStart += fl.scoreStart;
+      atkTotalValLost += fl.valLost;
+      atkTotalScoreLost += fl.scoreLost;
+    }
+  });
+
+  let html = `
+  <div class="panel" style="border-color: ${bannerColor}; margin-top: 1.5rem; background: rgba(15, 23, 42, 0.95);">
+    <div style="font-family: var(--font-display); font-size: 1.3rem; font-weight: 900; color: ${bannerColor}; margin-bottom: 0.5rem; text-transform: uppercase;">
+      ${bannerText}
+    </div>
+    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; font-family: var(--font-mono); font-size: 0.88rem;">
+      <span style="color: #38bdf8;">🛡️ Defender Losses: <strong style="color: #fff;">${defLost.toLocaleString()} / ${defArrived.toLocaleString()}</strong> (${defArrived > 0 ? Math.round((defLost / defArrived) * 100) : 0}%)</span>
+      <span style="color: #f87171;">🚀 Attacker Losses: <strong style="color: #fff;">${atkLost.toLocaleString()} / ${atkArrived.toLocaleString()}</strong> (${atkArrived > 0 ? Math.round((atkLost / atkArrived) * 100) : 0}%)</span>
+    </div>
+
+    <!-- PROJECTED SCORE DYNAMICS & SHIP VALUE IMPACT SECTION -->
+    <div style="margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-family: var(--font-mono); font-weight: 800; font-size: 0.95rem; color: #ffd54f;">
+          📈 Projected Score Dynamics & Ship Value Impact (Official pg: Res/9 Formula)
+        </div>
+        <span class="badge" style="background: rgba(255,213,79,0.15); color: #ffd54f; border: 1px solid rgba(255,213,79,0.4); font-size: 0.72rem;">
+          Per-Fleet Impact Breakdown
+        </span>
+      </div>
+
+      <!-- High-Level Score Impact Strip -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; font-family: var(--font-mono);">
+        <div style="background: rgba(56, 189, 248, 0.07); border-left: 3px solid #38bdf8; border-radius: 4px; padding: 0.6rem 0.8rem;">
+          <div style="font-size: 0.75rem; color: #38bdf8; text-transform: uppercase; font-weight: 700;">🛡️ Defender Total Impact</div>
+          <div style="font-size: 1.15rem; font-weight: 900; color: #f87171; margin: 0.15rem 0;">-${defTotalScoreLost.toLocaleString()} pts</div>
+          <div style="font-size: 0.72rem; color: var(--text-dim);">${defTotalValLost.toLocaleString()} net res value lost</div>
+        </div>
+        <div style="background: rgba(239, 68, 68, 0.07); border-left: 3px solid #ef4444; border-radius: 4px; padding: 0.6rem 0.8rem;">
+          <div style="font-size: 0.75rem; color: #f87171; text-transform: uppercase; font-weight: 700;">🚀 Attacker Total Impact</div>
+          <div style="font-size: 1.15rem; font-weight: 900; color: #f87171; margin: 0.15rem 0;">-${atkTotalScoreLost.toLocaleString()} pts</div>
+          <div style="font-size: 0.72rem; color: var(--text-dim);">${atkTotalValLost.toLocaleString()} net res value lost</div>
+        </div>
+        <div style="background: rgba(16, 185, 129, 0.07); border-left: 3px solid #10b981; border-radius: 4px; padding: 0.6rem 0.8rem;">
+          <div style="font-size: 0.75rem; color: #10b981; text-transform: uppercase; font-weight: 700;">⚖️ Net Score Differential</div>
+          <div style="font-size: 1.15rem; font-weight: 900; color: ${atkTotalScoreLost > defTotalScoreLost ? '#38bdf8' : (defTotalScoreLost > atkTotalScoreLost ? '#f87171' : '#ffd54f')}; margin: 0.15rem 0;">
+            ${Math.abs(defTotalScoreLost - atkTotalScoreLost).toLocaleString()} pts Δ
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-dim);">${atkTotalScoreLost > defTotalScoreLost ? 'Defender Advantage' : (defTotalScoreLost > atkTotalScoreLost ? 'Attacker Advantage' : 'Parity')}</div>
+        </div>
+      </div>
+
+      <!-- Per Individual Fleet Breakdown Table -->
+      <div style="overflow-x: auto;">
+        <table class="bcalc-table" style="font-size: 0.78rem;">
+          <thead>
+            <tr>
+              <th style="text-align: left;">Fleet Roster</th>
+              <th style="text-align: center;">Side</th>
+              <th style="text-align: right;">Initial Value (M+C+E)</th>
+              <th style="text-align: right;">Initial Score</th>
+              <th style="text-align: right;">Ships Lost</th>
+              <th style="text-align: right;">Value Lost</th>
+              <th style="text-align: right;">Score Δ</th>
+              <th style="text-align: right;">Surviving Value</th>
+              <th style="text-align: right;">Loss %</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  Object.values(fleetLosses).forEach(fl => {
+    const pct = fl.arrived > 0 ? Math.round((fl.lost / fl.arrived) * 100) : 0;
+    const isDef = fl.side === 'defender';
+    const sideColor = isDef ? '#38bdf8' : '#f87171';
+    const sideBadge = isDef ? '🛡️ DEF' : '🚀 ATK';
+    html += `<tr>
+      <td style="font-weight: 600; color: #fff;">${escapeHtml(fl.name)}</td>
+      <td style="text-align: center; color: ${sideColor}; font-weight: 700;">${sideBadge}</td>
+      <td style="text-align: right; color: #cbd5e1;">${fl.valStart.toLocaleString()}</td>
+      <td style="text-align: right; color: #a5b4fc; font-weight: 600;">${fl.scoreStart.toLocaleString()} pts</td>
+      <td style="text-align: right; color: ${fl.lost > 0 ? '#f87171' : 'var(--text-dim)'}; font-weight: 600;">-${fl.lost.toLocaleString()}</td>
+      <td style="text-align: right; color: ${fl.valLost > 0 ? '#f87171' : 'var(--text-dim)'};">-${fl.valLost.toLocaleString()}</td>
+      <td style="text-align: right; color: ${fl.scoreLost > 0 ? '#f87171' : 'var(--text-dim)'}; font-weight: 700;">-${fl.scoreLost.toLocaleString()} pts</td>
+      <td style="text-align: right; color: #86efac;">${fl.valSurv.toLocaleString()}</td>
+      <td style="text-align: right; font-weight: 700;">${pct}%</td>
+    </tr>`;
+  });
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Debris Field Salvage Projection -->
+    <div style="padding: 0.75rem 1rem; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; font-family: var(--font-mono); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem;">
+      <span style="font-weight: 700; color: #38bdf8;">♻️ Projected Debris Salvage (30%):</span>
+      <div style="display: flex; gap: 1.25rem; flex-wrap: wrap;">
+        <span>🔩 Metal: <strong style="color: #cbd5e1;">${salvMetal.toLocaleString()}</strong></span>
+        <span>💎 Crystal: <strong style="color: #38bdf8;">${salvCrystal.toLocaleString()}</strong></span>
+        <span>⚡ Eonium: <strong style="color: var(--yellow);">${salvEonium.toLocaleString()}</strong></span>
+        <span style="color: #a5b4fc;">(≈ <strong>+${salvScoreEquiv.toLocaleString()} pts</strong> score value)</span>
+      </div>
+    </div>
+
+    <!-- DETAILED COMBAT FIRING LOG (SHOWS WHICH DEFENDER AND ATTACKER SHIPS ARE FIRING) -->
+    <div style="margin-top: 1.25rem;">
+      <details open style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 0.75rem 1rem;">
+        <summary style="font-weight: 700; color: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 0.9rem;">
+          <span>⚔️ Detailed Combat Firing Log (${events.length} action events)</span>
+          <span style="font-size: 0.75rem; color: var(--text-dim); font-weight: 400;">Initiative Order & Damage Resolution</span>
+        </summary>
+        <div style="margin-top: 0.75rem; max-height: 280px; overflow-y: auto; padding-right: 0.5rem; font-family: var(--font-mono); font-size: 0.78rem;">
+          <ul style="margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem;">
+  `;
+
+  if (events && events.length > 0) {
+    events.forEach(evt => {
+      let color = '#cbd5e1';
+      if (evt.startsWith('🛡️ DEFENDER')) {
+        color = '#38bdf8';
+      } else if (evt.startsWith('🚀 ATTACKER')) {
+        color = '#f87171';
+      } else if (evt.startsWith('⚡')) {
+        color = '#c084fc';
+      }
+      html += `<li style="color: ${color}; line-height: 1.4;">${escapeHtml(evt)}</li>`;
+    });
+  } else {
+    html += `<li style="color: var(--text-dim);">No significant damage or casualties were exchanged.</li>`;
+  }
+
+  html += `
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+  `;
+
+  resDiv.innerHTML = html;
+  resDiv.style.display = 'block';
+  resDiv.scrollIntoView({ behavior: 'smooth' });
+}
+
+// =========================================================================
+// HYBRID MCP CLIENT BRIDGE & ENHANCED OPERATIONS ENGINE
+// =========================================================================
+
+function updateMcpEnhancedIndicators(status, details = {}) {
+  const brandInd = document.getElementById('mcp-enhanced-indicator');
+  const brandText = document.getElementById('mcp-enhanced-text');
+  const panelInd = document.getElementById('mcp-panel-enhanced-badge');
+  const panelText = document.getElementById('mcp-panel-enhanced-text');
+
+  const setBadge = (el, txtEl, cls, text, title) => {
+    if (el) {
+      el.className = `mcp-enhanced-pill ${cls}`;
+      if (title) el.title = title;
+    }
+    if (txtEl) {
+      txtEl.textContent = text;
+    }
+  };
+
+  if (status === 'probing') {
+    const title = 'MCP Enhanced Mode: Detecting local suite or PAT connection...';
+    setBadge(brandInd, brandText, 'probing', '🟡 MCP Enhanced Mode: Detecting...', title);
+    setBadge(panelInd, panelText, 'probing', '🟡 MCP Enhanced Mode: Detecting...', title);
+  } else if (status === 'enabled') {
+    const loc = details.coords ? ` [${details.coords}]` : '';
+    const planetPart = details.planet ? ` • ${details.planet}${loc}` : '';
+    const title = `MCP Enhanced Mode: Detected & Enabled! Connected to ${details.url || 'MCP'}${planetPart}. Live tick, garrison, empire fleets, and scan browser are active.`;
+    setBadge(brandInd, brandText, 'enabled', '⚡ MCP Enhanced Mode: Detected & Enabled', title);
+    setBadge(panelInd, panelText, 'enabled', '⚡ MCP Enhanced Mode: Detected & Enabled', title);
+  } else {
+    const title = 'MCP Enhanced Mode: Not Detected / Disabled. Running in 100% Client-Side Standalone Mode. Click to connect local MCP Suite (port 7890) or enter PAT.';
+    setBadge(brandInd, brandText, 'disabled', '⚪ MCP Enhanced Mode: Not Detected (Standalone)', title);
+    setBadge(panelInd, panelText, 'disabled', '⚪ MCP Enhanced Mode: Not Detected (Standalone)', title);
+  }
+}
+
+async function probeMcpConnection(customUrl = null) {
+  const testUrl = (customUrl || mcpConfig.url || 'http://127.0.0.1:7890').replace(/\/+$/, '');
+  const pill = document.getElementById('mcp-status-pill');
+  const text = document.getElementById('mcp-status-text');
+  const tickVal = document.getElementById('mcp-live-tick-val');
+  const modalStatusText = document.getElementById('mcp-modal-status-text');
+  const modalStatusPing = document.getElementById('mcp-modal-status-ping');
+
+  if (pill) {
+    pill.className = 'mcp-status-badge probing';
+    if (text) text.textContent = 'Probing MCP Suite...';
+  }
+  updateMcpEnhancedIndicators('probing');
+
+  let controller = null;
+  let timeoutId = null;
+  if (typeof AbortController !== 'undefined') {
+    controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), 2500);
+  }
+
+  try {
+    const fetchOpts = {
+      headers: mcpConfig.pat ? { 'Authorization': `Bearer ${mcpConfig.pat}` } : {}
+    };
+    if (controller) {
+      fetchOpts.signal = controller.signal;
+    }
+    const res = await fetch(`${testUrl}/api/state`, fetchOpts);
+    if (timeoutId) clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data || !data.success) throw new Error('Invalid state response from MCP');
+
+    mcpConfig.connected = true;
+    mcpConfig.url = testUrl;
+    localStorage.setItem('peg_mcp_url', testUrl);
+    mcpConfig.mode = 'LOCAL_MCP';
+
+    const tickInfo = data.tick || {};
+    mcpConfig.liveTick = tickInfo.tick !== undefined ? tickInfo.tick : (data.currentTick || 0);
+    mcpConfig.nextTickIn = tickInfo.nextTickIn || data.nextTickIn || '';
+
+    const pInfo = data.planet || {};
+    mcpConfig.planetName = pInfo.name || data.planetName || 'Home';
+    mcpConfig.coords = pInfo.coords || data.coords || '';
+
+    // Update UI Badges & Indicators
+    if (pill) {
+      pill.className = 'mcp-status-badge connected';
+      pill.title = `Connected to Pegasus MCP Suite (${testUrl}) • Planet: ${mcpConfig.planetName} [${mcpConfig.coords}]`;
+      if (text) text.textContent = `🟢 MCP Connected • ${mcpConfig.planetName} [${mcpConfig.coords}]`;
+    }
+    if (tickVal) {
+      tickVal.textContent = `Tick ${mcpConfig.liveTick}${mcpConfig.nextTickIn ? ' (' + mcpConfig.nextTickIn + ')' : ''}`;
+    }
+    if (modalStatusText) {
+      modalStatusText.innerHTML = `Status: <strong style="color: #86efac;">🟢 Connected to Pegasus MCP Suite</strong> (${testUrl})`;
+    }
+    if (modalStatusPing) {
+      modalStatusPing.textContent = `Live Tick: ${mcpConfig.liveTick} • ${mcpConfig.planetName} [${mcpConfig.coords}]`;
+    }
+
+    // Update MCP Enhanced indicators inline next to Interstellar Battle Simulator text
+    updateMcpEnhancedIndicators('enabled', {
+      url: testUrl,
+      planet: mcpConfig.planetName,
+      coords: mcpConfig.coords,
+      tick: mcpConfig.liveTick
+    });
+
+    // Pre-populate coords if bottom input is currently empty
+    const coordsInp = document.getElementById('bottom-coords-input');
+    if (coordsInp && !coordsInp.value && mcpConfig.coords) {
+      coordsInp.value = mcpConfig.coords;
+    }
+    const planCoords = document.getElementById('sim-plan-coords');
+    if (planCoords && !planCoords.value && mcpConfig.coords) {
+      planCoords.value = mcpConfig.coords;
+    }
+
+    // Auto-load combat data, empire fleets & all scans (ZERO clicks required to activate)
+    await loadCombatDataFromMcp();
+
+    // Setup recurring ticker and intel check (every 30 seconds)
+    if (!mcpPollTimer) {
+      mcpPollTimer = setInterval(() => {
+        if (mcpConfig.connected) refreshMcpTicker();
+      }, 30000);
+    }
+
+    return true;
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    mcpConfig.connected = false;
+    mcpConfig.mode = 'STANDALONE';
+
+    if (pill) {
+      pill.className = 'mcp-status-badge standalone';
+      pill.title = 'Standalone Mode • Click to connect local MCP Suite or enter PAT';
+      if (text) text.textContent = '⚪ Standalone Mode • [🔌 Connect MCP]';
+    }
+    if (tickVal) {
+      tickVal.textContent = 'Offline / Standalone';
+    }
+    if (modalStatusText) {
+      modalStatusText.innerHTML = `Status: <span style="color: #cbd5e1;">⚪ Standalone Client-Side Mode</span>`;
+    }
+    if (modalStatusPing) {
+      modalStatusPing.textContent = 'Pure offline JS';
+    }
+
+    // Update MCP Enhanced indicators inline next to Interstellar Battle Simulator text
+    updateMcpEnhancedIndicators('disabled');
+
+    return false;
+  }
+}
+
+async function loadCombatDataFromMcp() {
+  if (!mcpConfig.connected) return;
+  try {
+    // 1. Fetch user active attacker fleets & home base defense
+    const atkRes = await fetch(`${mcpConfig.url}/api/combat/attacker_fleets`, {
+      headers: mcpConfig.pat ? { 'Authorization': `Bearer ${mcpConfig.pat}` } : {}
+    });
+    const atkJson = await atkRes.json();
+    if (atkJson && atkJson.success) {
+      simEmpireData = atkJson;
+      homeDefenseData = atkJson.homeDefense || null;
+      populateQuickEmpireAddDropdowns();
+
+      // If Defender roster is currently default empty (0 total ships) AND not opening a shared link (#c=...), auto-load Home Garrison & PDS!
+      const hasSharedHash = window.location.hash && window.location.hash.includes('c=');
+      const defTotal = defenderFleets.reduce((sum, f) => sum + (f.ships ? Object.values(f.ships).reduce((a, b) => a + (parseInt(b, 10) || 0), 0) : 0), 0);
+      if (!hasSharedHash && defTotal === 0 && (homeDefenseData?.hangarShips || homeDefenseData?.garrisonShips || simEmpireData?.hangarShips)) {
+        loadMyEmpireIntoDefender();
+      }
+    }
+
+    // 2. Fetch all personal and alliance scans
+    await refreshScanTargets(false);
+    populateScanTargetsDropdown();
+    startScanBackgroundSync();
+  } catch (err) {
+    console.warn("Combat data auto-load error:", err);
+  }
+}
+
+async function refreshMcpTicker() {
+  if (!mcpConfig.connected) return;
+  try {
+    const res = await fetch(`${mcpConfig.url}/api/state`, {
+      headers: mcpConfig.pat ? { 'Authorization': `Bearer ${mcpConfig.pat}` } : {}
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      const tickInfo = data.tick || {};
+      mcpConfig.liveTick = tickInfo.tick !== undefined ? tickInfo.tick : (data.currentTick || 0);
+      mcpConfig.nextTickIn = tickInfo.nextTickIn || data.nextTickIn || '';
+
+      const tickVal = document.getElementById('mcp-live-tick-val');
+      if (tickVal) {
+        tickVal.textContent = `Tick ${mcpConfig.liveTick}${mcpConfig.nextTickIn ? ' (' + mcpConfig.nextTickIn + ')' : ''}`;
+      }
+    }
+
+    // If Defense Planner is currently open, re-check for new alliance/hostile scans!
+    const plannerModal = document.getElementById('sim-defense-planner-modal');
+    if (plannerModal && plannerModal.style.display === 'flex') {
+      loadDefenseScenarioPreview();
+    }
+
+    // If Scan Picker Modal is currently open, refresh scans in background
+    const pickerModal = document.getElementById('sim-scan-picker-modal');
+    if (pickerModal && pickerModal.style.display === 'flex') {
+      refreshScanTargets(true);
+    }
+  } catch(e) {}
+}
+
+function startScanBackgroundSync() {
+  if (scanPollTimer) return;
+  scanPollTimer = setInterval(() => {
+    if (!mcpConfig.connected) return;
+    refreshScanTargets(true);
+  }, 30000); // 30s background scan polling
+}
+
+async function refreshScanTargets(isBackground = false) {
+  if (!mcpConfig.connected) return;
+  try {
+    const res = await fetch(`${mcpConfig.url}/api/combat/scan_targets`, {
+      headers: mcpConfig.pat ? { 'Authorization': `Bearer ${mcpConfig.pat}` } : {}
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      const prevCount = simScanTargets.length;
+      simScanTargets = data.targets || [];
+
+      // Update count badges
+      const allCount = data.totalScans !== undefined ? data.totalScans : simScanTargets.length;
+      const userCount = data.userScansCount !== undefined ? data.userScansCount : simScanTargets.filter(t => t.source === 'user').length;
+      const allyCount = data.allyScansCount !== undefined ? data.allyScansCount : simScanTargets.filter(t => t.source === 'ally').length;
+
+      const cAll = document.getElementById('sim-picker-count-all');
+      const cUser = document.getElementById('sim-picker-count-user');
+      const cAlly = document.getElementById('sim-picker-count-ally');
+      if (cAll) cAll.textContent = allCount;
+      if (cUser) cUser.textContent = userCount;
+      if (cAlly) cAlly.textContent = allyCount;
+
+      const syncStatusEl = document.getElementById('sim-picker-sync-status');
+      if (syncStatusEl) {
+        syncStatusEl.textContent = `🟢 Synced: ${new Date().toLocaleTimeString()} (${allCount} scans: ${userCount} personal, ${allyCount} ally)`;
+      }
+
+      populateScanTargetsDropdown();
+
+      const pickerModal = document.getElementById('sim-scan-picker-modal');
+      if (pickerModal && pickerModal.style.display === 'flex') {
+        renderScanPickerList();
+      }
+
+      if (isBackground && prevCount > 0 && simScanTargets.length > prevCount) {
+        const diff = simScanTargets.length - prevCount;
+        showToast(`📡 ${diff} fresh scan(s) synced from alliance intel!`);
+      }
+      lastScanCount = simScanTargets.length;
+    }
+  } catch (e) {
+    console.warn("Scan targets refresh error:", e);
+    const syncStatusEl = document.getElementById('sim-picker-sync-status');
+    if (syncStatusEl) {
+      syncStatusEl.textContent = `⚠️ Sync error: ${e.message}`;
+      syncStatusEl.style.color = 'var(--yellow)';
+    }
+  }
+}
+
+function populateQuickEmpireAddDropdowns() {
+  ['def', 'atk'].forEach(side => {
+    const sel = document.getElementById(`sim-bcalc-${side}-add-empire-select`);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">🏰 Add Own Fleet...</option>';
+    if (!simEmpireData) return;
+
+    // Hangar / Garrison (Defender Only)
+    if (side === 'def') {
+      const hangarShips = (homeDefenseData && (homeDefenseData.hangarShips || homeDefenseData.garrisonShips))
+        ? (homeDefenseData.hangarShips || homeDefenseData.garrisonShips)
+        : (simEmpireData.hangarShips || {});
+      const hCount = Object.values(hangarShips || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const optHangar = document.createElement('option');
+      optHangar.value = '__hangar__';
+      optHangar.textContent = `🏠 Base Garrison (${hCount.toLocaleString()} ships)`;
+      sel.appendChild(optHangar);
+    }
+
+    // Named Fleets
+    (simEmpireData.namedFleets || []).forEach((nf, idx) => {
+      const nfCount = Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const opt = document.createElement('option');
+      opt.value = `fleet_${idx}`;
+      opt.textContent = `🚀 "${nf.name || ('Fleet ' + (idx + 1))}" (${nfCount.toLocaleString()} ships) [${nf.status || 'DOCKED'}]`;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function populateScanTargetsDropdown() {
+  ['def', 'atk'].forEach(side => {
+    const sel = document.getElementById(`sim-bcalc-${side}-target-select`);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">📡 Pick Scanned Target...</option>';
+    if (!simScanTargets || simScanTargets.length === 0) return;
+
+    simScanTargets.forEach((t, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      const typeLabel = formatScanType(t.scanType);
+      const coords = t.coords || `Target ${idx + 1}`;
+      const tick = t.tick ? `T${t.tick}` : '';
+      const srcBadge = t.source === 'ally' ? '🤝 Ally' : '👤 Mine';
+      const gShips = t.garrisonShips || {};
+      const gCount = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      opt.textContent = `[${srcBadge}] ${coords} • ${typeLabel} (${tick}) - ${gCount.toLocaleString()} ships`;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function onQuickAddEmpireSelect(side, selectEl) {
+  if (!selectEl) return;
+  const val = selectEl.value;
+  if (!val) return;
+
+  if (side === 'atk' && val === '__hangar__') {
+    showToast("Planetary Base Garrison cannot be assigned to attackers (Defender only).");
+    selectEl.value = '';
+    return;
+  }
+
+  if (!mcpConfig.connected || !simEmpireData) {
+    openMcpConnectModal('Connect your local MCP suite to add your empire fleets.');
+    selectEl.value = '';
+    return;
+  }
+
+  let fleetObj = null;
+  if (val === '__hangar__') {
+    const rawHangar = (homeDefenseData && (homeDefenseData.hangarShips || homeDefenseData.garrisonShips))
+      ? (homeDefenseData.hangarShips || homeDefenseData.garrisonShips)
+      : (simEmpireData.hangarShips || {});
+    const myCoords = (homeDefenseData && homeDefenseData.coords) ? homeDefenseData.coords : (simEmpireData.coords || '');
+    fleetObj = {
+      id: side + '_' + (simFleetSeq++),
+      name: `🏠 Base Garrison [${myCoords || 'Home'}]`,
+      enabled: true,
+      ships: Object.assign({}, rawHangar || {})
+    };
+  } else if (val.startsWith('fleet_')) {
+    const idx = parseInt(val.replace('fleet_', ''), 10);
+    const nf = (simEmpireData.namedFleets || [])[idx];
+    if (nf) {
+      fleetObj = {
+        id: side + '_' + (simFleetSeq++),
+        name: `🚀 Fleet "${nf.name || 'Unnamed'}" [${nf.status || 'ACTIVE'}]`,
+        enabled: true,
+        ships: Object.assign({}, nf.ships || {})
+      };
+    }
+  }
+
+  if (fleetObj) {
+    const targetFleets = (side === 'atk') ? attackerFleets : defenderFleets;
+    const isEmpty = targetFleets.length === 1 && Object.keys(targetFleets[0].ships).length === 0;
+    if (isEmpty) {
+      if (side === 'atk') attackerFleets = [fleetObj];
+      else defenderFleets = [fleetObj];
+    } else {
+      targetFleets.push(fleetObj);
+    }
+    renderMatrix();
+    updateTotals();
+    showToast(`Added ${fleetObj.name} to ${side === 'atk' ? 'Attacker Coalition' : 'Defender Forces'}!`);
+  }
+  selectEl.value = '';
+}
+
+function onTargetSelectChange(side, selectEl) {
+  if (!selectEl) return;
+  const val = selectEl.value;
+  if (!val) return;
+
+  if (!mcpConfig.connected || !simScanTargets) {
+    openMcpConnectModal('Connect your local MCP suite to pick from scanned targets.');
+    selectEl.value = '';
+    return;
+  }
+
+  const tIdx = parseInt(val, 10);
+  const target = simScanTargets[tIdx];
+  if (!target) {
+    selectEl.value = '';
+    return;
+  }
+
+  // Open scan picker modal pre-filtered for this scan target
+  openScanPickerModal(side);
+  const searchInput = document.getElementById('sim-picker-search');
+  if (searchInput && target.coords) {
+    searchInput.value = target.coords;
+    renderScanPickerList(target.coords);
+  }
+  selectEl.value = '';
+}
+
+function loadMyEmpireIntoDefender() {
+  if (!simEmpireData && !homeDefenseData) {
+    if (mcpConfig.connected) {
+      triggerLoadMyFleet();
+    } else {
+      openMcpConnectModal('Connect your local MCP suite to load your home base defense.');
+    }
+    return;
+  }
+  const rawHangar = (homeDefenseData && (homeDefenseData.hangarShips || homeDefenseData.garrisonShips))
+    ? (homeDefenseData.hangarShips || homeDefenseData.garrisonShips)
+    : (simEmpireData ? simEmpireData.hangarShips : {});
+  const myCoords = (homeDefenseData && homeDefenseData.coords) ? homeDefenseData.coords : (simEmpireData?.coords || mcpConfig.coords || '');
+
+  if (myCoords) {
+    const bottomCoords = document.getElementById('bottom-coords-input');
+    if (bottomCoords && !bottomCoords.value) bottomCoords.value = myCoords;
+  }
+
+  const garrisonShips = Object.assign({}, rawHangar || {});
+  const garrisonFleet = {
+    id: 'def_garrison_' + (simFleetSeq++),
+    name: `🏠 Home Colony Garrison [${myCoords || 'Home'}]`,
+    enabled: true,
+    ships: garrisonShips
+  };
+
+  if (defenderFleets.length === 1 && Object.keys(defenderFleets[0].ships).length === 0) {
+    defenderFleets = [garrisonFleet];
+  } else {
+    defenderFleets.unshift(garrisonFleet);
+  }
+
+  if (homeDefenseData && homeDefenseData.pds) {
+    const pds = homeDefenseData.pds;
+    defenderPds['main-shield-generator'] = pds['Shield Generator'] || pds['main-shield-generator'] || 0;
+    defenderPds['main-laser-battery'] = pds['Laser Battery'] || pds['main-laser-battery'] || 0;
+    defenderPds['main-missile-silo'] = pds['Missile Silo'] || pds['main-missile-silo'] || 0;
+    defenderPds['main-ion-cannon'] = pds['Ion Cannon'] || pds['main-ion-cannon'] || 0;
+  }
+
+  renderMatrix();
+  updateTotals();
+  const totalShips = Object.values(garrisonShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+  showToast(`Loaded Home Base Garrison (${totalShips.toLocaleString()} ships) & PDS into Defender!`);
+}
+
+function loadMyEmpireIntoAttacker() {
+  if (!simEmpireData) {
+    if (mcpConfig.connected) {
+      loadCombatDataFromMcp().then(() => {
+        if (simEmpireData?.namedFleets?.length > 0) loadMyEmpireIntoAttacker();
+      });
+    } else {
+      openMcpConnectModal('Connect your local MCP suite to load your empire fleets.');
+    }
+    return;
+  }
+
+  const namedFleets = simEmpireData.namedFleets || [];
+  if (namedFleets.length === 0) {
+    showToast('No active named fleets found in your empire.');
+    return;
+  }
+
+  attackerFleets = [];
+  namedFleets.forEach((nf, idx) => {
+    attackerFleets.push({
+      id: 'atk_' + (simFleetSeq++),
+      name: `🚀 Fleet "${nf.name || ('Fleet ' + (idx + 1))}" [${nf.status || 'ACTIVE'}]`,
+      enabled: true,
+      ships: Object.assign({}, nf.ships || {})
+    });
+  });
+
+  renderMatrix();
+  updateTotals();
+  const totalShips = attackerFleets.reduce((sum, f) => sum + Object.values(f.ships).reduce((a, b) => a + (parseInt(b, 10) || 0), 0), 0);
+  showToast(`Loaded ${namedFleets.length} empire fleet(s) (${totalShips.toLocaleString()} ships) into Attacker Coalition!`);
+}
+
+function consolidateFleets(side) {
+  const list = (side === 'atk') ? attackerFleets : defenderFleets;
+  if (!list || list.length <= 1) {
+    showToast(`Only ${list ? list.length : 0} fleet on ${side === 'atk' ? 'Attacker' : 'Defender'} side. Nothing to consolidate.`);
+    return;
+  }
+
+  const mergedShips = {};
+  list.forEach(f => {
+    if (!f.enabled) return;
+    Object.entries(f.ships || {}).forEach(([sid, cnt]) => {
+      mergedShips[sid] = (mergedShips[sid] || 0) + (parseInt(cnt, 10) || 0);
+    });
+  });
+
+  const sideLabel = side === 'atk' ? 'Attacking Coalition' : 'Defending Garrison';
+  const bottomCoords = document.getElementById('bottom-coords-input')?.value || '';
+  const finalName = `⚡ Consolidated ${sideLabel}${bottomCoords ? ' [' + bottomCoords + ']' : ''}`;
+
+  const consolidatedFleet = {
+    id: side + '_consolidated_' + (simFleetSeq++),
+    name: finalName,
+    enabled: true,
+    ships: mergedShips
+  };
+
+  if (side === 'atk') {
+    attackerFleets = [consolidatedFleet];
+  } else {
+    defenderFleets = [consolidatedFleet];
+  }
+
+  renderMatrix();
+  updateTotals();
+  showToast(`Consolidated ${list.length} fleets into 1 unified ${sideLabel} column!`);
+}
+
+function openScanPickerModal(side) {
+  if (!mcpConfig.connected) {
+    openMcpConnectModal('Connect your local MCP suite to browse personal and alliance scans.');
+    return;
+  }
+  currentPickerSide = side || 'def';
+  const modal = document.getElementById('sim-scan-picker-modal');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('sim-picker-title');
+  if (titleEl) {
+    if (currentPickerSide === 'atk') {
+      titleEl.textContent = '🚀 Choose a Scanned Fleet to Add to Attacker Coalition';
+      titleEl.style.color = '#f87171';
+    } else {
+      titleEl.textContent = '🛡️ Choose a Scanned Fleet to Add to Defender Forces';
+      titleEl.style.color = '#38bdf8';
+    }
+  }
+
+  const searchInput = document.getElementById('sim-picker-search');
+  if (searchInput) searchInput.value = '';
+
+  renderScanPickerList('');
+  modal.style.display = 'flex';
+
+  // Immediately refresh scan targets from server & alliance
+  refreshScanTargets(false);
+}
+
+function closeScanPickerModal() {
+  const modal = document.getElementById('sim-scan-picker-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setPickerSourceFilter(src) {
+  simPickerSourceFilter = src;
+  ['all', 'user', 'ally'].forEach(s => {
+    const btn = document.getElementById(`sim-picker-src-${s}-btn`);
+    if (btn) {
+      if (s === src) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  });
+  renderScanPickerList();
+}
+
+function renderScanPickerList(query) {
+  const container = document.getElementById('sim-picker-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const q = (query !== undefined ? query : (document.getElementById('sim-picker-search')?.value || '')).trim().toLowerCase();
+
+  if (!simScanTargets || simScanTargets.length === 0) {
+    container.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 2.5rem; font-family: var(--font-mono); font-size: 0.85rem;">No scans available in scan history. Connect your local MCP suite to load personal and alliance radar intel.</div>';
+    return;
+  }
+
+  let matchCount = 0;
+
+  simScanTargets.forEach((t, tIdx) => {
+    if (simPickerSourceFilter !== 'all' && t.source !== simPickerSourceFilter) {
+      return;
+    }
+
+    const typeLabel = formatScanType(t.scanType);
+    const coords = t.coords || `Target ${tIdx + 1}`;
+    const tick = t.tick ? `Tick ${t.tick}` : '';
+    const owner = (t.owner && t.owner !== 'Unknown') ? t.owner : '';
+    const pName = t.planetName ? t.planetName : '';
+    const gShips = t.garrisonShips || {};
+    const gTotal = Object.values(gShips).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    const namedFleets = t.namedFleets || [];
+
+    const sourceTerms = t.source === 'ally' ? 'ally alliance intel' : 'user mine personal own';
+    const searchHaystack = `${typeLabel} ${coords} ${tick} ${owner} ${pName} ${sourceTerms} ${t.allianceTag || ''} ${Object.keys(gShips).join(' ')} ${namedFleets.map(f => (f.name||'') + ' ' + Object.keys(f.ships||{}).join(' ')).join(' ')}`.toLowerCase();
+    if (q && !searchHaystack.includes(q)) {
+      return;
+    }
+    matchCount++;
+
+    const card = document.createElement('div');
+    card.style.background = 'rgba(255,255,255,0.03)';
+    card.style.border = '1px solid rgba(255,255,255,0.08)';
+    card.style.borderRadius = '6px';
+    card.style.padding = '0.75rem';
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.display = 'flex';
+    hdr.style.justifyContent = 'space-between';
+    hdr.style.alignItems = 'center';
+    hdr.style.marginBottom = '0.5rem';
+    hdr.style.flexWrap = 'wrap';
+    hdr.style.gap = '0.4rem';
+
+    const typeBadgeColor = t.scanType === 'FLEET_COMPOSITION_SCAN' ? '#80d8ff' : (t.scanType === 'MILITARY_SCAN' ? '#ffd600' : '#38bdf8');
+    const sourceBadgeHtml = t.source === 'ally'
+      ? `<span style="display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.4); margin-right: 0.35rem;">🤝 Ally${t.allianceTag ? ' [' + escapeHtml(t.allianceTag) + ']' : ''}</span>`
+      : `<span style="display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; background: rgba(56,189,248,0.1); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); margin-right: 0.35rem;">👤 Mine</span>`;
+
+    hdr.innerHTML = `
+      <div>
+        ${sourceBadgeHtml}
+        <span style="display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; background: rgba(255,255,255,0.08); color: ${typeBadgeColor}; border: 1px solid ${typeBadgeColor}40; margin-right: 0.4rem;">
+          ${escapeHtml(typeLabel)}
+        </span>
+        <strong style="color: #fff; font-size: 0.9rem;">${pName ? escapeHtml(pName) + ' ' : ''}[${escapeHtml(coords)}]</strong>
+        <span style="color: var(--text-dim); font-size: 0.78rem; margin-left: 0.4rem;">(${tick}${owner ? ' • ' + escapeHtml(owner) : ''})</span>
+      </div>
+    `;
+    card.appendChild(hdr);
+
+    if (t.status === 'blocked' || t.isBlocked) {
+      const blockedRow = document.createElement('div');
+      blockedRow.style.padding = '0.4rem 0.6rem';
+      blockedRow.style.background = 'rgba(234, 179, 8, 0.1)';
+      blockedRow.style.border = '1px solid rgba(234, 179, 8, 0.3)';
+      blockedRow.style.borderRadius = '4px';
+      blockedRow.style.color = 'var(--yellow)';
+      blockedRow.style.fontSize = '0.8rem';
+      blockedRow.textContent = '⚠️ This scan was blocked by enemy Wave Distorters. No fleet data retrieved.';
+      card.appendChild(blockedRow);
+      container.appendChild(card);
+      return;
+    }
+
+    // Consolidated Option
+    if (namedFleets.length > 0 && (gTotal > 0 || currentPickerSide === 'def')) {
+      const consRow = document.createElement('div');
+      consRow.style.display = 'flex';
+      consRow.style.justifyContent = 'space-between';
+      consRow.style.alignItems = 'center';
+      consRow.style.padding = '0.4rem 0.6rem';
+      consRow.style.background = 'rgba(255,213,79,0.08)';
+      consRow.style.border = '1px solid rgba(255,213,79,0.3)';
+      consRow.style.borderRadius = '4px';
+      consRow.style.marginBottom = '0.4rem';
+
+      const allTotal = (currentPickerSide === 'def' ? gTotal : 0) + namedFleets.reduce((acc, nf) => acc + Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0), 0);
+      const consLabel = currentPickerSide === 'atk' ? '⚡ Consolidated Fleets (Excl. Garrison)' : '⚡ Consolidated Fleets';
+      const consDesc = currentPickerSide === 'atk' ? `Combines all ${namedFleets.length} named fleet(s) into 1 fleet (Garrison excluded)` : `Combines Garrison and all ${namedFleets.length} named fleet(s) into 1 fleet`;
+      consRow.innerHTML = `
+        <div>
+          <div style="font-weight: 700; font-size: 0.82rem; color: #ffd54f;">${consLabel} (${allTotal.toLocaleString()} total ships)</div>
+          <div style="font-size: 0.74rem; color: var(--text-dim);">${consDesc}</div>
+        </div>
+        <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 700; color: #ffd54f; border-color: rgba(255,213,79,0.5); white-space: nowrap;" onclick="pickScanFleet(${tIdx}, 'consolidated')">
+          ⚡ Add Consolidated
+        </button>
+      `;
+      card.appendChild(consRow);
+    }
+
+    // Garrison Option
+    if (gTotal > 0 || namedFleets.length === 0) {
+      const gRow = document.createElement('div');
+      gRow.style.display = 'flex';
+      gRow.style.justifyContent = 'space-between';
+      gRow.style.alignItems = 'center';
+      gRow.style.padding = '0.4rem 0.6rem';
+      gRow.style.background = 'rgba(0,0,0,0.2)';
+      gRow.style.borderRadius = '4px';
+      gRow.style.marginBottom = '0.4rem';
+
+      const shipNames = Object.entries(gShips).slice(0, 4).map(([sid, cnt]) => `${cnt}x ${sid.replace('main-', '').replace(/-/g, ' ')}`).join(', ');
+      const extraShips = Object.keys(gShips).length > 4 ? ` +${Object.keys(gShips).length - 4} more` : '';
+
+      const btnOrBadge = currentPickerSide === 'atk'
+        ? `<span style="font-size: 0.72rem; color: var(--text-dim); font-style: italic; padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1);">Stationary Garrison (Defender Only)</span>`
+        : `<button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: #38bdf8; border-color: rgba(56,189,248,0.4); white-space: nowrap;" onclick="pickScanFleet(${tIdx}, 'garrison')">+ Add to Defender</button>`;
+
+      gRow.innerHTML = `
+        <div>
+          <div style="font-weight: 600; font-size: 0.82rem; color: #fff;">🏛️ Planet Garrison (${gTotal.toLocaleString()} ships)</div>
+          <div style="font-size: 0.74rem; color: var(--text-dim);">${shipNames || 'No ships'}${extraShips}</div>
+        </div>
+        ${btnOrBadge}
+      `;
+      card.appendChild(gRow);
+    }
+
+    // Named Fleets Option
+    namedFleets.forEach((nf, nfIdx) => {
+      const nfTotal = Object.values(nf.ships || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+      const nfRow = document.createElement('div');
+      nfRow.style.display = 'flex';
+      nfRow.style.justifyContent = 'space-between';
+      nfRow.style.alignItems = 'center';
+      nfRow.style.padding = '0.4rem 0.6rem';
+      nfRow.style.background = 'rgba(0,0,0,0.2)';
+      nfRow.style.borderRadius = '4px';
+      nfRow.style.marginBottom = '0.4rem';
+
+      const shipNames = Object.entries(nf.ships || {}).slice(0, 4).map(([sid, cnt]) => `${cnt}x ${sid.replace('main-', '').replace(/-/g, ' ')}`).join(', ');
+      const extraShips = Object.keys(nf.ships || {}).length > 4 ? ` +${Object.keys(nf.ships || {}).length - 4} more` : '';
+      const sideBtnColor = currentPickerSide === 'atk' ? '#f87171' : '#38bdf8';
+      const sideBtnBorder = currentPickerSide === 'atk' ? 'rgba(239,68,68,0.4)' : 'rgba(56,189,248,0.4)';
+
+      nfRow.innerHTML = `
+        <div>
+          <div style="font-weight: 600; font-size: 0.82rem; color: #fff;">🚀 Fleet "${escapeHtml(nf.name || 'Unnamed')}" (${nfTotal.toLocaleString()} ships) [${escapeHtml(nf.status || 'DOCKED')}]</div>
+          <div style="font-size: 0.74rem; color: var(--text-dim);">${shipNames || 'No ships'}${extraShips}</div>
+        </div>
+        <button type="button" class="btn btn-refresh" style="padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: ${sideBtnColor}; border-color: ${sideBtnBorder}; white-space: nowrap;" onclick="pickScanFleet(${tIdx}, 'named', ${nfIdx})">
+          + Add to ${currentPickerSide === 'atk' ? 'Attacker' : 'Defender'}
+        </button>
+      `;
+      card.appendChild(nfRow);
+    });
+
+    container.appendChild(card);
+  });
+
+  if (matchCount === 0) {
+    container.innerHTML = `<div style="text-align: center; color: var(--text-dim); padding: 2rem; font-family: var(--font-mono); font-size: 0.85rem;">No scans matching "${escapeHtml(q)}".</div>`;
+  }
+}
+
+function pickScanFleet(targetIdx, mode, nfIdx) {
+  const target = simScanTargets[targetIdx];
+  if (!target) return;
+
+  if (currentPickerSide === 'atk' && mode === 'garrison') {
+    showToast("Planet Garrison is stationary defense and cannot be added to Attacker.");
+    return;
+  }
+
+  const targetCoords = target.coords || '';
+  const typeLabel = formatScanType(target.scanType);
+  const targetFleets = (currentPickerSide === 'atk') ? attackerFleets : defenderFleets;
+  let fleetName = '';
+  let fleetShips = {};
+
+  if (mode === 'consolidated') {
+    const merged = {};
+    if (currentPickerSide === 'def') {
+      Object.entries(target.garrisonShips || {}).forEach(([sid, cnt]) => {
+        merged[sid] = (merged[sid] || 0) + (parseInt(cnt, 10) || 0);
+      });
+    }
+    (target.namedFleets || []).forEach(nf => {
+      Object.entries(nf.ships || {}).forEach(([sid, cnt]) => {
+        merged[sid] = (merged[sid] || 0) + (parseInt(cnt, 10) || 0);
+      });
+    });
+    fleetShips = merged;
+    fleetName = currentPickerSide === 'atk'
+      ? `[${typeLabel}] Consolidated (Excl. Garrison) [${targetCoords || 'Target'}]`
+      : `[${typeLabel}] Consolidated [${targetCoords || 'Target'}]`;
+  } else if (mode === 'garrison') {
+    fleetShips = Object.assign({}, target.garrisonShips || {});
+    fleetName = `[${typeLabel}] Garrison [${targetCoords || 'Target'}]`;
+  } else if (mode === 'named') {
+    const nf = (target.namedFleets || [])[nfIdx];
+    fleetShips = Object.assign({}, nf?.ships || {});
+    fleetName = `[${typeLabel}] Fleet "${nf?.name || 'Fleet'}" [${targetCoords || 'Target'}]`;
+  }
+
+  // If roster only has 1 empty fleet, replace it instead of creating duplicate blank columns
+  const isEmptyRoster = (targetFleets.length === 1 && Object.keys(targetFleets[0].ships).length === 0);
+  const newFleetObj = {
+    id: (currentPickerSide === 'atk' ? 'atk_scan_' : 'def_scan_') + (simFleetSeq++),
+    name: fleetName,
+    enabled: true,
+    ships: fleetShips
+  };
+
+  if (isEmptyRoster) {
+    if (currentPickerSide === 'atk') attackerFleets = [newFleetObj];
+    else defenderFleets = [newFleetObj];
+  } else {
+    targetFleets.push(newFleetObj);
+  }
+
+  // Update target coordinates
+  if (targetCoords) {
+    const bottomCoords = document.getElementById('bottom-coords-input');
+    if (bottomCoords) bottomCoords.value = targetCoords;
+  }
+
+  // If adding to Defender and scan has PDS, copy PDS if defender PDS is currently 0
+  if (currentPickerSide === 'def' && target.pds && typeof target.pds === 'object') {
+    const pds = target.pds;
+    const hasExistingPds = Object.values(defenderPds).some(v => v > 0);
+    if (!hasExistingPds) {
+      if (pds['Shield Generator'] || pds['main-shield-generator']) defenderPds['main-shield-generator'] = pds['Shield Generator'] || pds['main-shield-generator'];
+      if (pds['Laser Battery'] || pds['main-laser-battery']) defenderPds['main-laser-battery'] = pds['Laser Battery'] || pds['main-laser-battery'];
+      if (pds['Missile Silo'] || pds['main-missile-silo']) defenderPds['main-missile-silo'] = pds['Missile Silo'] || pds['main-missile-silo'];
+      if (pds['Ion Cannon'] || pds['main-ion-cannon']) defenderPds['main-ion-cannon'] = pds['Ion Cannon'] || pds['main-ion-cannon'];
+    }
+  }
+
+  renderMatrix();
+  updateTotals();
+  closeScanPickerModal();
+  showToast(`Added ${fleetName} to ${currentPickerSide === 'atk' ? 'Attacker Coalition' : 'Defender Forces'}!`);
+}
+
+// =========================================================================
+// MULTI-CALCULATION SESSIONS SYSTEM
+// =========================================================================
+function initCalcSessions() {
+  if (!calcSessions || calcSessions.length === 0) {
+    calcSessions = [{ id: 'session_init', name: 'Calc #1', state: null }];
+    activeSessionId = 'session_init';
+  }
+  renderCalcTabs();
+}
+
+function renderCalcTabs() {
+  const container = document.getElementById('calc-tab-list');
+  if (!container) return;
+  container.innerHTML = '';
+  calcSessions.forEach((sess, idx) => {
+    const isActive = sess.id === activeSessionId;
+    const tabEl = document.createElement('div');
+    tabEl.className = 'calc-session-pill ' + (isActive ? 'active' : '');
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = sess.name || ('Calc #' + (idx + 1));
+    titleSpan.title = 'Click to switch to this calculation';
+    titleSpan.onclick = () => switchCalcSession(sess.id);
+    tabEl.appendChild(titleSpan);
+
+    if (calcSessions.length > 1) {
+      const closeBtn = document.createElement('span');
+      closeBtn.innerHTML = '×';
+      closeBtn.title = 'Close this calculation';
+      closeBtn.style.cssText = 'font-size: 0.95rem; font-weight: bold; opacity: 0.6; padding: 0 2px; cursor: pointer; line-height: 1;';
+      closeBtn.onmouseover = () => closeBtn.style.opacity = '1';
+      closeBtn.onmouseout = () => closeBtn.style.opacity = '0.6';
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeCalcSession(sess.id);
+      };
+      tabEl.appendChild(closeBtn);
+    }
+
+    container.appendChild(tabEl);
+  });
+}
+
+function switchCalcSession(targetId) {
+  if (targetId === activeSessionId) return;
+  const cur = calcSessions.find(s => s.id === activeSessionId);
+  if (cur) {
+    cur.state = captureCalcSnapshot();
+    const bottomVal = document.getElementById('bottom-coords-input')?.value?.trim();
+    if (bottomVal && (cur.name.startsWith('Calc #') || cur.name.startsWith('Target '))) {
+      cur.name = `Target ${bottomVal}`;
+    }
+  }
+
+  activeSessionId = targetId;
+  const target = calcSessions.find(s => s.id === targetId);
+  if (target && target.state) {
+    applyCalcSnapshot(target.state);
+  } else {
+    attackerFleets = [{ id: 'atk_1', name: 'Coalition Fleet 1', enabled: true, ships: {} }];
+    defenderFleets = [{ id: 'def_1', name: 'Defender Garrison', enabled: true, ships: {} }];
+    renderMatrix();
+    updateTotals();
+  }
+  renderCalcTabs();
+}
+
+function addNewCalcTab() {
+  const cur = calcSessions.find(s => s.id === activeSessionId);
+  if (cur) cur.state = captureCalcSnapshot();
+
+  const newId = 'session_' + Date.now();
+  const newName = 'Calc #' + (calcSessions.length + 1);
+  calcSessions.push({ id: newId, name: newName, state: null });
+  activeSessionId = newId;
+
+  attackerFleets = [{ id: 'atk_1', name: 'Coalition Fleet 1', enabled: true, ships: {} }];
+  defenderFleets = [{ id: 'def_1', name: 'Defender Garrison', enabled: true, ships: {} }];
+  const coordsInput = document.getElementById('bottom-coords-input');
+  if (coordsInput) coordsInput.value = '';
+
+  if (mcpConfig.connected && (homeDefenseData || simEmpireData)) {
+    loadMyEmpireIntoDefender();
+  } else {
+    renderMatrix();
+    updateTotals();
+  }
+
+  renderCalcTabs();
+  showToast(`Opened ${newName}`);
+}
+
+function duplicateCurrentCalcTab() {
+  const cur = calcSessions.find(s => s.id === activeSessionId);
+  const state = captureCalcSnapshot();
+  if (cur) cur.state = state;
+
+  const newId = 'session_' + Date.now();
+  const newName = (cur ? cur.name : 'Calc') + ' (Copy)';
+  calcSessions.push({ id: newId, name: newName, state: JSON.parse(JSON.stringify(state)) });
+  activeSessionId = newId;
+  renderCalcTabs();
+  showToast(`Duplicated to ${newName}`);
+}
+
+function renameCurrentCalcTab() {
+  const cur = calcSessions.find(s => s.id === activeSessionId);
+  if (!cur) return;
+  const newName = prompt('Enter a new name for this calculation tab:', cur.name);
+  if (newName && newName.trim()) {
+    cur.name = newName.trim();
+    renderCalcTabs();
+  }
+}
+
+function closeCalcSession(sessionId) {
+  if (calcSessions.length <= 1) {
+    if (confirm('Reset this calculation to blank?')) {
+      calcSessions[0].name = 'Calc #1';
+      calcSessions[0].state = null;
+      startFreshCalculation();
+      renderCalcTabs();
+    }
+    return;
+  }
+  const idx = calcSessions.findIndex(s => s.id === sessionId);
+  if (idx === -1) return;
+  calcSessions = calcSessions.filter(s => s.id !== sessionId);
+
+  if (activeSessionId === sessionId) {
+    const nextIdx = Math.max(0, idx - 1);
+    activeSessionId = calcSessions[nextIdx].id;
+    if (calcSessions[nextIdx].state) {
+      applyCalcSnapshot(calcSessions[nextIdx].state);
+    } else {
+      startFreshCalculation();
+    }
+  }
+  renderCalcTabs();
+}
+
+function openMcpConnectModal(notice = null) {
+  const modal = document.getElementById('mcp-connect-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    const urlInp = document.getElementById('mcp-suite-url-input');
+    if (urlInp) urlInp.value = mcpConfig.url || 'http://127.0.0.1:7890';
+    const patInp = document.getElementById('mcp-pat-input');
+    if (patInp && mcpConfig.pat) patInp.value = mcpConfig.pat;
+    if (notice) {
+      showToast(notice);
+    }
+  }
+}
+
+function closeMcpConnectModal() {
+  const modal = document.getElementById('mcp-connect-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function probeLocalMcpFromModal() {
+  const urlInp = document.getElementById('mcp-suite-url-input');
+  const targetUrl = (urlInp ? urlInp.value.trim() : '') || 'http://127.0.0.1:7890';
+  showToast(`Probing ${targetUrl}...`);
+  const ok = await probeMcpConnection(targetUrl);
+  if (ok) {
+    showToast(`🟢 Successfully connected to Pegasus MCP Suite at ${targetUrl}!`);
+    setTimeout(() => closeMcpConnectModal(), 1200);
+  } else {
+    alert(`Could not connect to ${targetUrl}.\n\nMake sure python peg_gui.py is running on your machine and port 7890 is reachable.`);
+  }
+}
+
+function savePatFromModal() {
+  const patInp = document.getElementById('mcp-pat-input');
+  const pat = patInp ? patInp.value.trim() : '';
+  if (!pat) {
+    alert('Please enter a Personal Access Token or use Local Suite.');
+    return;
+  }
+  mcpConfig.pat = pat;
+  sessionStorage.setItem('peg_mcp_pat', pat);
+  showToast('🔑 PAT saved to session! Testing connection...');
+  probeMcpConnection();
+}
+
+function disconnectMcpToStandalone() {
+  mcpConfig.connected = false;
+  mcpConfig.mode = 'STANDALONE';
+  mcpConfig.pat = '';
+  sessionStorage.removeItem('peg_mcp_pat');
+  if (mcpPollTimer) {
+    clearInterval(mcpPollTimer);
+    mcpPollTimer = null;
+  }
+  const pill = document.getElementById('mcp-status-pill');
+  const text = document.getElementById('mcp-status-text');
+  const tickVal = document.getElementById('mcp-live-tick-val');
+  if (pill) {
+    pill.className = 'mcp-status-badge standalone';
+    if (text) text.textContent = '⚪ Standalone Mode • [🔌 Connect MCP]';
+  }
+  if (tickVal) tickVal.textContent = 'Offline / Standalone';
+  updateMcpEnhancedIndicators('disabled');
+  closeMcpConnectModal();
+  showToast('Switched to pure Standalone client-side mode.');
+}
+
+function triggerDefensePlanner() {
+  if (!mcpConfig.connected) {
+    openMcpConnectModal('Connect your local MCP suite or PAT to auto-plan defense scenarios.');
+    return;
+  }
+  openDefenseScenarioModal();
+}
+
+async function triggerLoadMyFleet() {
+  loadMyEmpireIntoDefender();
+}
+
+async function triggerLoadInboundScans() {
+  openScanPickerModal('atk');
+}
+
+function triggerOpenMessageModal() {
+  if (!mcpConfig.connected) {
+    openMcpConnectModal('Connect your local MCP suite to send in-game messages.');
+    return;
+  }
+  const coords = document.getElementById('bottom-coords-input')?.value?.trim() || '';
+  const targetTick = mcpConfig.liveTick || '';
+  const recipInp = document.getElementById('sim-msg-recipient');
+  if (recipInp) recipInp.value = coords || '';
+  const subjInp = document.getElementById('sim-msg-subject');
+  if (subjInp) subjInp.value = `[BATTLE INTEL] Battle Simulation Brief ${coords ? 'for ' + coords : ''}`;
+  
+  const defTotal = defenderFleets.reduce((sum, f) => sum + (f.enabled ? Object.values(f.ships).reduce((a, b) => a + b, 0) : 0), 0);
+  const atkTotal = attackerFleets.reduce((sum, f) => sum + (f.enabled ? Object.values(f.ships).reduce((a, b) => a + b, 0) : 0), 0);
+  const shareUrl = window.location.href;
+
+  const body = [
+    `=== PEGASUS GALAXY BATTLE INTEL ===`,
+    `Target Sector: ${coords || 'Unknown'}`,
+    `Defender Forces: ${defTotal.toLocaleString()} ships across ${defenderFleets.length} fleet(s)`,
+    `Attacker Coalition: ${atkTotal.toLocaleString()} ships across ${attackerFleets.length} fleet(s)`,
+    `Live Tick: ${targetTick || 'N/A'}`,
+    ``,
+    `Interactive Battle Matrix & Tactical Simulation:`,
+    `${shareUrl}`,
+    `==================================`
+  ].join('\n');
+
+  const bodyEl = document.getElementById('sim-msg-body');
+  if (bodyEl) bodyEl.value = body;
+
+  const modal = document.getElementById('mcp-msg-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeMcpMsgModal() {
+  const modal = document.getElementById('mcp-msg-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function sendMcpInGameMessage() {
+  const recipient = document.getElementById('sim-msg-recipient')?.value?.trim();
+  const subject = document.getElementById('sim-msg-subject')?.value?.trim() || 'Battle Brief';
+  const body = document.getElementById('sim-msg-body')?.value?.trim() || '';
+
+  if (!recipient) {
+    alert('Please enter a recipient commander or coordinates.');
+    return;
+  }
+
+  showToast('🚀 Sending in-game message via MCP...');
+  try {
+    const res = await fetch(`${mcpConfig.url}/api/call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool: 'send_message',
+        arguments: {
+          recipient: recipient,
+          subject: subject,
+          body: body
+        }
+      })
+    });
+    const data = await res.json();
+    if (!data || !data.success) {
+      throw new Error(data.error || 'MCP error sending message');
+    }
+    closeMcpMsgModal();
+    showToast('💬 Message sent successfully in-game!');
+  } catch(err) {
+    alert(`Failed to send message: ${err.message}`);
+  }
+}
+
+// Tactical Defense Planner Functions
+function openDefenseScenarioModal() {
+  const modal = document.getElementById('sim-defense-planner-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const coordsInp = document.getElementById('sim-plan-coords');
+  const bottomCoords = document.getElementById('bottom-coords-input')?.value?.trim() || '';
+  if (coordsInp && (!coordsInp.value || coordsInp.value.trim() === '')) {
+    coordsInp.value = bottomCoords || mcpConfig.coords || '';
+  }
+  const tickInp = document.getElementById('sim-plan-tick');
+  if (tickInp && (!tickInp.value || tickInp.value === '0')) {
+    tickInp.value = mcpConfig.liveTick || '';
+  }
+
+  loadDefenseScenarioPreview();
+}
+
+function closeDefenseScenarioModal() {
+  const modal = document.getElementById('sim-defense-planner-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadDefenseScenarioPreview() {
+  const coords = document.getElementById('sim-plan-coords')?.value?.trim() || '';
+  const tickInput = document.getElementById('sim-plan-tick');
+  const tick = tickInput ? parseInt(tickInput.value, 10) || 0 : 0;
+  const windowVal = parseInt(document.getElementById('sim-plan-window')?.value || '0', 10);
+  const bodyEl = document.getElementById('sim-plan-body');
+
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 2.5rem; color: var(--cyan);">
+        <div class="spinner" style="margin: 0 auto 1rem auto; width: 32px; height: 32px;"></div>
+        Scanning fleet radars, movements, and intel for coordinates ${escapeHtml(coords || 'Home Planet')}...
+      </div>
+    `;
+  }
+
+  try {
+    const q = `coords=${encodeURIComponent(coords)}&tick=${tick}&window=${windowVal}`;
+    const res = await fetch(`${mcpConfig.url}/api/combat/defense_scenario?${q}`);
+    const data = await res.json();
+
+    if (!data.success) {
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          <div style="grid-column: 1 / -1; padding: 1.5rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; color: #fca5a5;">
+            ❌ Error loading defense scenario: ${escapeHtml(data.error || 'Server error')}
+          </div>
+        `;
+      }
+      return;
+    }
+
+    currentDefenseScenarioData = data;
+
+    if (tickInput && (!tickInput.value || tickInput.value === '0')) {
+      tickInput.value = data.targetTick || data.currentTick || 1;
+    }
+
+    const curTickBadge = document.getElementById('sim-plan-cur-tick-badge');
+    if (curTickBadge) {
+      curTickBadge.textContent = `(Now: Tick ${data.currentTick}${data.nextTickIn ? ' • ' + data.nextTickIn : ''})`;
+    }
+
+    renderDefenseScenarioPreview(data);
+  } catch(e) {
+    console.error("Defense scenario error:", e);
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div style="grid-column: 1 / -1; padding: 1.5rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; color: #fca5a5;">
+          ❌ Network/Fetch error: ${escapeHtml(e.message)}
+        </div>
+      `;
+    }
+  }
+}
+
+function renderDefenseScenarioPreview(data) {
+  const bodyEl = document.getElementById('sim-plan-body');
+  if (!bodyEl) return;
+
+  const def = data.defender || {};
+  const availFleets = def.availableFleets || [];
+  const lateFleets = def.lateFleets || [];
+  const garrison = def.garrisonShips || {};
+  const pds = def.pds || {};
+  const attackers = data.attackers || [];
+
+  // Left Column: Defender Readiness
+  let defHtml = `
+    <div style="background: rgba(13,18,34,0.7); border: 1px solid rgba(56,189,248,0.25); border-radius: 8px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.9rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.6rem;">
+        <div>
+          <div style="font-weight: 700; color: #38bdf8; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+            🛡️ Defender Force at Tick ${data.targetTick}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">
+            ${escapeHtml(data.planetName || 'Planet')} [${escapeHtml(data.coords || 'Coordinates')}]
+          </div>
+        </div>
+        <span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8; font-family: var(--font-mono); font-size: 0.8rem;">
+          ${(def.totalAvailableShips || 0).toLocaleString()} Total Ships
+        </span>
+      </div>
+
+      <!-- Stationary Hangar Garrison -->
+      <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+          <strong style="font-size: 0.82rem; color: var(--text-bright);">🏛️ Stationary Garrison (Docked)</strong>
+          <span style="font-size: 0.75rem; color: #86efac; font-family: var(--font-mono);">${Object.values(garrison).reduce((a,b)=>a+b, 0).toLocaleString()} ships</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.75rem;">
+          ${Object.keys(garrison).length > 0 ? Object.entries(garrison).map(([sid, cnt]) => `
+            <span style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: var(--font-mono);">
+              ${sid.replace('main-vanguard-', '').replace('main-', '')}: <strong>${cnt.toLocaleString()}</strong>
+            </span>
+          `).join('') : '<span style="color: var(--text-dim); font-style: italic;">No docked hangar ships</span>'}
+        </div>
+      </div>
+
+      <!-- Station Defense PDS -->
+      <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.75rem;">
+        <div style="font-size: 0.82rem; font-weight: 700; color: var(--yellow); margin-bottom: 0.4rem;">
+          ⚡ Planetary Defense Structures (PDS)
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; font-size: 0.75rem;">
+          <div>🛡️ Shield: <strong>Lvl ${pds['Shield Generator'] || pds['main-shield-generator'] || 0}</strong></div>
+          <div>⚡ Laser: <strong>Lvl ${pds['Laser Battery'] || pds['main-laser-battery'] || 0}</strong></div>
+          <div>🔮 Ion Cannon: <strong>Lvl ${pds['Ion Cannon'] || pds['main-ion-cannon'] || 0}</strong></div>
+          <div>🚀 Missile Silo: <strong>Lvl ${pds['Missile Silo'] || pds['main-missile-silo'] || 0}</strong></div>
+        </div>
+      </div>
+
+      <!-- Available In-Transit / Returning Fleets -->
+      <div>
+        <div style="font-size: 0.82rem; font-weight: 700; color: #86efac; margin-bottom: 0.4rem;">
+          ✅ Arriving in Time for Battle (${availFleets.length} fleet(s))
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 180px; overflow-y: auto;">
+          ${availFleets.map(f => {
+            const shipsCnt = Object.values(f.ships || {}).reduce((a,b)=>a+b, 0);
+            const isDocked = f.arrivalStatus === 'DOCKED_NOW';
+            return `
+              <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <strong style="color: #86efac;">${escapeHtml(f.name || 'Fleet')}</strong>
+                  <span class="badge" style="background: rgba(16,185,129,0.2); color: #86efac;">
+                    ${isDocked ? 'Docked Now' : `Arrives Tick ${f.arrivalTick} (+${f.marginTicks || 0} margin)`}
+                  </span>
+                </div>
+                <div style="margin-top: 0.2rem; color: var(--text-dim); font-family: var(--font-mono);">
+                  ${shipsCnt} ships • ${Object.entries(f.ships || {}).map(([s,c])=>`${s.replace('main-vanguard-','')}:${c}`).slice(0,4).join(', ')}
+                </div>
+              </div>
+            `;
+          }).join('') || '<div style="color: var(--text-dim); font-style: italic; font-size: 0.75rem;">No returning fleets available.</div>'}
+        </div>
+      </div>
+
+      <!-- Late Fleets (Misses Battle) -->
+      ${lateFleets.length > 0 ? `
+        <div>
+          <div style="font-size: 0.8rem; font-weight: 700; color: #f87171; margin-bottom: 0.3rem;">
+            ⚠️ Late Arrivals — Miss Battle (${lateFleets.length})
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.3rem; max-height: 120px; overflow-y: auto;">
+            ${lateFleets.map(f => `
+              <div style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 5px; padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #fca5a5;">
+                <strong>${escapeHtml(f.name || 'Fleet')}</strong>: Arrives at Tick ${f.arrivalTick} (misses battle by ${f.missedByTicks} ticks)
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  // Right Column: Inbound Hostile Attackers & Scans
+  let atkHtml = `
+    <div style="background: rgba(13,18,34,0.7); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.9rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.6rem;">
+        <div>
+          <div style="font-weight: 700; color: #f87171; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+            ⚔️ Inbound Attack Coalition (${attackers.length} fleet(s))
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem;">
+            Landing at Tick ${data.targetTick} (±${data.window})
+          </div>
+        </div>
+        <span class="badge" style="background: rgba(239,68,68,0.15); color: #fca5a5; font-family: var(--font-mono); font-size: 0.8rem;">
+          ${(data.totalAttackerShips || 0).toLocaleString()} Scanned Ships
+        </span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.8rem; overflow-y: auto; max-height: 480px;">
+        ${attackers.length > 0 ? attackers.map((af, idx) => {
+          const rel = af.reliability || { score: 50, rating: 'MODERATE', color: '#fde047', scanType: 'SCAN' };
+          const decoy = af.decoy || { isDecoy: false, decoyChance: 0, badge: 'GENUINE', color: '#86efac', reasons: [] };
+          const shipsMap = af.ships || {};
+          return `
+            <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+                <div>
+                  <div style="font-weight: 700; color: #fca5a5; font-size: 0.85rem;">
+                    ${escapeHtml(af.name || ('Hostile Fleet ' + (idx+1)))}
+                  </div>
+                  <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.1rem; font-family: var(--font-mono);">
+                    Lands Tick <strong>${af.arrivalTick}</strong> (ETA: ${af.eta} ticks) • Mission: ${af.mission || 'ATTACK'}
+                  </div>
+                </div>
+                <span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171; font-weight: 700; font-family: var(--font-mono);">
+                  ${(af.totalShips || 0).toLocaleString()} ships
+                </span>
+              </div>
+
+              <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+                <div style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(0,0,0,0.4); border: 1px solid ${rel.color}; font-size: 0.72rem;">
+                  <span style="color: ${rel.color}; font-weight: 700;">📡 Intel Reliability: ${rel.score}% [${rel.rating}]</span>
+                </div>
+
+                <div style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(0,0,0,0.4); border: 1px solid ${decoy.color}; font-size: 0.72rem;">
+                  <span style="color: ${decoy.color}; font-weight: 700;">🎯 Decoy Chance: ${decoy.decoyChance}% [${decoy.badge}]</span>
+                </div>
+              </div>
+
+              ${(rel.warnings && rel.warnings.length > 0) || (decoy.reasons && decoy.reasons.length > 0) ? `
+                <div style="font-size: 0.72rem; background: rgba(255,255,255,0.03); border-left: 2px solid ${decoy.isDecoy ? '#f87171' : (rel.cloakRisk ? '#fde047' : 'var(--cyan)')}; padding: 0.4rem 0.6rem; border-radius: 0 4px 4px 0;">
+                  ${(rel.warnings || []).map(w => `<div style="color: #fde047;">${escapeHtml(w)}</div>`).join('')}
+                  ${(decoy.reasons || []).map(r => `<div style="color: ${decoy.color};">💡 ${escapeHtml(r)}</div>`).join('')}
+                </div>
+              ` : ''}
+
+              <div style="display: flex; flex-wrap: wrap; gap: 0.3rem; font-size: 0.72rem; margin-top: 0.2rem;">
+                ${Object.entries(shipsMap).map(([sid, cnt]) => `
+                  <span style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); padding: 0.1rem 0.4rem; border-radius: 3px; font-family: var(--font-mono); color: #fca5a5;">
+                    ${sid.replace('main-vanguard-', '').replace('main-', '')}: <strong>${cnt.toLocaleString()}</strong>
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('') : `
+          <div style="text-align: center; padding: 3rem 1.5rem; color: var(--text-dim);">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌌</div>
+            <div>No incoming hostile attacks or scans detected for Tick ${data.targetTick}.</div>
+            <div style="font-size: 0.75rem; margin-top: 0.4rem;">You can adjust coordinates or battle tick above, or enter manually in the simulator.</div>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  bodyEl.innerHTML = defHtml + atkHtml;
+}
+
+function applyDefenseScenarioToCalculator() {
+  if (!currentDefenseScenarioData) {
+    showToast("No defense scenario data loaded.");
+    return;
+  }
+
+  const data = currentDefenseScenarioData;
+  const def = data.defender || {};
+  const availFleets = def.availableFleets || [];
+  const garrison = def.garrisonShips || {};
+  const pds = def.pds || {};
+  const attackers = data.attackers || [];
+
+  // 1. Defender Fleets
+  defenderFleets = [];
+  simFleetSeq = 1;
+
+  defenderFleets.push({
+    id: 'def_garrison',
+    name: (data.planetName || 'Defender') + ' Garrison',
+    enabled: true,
+    ships: Object.assign({}, garrison)
+  });
+
+  availFleets.forEach((fl, i) => {
+    if (fl.arrivalStatus !== 'DOCKED_NOW') {
+      defenderFleets.push({
+        id: fl.id || ('def_reinforce_' + (i+1)),
+        name: (fl.name || 'Fleet') + ` (Arrives Tick ${fl.arrivalTick})`,
+        enabled: true,
+        ships: Object.assign({}, fl.ships || {})
+      });
+    }
+  });
+
+  // 2. Set PDS levels
+  if (pds) {
+    defenderPds['main-shield-generator'] = pds['Shield Generator'] || pds['main-shield-generator'] || 0;
+    defenderPds['main-laser-battery'] = pds['Laser Battery'] || pds['main-laser-battery'] || 0;
+    defenderPds['main-missile-silo'] = pds['Missile Silo'] || pds['main-missile-silo'] || 0;
+    defenderPds['main-ion-cannon'] = pds['Ion Cannon'] || pds['main-ion-cannon'] || 0;
+  }
+
+  // 3. Attacker Fleets
+  attackerFleets = [];
+  if (attackers.length > 0) {
+    attackers.forEach((af, idx) => {
+      attackerFleets.push({
+        id: af.id || ('atk_' + (idx + 1)),
+        name: (af.name || `Hostile Fleet ${idx + 1}`) + ` (Tick ${af.arrivalTick})`,
+        enabled: true,
+        ships: Object.assign({}, af.ships || {})
+      });
+    });
+  } else {
+    attackerFleets = [
+      { id: 'atk_1', name: 'Coalition Fleet 1', enabled: true, ships: {} }
+    ];
+  }
+
+  // 4. Set Coordinates
+  const targetCoords = data.coords || '';
+  const bcalcBottom = document.getElementById('bottom-coords-input');
+  if (bcalcBottom) bcalcBottom.value = targetCoords;
+
+  closeDefenseScenarioModal();
+  renderMatrix();
+  updateTotals();
+  runSimulation();
+  showToast(`🛡️ Defense scenario loaded for Tick ${data.targetTick}! Simulating combat...`);
+}
+
+function copyDefenseScenarioBrief() {
+  if (!currentDefenseScenarioData) {
+    showToast("No active scenario to copy.");
+    return;
+  }
+  const d = currentDefenseScenarioData;
+  const def = d.defender || {};
+  const avail = def.availableFleets || [];
+  const atks = d.attackers || [];
+
+  const brief = [
+    `[TACTICAL DEFENSE SCENARIO — TICK ${d.targetTick}]`,
+    `Target: ${d.planetName || 'Planet'} [${d.coords}]`,
+    `Defender Total Force: ${(def.totalAvailableShips || 0).toLocaleString()} ships across ${avail.length + 1} defending element(s)`,
+    `Inbound Attackers: ${(d.totalAttackerShips || 0).toLocaleString()} ships across ${atks.length} fleet(s)`,
+    atks.map((a, i) => ` • Fleet ${i+1}: ${a.name} (${(a.totalShips||0).toLocaleString()} ships) | Reliability: ${a.reliability?.score || 50}% | Decoy Chance: ${a.decoy?.decoyChance || 0}% [${a.decoy?.badge || 'NORMAL'}]`).join('\n'),
+    `Generated by Pegasus Galaxy MCP Suite v0.5`
+  ].join('\n');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(brief).then(() => showToast("📋 Defense brief copied to clipboard!"));
+  } else {
+    prompt("Copy tactical defense brief:", brief);
+  }
+}
+
+async function shareDefenseScenarioLink() {
+  applyDefenseScenarioToCalculator();
+  copyShareLink();
+}
+
+// =========================================================================
+// INITIALIZATION & URL HASH HANDLING
+// =========================================================================
+window.addEventListener('DOMContentLoaded', async () => {
+  pruneOldLocalStorage();
+  initCalcSessions();
+  renderMatrix();
+  updateTotals();
+
+  // Test / probe for Pegasus MCP Suite (.env credentials or PAT)
+  await probeMcpConnection();
+
+  // Check URL hash for shared calculation
+  const hash = window.location.hash || '';
+  if (hash.includes('c=')) {
+    const code = hash.split(/#?c=/)[1].split('&')[0];
+    const data = await decompressFromUrlSafe(code);
+    if (data) {
+      applyCalcSnapshot(data);
+      if (calcSessions && calcSessions.length > 0) {
+        calcSessions[0].name = data.title || 'Shared Calc';
+        calcSessions[0].state = data;
+        renderCalcTabs();
+      }
+      showToast(`Loaded shared battle: ${data.title || 'Calculation'}`);
+    }
+  } else if (hash.includes('coords=')) {
+    const coords = decodeURIComponent(hash.split(/#?coords=/)[1].split('&')[0]);
+    document.getElementById('bottom-coords-input').value = coords;
+    if (calcSessions && calcSessions.length > 0) {
+      calcSessions[0].name = `Target ${coords}`;
+      renderCalcTabs();
+    }
+    showToast(`Pre-targeted coordinates: ${coords}`);
+    if (simScanTargets && simScanTargets.length > 0) {
+      const matchIdx = simScanTargets.findIndex(t => t.coords && normalizeCoords(t.coords) === normalizeCoords(coords));
+      if (matchIdx !== -1) {
+        pickScanFleet(matchIdx, 'consolidated');
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Pegasus Galaxy MCP Inspector & CLI Tool v0.3 (Cross-Platform)
+Pegasus Galaxy MCP Inspector & CLI Tool v0.5 (Cross-Platform)
 Inspects game state, browses tools/resources, and calls MCP endpoints.
 Runs on macOS, Linux, and Windows.
 """
 
 import argparse
 import json
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -535,19 +536,22 @@ def run_battle_calc_cmd(
     attacker_name: Optional[str] = None,
     defender_target: Optional[str] = None,
     defend: bool = False,
-    raw_json: bool = False
+    source: str = "all",
+    raw_json: bool = False,
+    output_format: str = "standard"
 ):
-    """Simulates a combat engagement using live MCP telemetry and deep scans.
+    """Simulates a combat engagement using live MCP telemetry, universe map coords, and user/ally scan intel.
     
     If defend=True, user's planet (hangar ships + live PDS + tech) defends against
-    the enemy fleet extracted from deep scan.
+    the enemy fleet extracted from scan history.
     """
-    with console.status("[bold cyan]Querying active fleets, defense systems, and scan history...", spinner="dots"):
+    with console.status("[bold cyan]Querying active fleets, defense systems, universe map, and scan intel...", spinner="dots"):
         fleet_summary_resp = client.call_tool("get_fleet_summary") or {}
-        scans_resp = client.call_tool("get_scan_history") or {}
+        scans_resp = client.call_tool("get_scan_history", {"limit": 100}) or {}
         pds_resp = client.call_tool("list_pds") or {}
         research_resp = client.call_tool("get_planet_research") or {}
         planet_resp = client.get_planet_status() or {}
+        universe_resp = client.get_universe_map() or {}
 
     fs_data = fleet_summary_resp.get("data", {}) if isinstance(fleet_summary_resp, dict) else {}
     named_fleets = fs_data.get("fleets", []) if isinstance(fs_data, dict) else []
@@ -611,43 +615,173 @@ def run_battle_calc_cmd(
         "eoniumRoids": user_ast_cnt - (2 * (user_ast_cnt // 3))
     }
 
-    all_scans = scans_resp.get("data", []) if isinstance(scans_resp, dict) else []
-    deep_scans = [s for s in all_scans if s.get("scanType") == "DEEP_SCAN" and s.get("status") == "success"]
+    # Build planetary metadata lookup from universe map
+    u_planets = universe_resp.get("data", []) if isinstance(universe_resp, dict) else []
+    planet_meta = {}
+    for p in u_planets:
+        pid = p.get("id")
+        c = p.get("coords") or f"{p.get('coordX', 0)}:{p.get('coordY', 0)}:{p.get('coordZ', 0)}"
+        if pid:
+            planet_meta[pid] = {
+                "coords": c,
+                "name": p.get("name", ""),
+                "owner": p.get("playerId", ""),
+                "pds": {},
+                "research": {},
+                "resources": {},
+                "asteroids": {}
+            }
 
-    # Select Deep Scan Target
+    # Fetch User Scans and Alliance Scans
+    user_scans = scans_resp.get("data", []) if isinstance(scans_resp, dict) else []
+    for s in user_scans:
+        s["source"] = "user"
+
+    ally_scans = []
+    alliance_tag = ""
+    try:
+        user_alliance = client.get_user_alliance()
+        if user_alliance and user_alliance.get("id"):
+            alliance_tag = user_alliance.get("tag", "")
+            intel_resp = client.get_scan_intel(user_alliance["id"], limit=100)
+            if isinstance(intel_resp, dict) and intel_resp.get("success"):
+                for ascan in (intel_resp.get("data") or []):
+                    ascan["source"] = "ally"
+                    ascan["allianceTag"] = alliance_tag
+                    ally_scans.append(ascan)
+    except Exception:
+        pass
+
+    all_scans = user_scans + ally_scans
+
+    # Enrich metadata from scans
+    for s in all_scans:
+        pid = s.get("targetPlanetId") or s.get("planetId")
+        if not pid or pid not in planet_meta:
+            continue
+        r_raw = s.get("result", {})
+        if isinstance(r_raw, str):
+            try:
+                r = json.loads(r_raw)
+            except Exception:
+                r = {}
+        elif isinstance(r_raw, dict):
+            r = r_raw
+        else:
+            r = {}
+        if r.get("constructions") and not planet_meta[pid]["pds"]:
+            pds = {}
+            for cn in r.get("constructions", []):
+                name = cn.get("name", "")
+                if any(k in name.lower() for k in ["laser", "missile", "ion", "shield", "sensor"]):
+                    pds[name] = cn.get("level", 0)
+            if pds:
+                planet_meta[pid]["pds"] = pds
+        if r.get("research") and not planet_meta[pid]["research"]:
+            res_tech = {}
+            for res_item in r.get("research", []):
+                rn = res_item.get("name", "")
+                if any(k in rn.lower() for k in ["hull", "pds", "ship tech", "engineering"]):
+                    res_tech[rn] = res_item.get("level", 0)
+            if res_tech:
+                planet_meta[pid]["research"] = res_tech
+
+    # Filter combat-capable scans
+    fleet_scan_types = {"DEEP_SCAN", "MILITARY_SCAN", "FLEET_COMPOSITION_SCAN", "INCOMING_SCAN"}
     parsed_targets = []
-    for s in deep_scans:
-        parsed = peg_combat.parse_deep_scan(s)
+    seen_keys = set()
+    for s in all_scans:
+        if s.get("status") not in ("success", "blocked") and s.get("status") is not None:
+            continue
+        st = s.get("scanType", "")
+        if st not in fleet_scan_types and s.get("status") != "blocked":
+            res_str = str(s.get("result", ""))
+            if not any(k in res_str for k in ("ships", "namedFleets", "fleets")):
+                continue
+        key = (s.get("targetPlanetId") or s.get("planetId"), s.get("tick", 0), st, s.get("source", "user"))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        parsed = peg_combat.parse_scan_record(s, planet_lookup=planet_meta)
         if parsed:
             parsed_targets.append(parsed)
 
+    # Filter by source if requested
+    if source in ("user", "ally"):
+        parsed_targets = [t for t in parsed_targets if t.get("source") == source]
+
+    # Sort newest tick first
+    parsed_targets.sort(key=lambda t: t.get("tick", 0), reverse=True)
+
     chosen_target = None
     if defender_target:
-        # Match by planet ID, coords, or owner
-        matched_target = next(
-            (t for t in parsed_targets if defender_target.lower() in (
+        clean_def = re.sub(r"[^0-9:]", ":", defender_target.strip()).strip(":")
+        matched_targets = []
+        for t in parsed_targets:
+            t_coords = re.sub(r"[^0-9:]", ":", t.get("coords", "")).strip(":")
+            if clean_def and (t_coords == clean_def or t_coords.startswith(clean_def)):
+                matched_targets.append(t)
+            elif defender_target.lower() in (
                 t.get("targetPlanetId", "").lower(),
                 t.get("coords", "").lower(),
                 t.get("owner", "").lower(),
-            )),
-            None
-        )
-        if matched_target:
-            chosen_target = matched_target
+                t.get("planetName", "").lower(),
+            ):
+                matched_targets.append(t)
+
+        if matched_targets:
+            chosen_target = matched_targets[0]
+            if len(matched_targets) > 1 and not raw_json:
+                console.print(f"\n[bold cyan]Found {len(matched_targets)} scans matching target '{defender_target}':[/bold cyan]")
+                scans_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+                scans_table.add_column("Tick", justify="center")
+                scans_table.add_column("Source", justify="center")
+                scans_table.add_column("Scan Type", justify="left")
+                scans_table.add_column("Planet", justify="left")
+                scans_table.add_column("Garrison Ships", justify="right")
+                scans_table.add_column("PDS Weapons", justify="center")
+                scans_table.add_column("Status", justify="center")
+
+                for i, mt in enumerate(matched_targets):
+                    is_active = (i == 0)
+                    src_badge = "[bold green]👤 Mine[/bold green]" if mt.get("source") == "user" else f"[bold magenta]🤝 Ally ({mt.get('allianceTag', '')})[/bold magenta]"
+                    g_count = sum(mt.get("garrisonShips", {}).values())
+                    pds_cnt = len(mt.get("pds", {}))
+                    status_lbl = "[bold cyan]★ Selected (Latest)[/bold cyan]" if is_active else "[dim]Older Scan[/dim]"
+                    if mt.get("isBlocked"):
+                        status_lbl += " [yellow]⚠️ Blocked[/yellow]"
+                    p_label = f"{mt.get('planetName', '')} [{mt.get('coords', '')}]".strip()
+                    scans_table.add_row(
+                        f"Tick {mt.get('tick', '?')}",
+                        src_badge,
+                        mt.get("scanType", "SCAN"),
+                        p_label,
+                        format_num(g_count),
+                        f"{pds_cnt} structures" if pds_cnt > 0 else "None",
+                        status_lbl
+                    )
+                console.print(scans_table)
+                console.print()
         else:
-            console.print(f"[bold red]Deep scan target '{defender_target}' not found.[/bold red]")
-            console.print("Available deep scan targets:")
-            for t in parsed_targets:
-                console.print(f"  - [cyan]{t.get('coords')}[/cyan] (Owner: {t.get('owner')}, ID: {t.get('targetPlanetId')})")
+            console.print(f"[bold red]Scan target '{defender_target}' not found in scan history ({source} scans).[/bold red]")
+            console.print("Available scan targets in history:")
+            for t in parsed_targets[:10]:
+                src_lbl = "👤 Mine" if t.get("source") == "user" else f"🤝 Ally {t.get('allianceTag', '')}"
+                p_name = f" ({t.get('planetName')})" if t.get("planetName") else ""
+                console.print(f"  - [bold cyan]{t.get('coords')}[/bold cyan]{p_name} | Tick {t.get('tick')} | [dim]{t.get('scanType')}[/dim] [{src_lbl}]")
             sys.exit(1)
     else:
         if parsed_targets:
             chosen_target = parsed_targets[0]
+            if not raw_json:
+                src_lbl = "👤 Mine" if chosen_target.get("source") == "user" else f"🤝 Ally ({chosen_target.get('allianceTag', '')})"
+                p_name = f" ({chosen_target.get('planetName')})" if chosen_target.get('planetName') else ""
+                console.print(f"[dim]Auto-selected latest scan target: [bold cyan]{chosen_target.get('coords')}[/bold cyan]{p_name} from Tick {chosen_target.get('tick')} [{src_lbl}][/dim]\n")
         else:
             if defend:
-                console.print("[bold yellow]No deep scan targets found in scan history to simulate as attacker.[/bold yellow]")
+                console.print(f"[bold yellow]No combat scans found in scan history ({source} scans) to simulate as attacker.[/bold yellow]")
             else:
-                console.print("[bold yellow]No deep scan targets found in scan history.[/bold yellow]")
+                console.print(f"[bold yellow]No combat scans found in scan history ({source} scans).[/bold yellow]")
 
     # Build sides based on whether user is Attacker or Defender
     if defend:
@@ -736,12 +870,107 @@ def run_battle_calc_cmd(
         print(json.dumps(sim_result, indent=2))
         return
 
-    # Render formatted CLI output
     outcome = sim_result["outcome"]
     outcome_detail = sim_result.get("outcomeDetail", outcome)
     rounds = sim_result.get("rounds", 0)
     dominance = sim_result.get("dominance", 0.5)
 
+    if output_format == "bcalc":
+        # Planetarion BattleCalc Output Format
+        console.print()
+        console.print("[bold yellow]======================================================================[/bold yellow]")
+        console.print(f"[bold bright_white]🪐 PLANETARION BATTLECALC REPORT: {outcome_detail.upper()} ({rounds} Round(s))[/bold bright_white]")
+        console.print("[bold yellow]======================================================================[/bold yellow]")
+        console.print(f"[bold cyan]Attacker Coalition:[/bold cyan] {chosen_atk_label}")
+        console.print(f"[bold red]Defender Target:[/bold red] {chosen_def_label}")
+        console.print()
+
+        # Defending Fleets Loss Reports
+        for df in sim_result.get("defender", {}).get("fleets", []):
+            f_title = df.get("name", "Defense Fleet")
+            t_def = Table(title=f"Report of Losses from {f_title} (Defender)", box=box.SIMPLE_HEAVY, header_style="bold red")
+            t_def.add_column("Ship / Unit", justify="left")
+            t_def.add_column("Arrived", justify="right")
+            t_def.add_column("Lost", justify="right", style="bold red")
+            t_def.add_column("Survivors", justify="right", style="bold green")
+
+            s_counts = df.get("startCounts", {})
+            l_counts = df.get("lostCounts", {})
+            surv_counts = df.get("survivedCounts", {})
+
+            for uid, a_cnt in s_counts.items():
+                ship_name = peg_combat.SHIP_DEFINITIONS.get(uid, {}).get("name") or uid.replace("main-", "").replace("-", " ")
+                l_cnt = l_counts.get(uid, 0)
+                s_cnt = surv_counts.get(uid, a_cnt - l_cnt)
+                t_def.add_row(ship_name, f"{a_cnt:,}", f"{l_cnt:,}", f"{s_cnt:,}")
+            console.print(t_def)
+            console.print()
+
+        # Attacking Fleets Loss Reports
+        for af in sim_result.get("attacker", {}).get("fleets", []):
+            f_title = af.get("name", "Attacking Fleet")
+            t_atk = Table(title=f"Report of Losses from {f_title} (Attacker)", box=box.SIMPLE_HEAVY, header_style="bold cyan")
+            t_atk.add_column("Ship / Unit", justify="left")
+            t_atk.add_column("Arrived", justify="right")
+            t_atk.add_column("Lost", justify="right", style="bold red")
+            t_atk.add_column("Survivors", justify="right", style="bold green")
+
+            s_counts = af.get("startCounts", {})
+            l_counts = af.get("lostCounts", {})
+            surv_counts = af.get("survivedCounts", {})
+
+            for uid, a_cnt in s_counts.items():
+                ship_name = peg_combat.SHIP_DEFINITIONS.get(uid, {}).get("name") or uid.replace("main-", "").replace("-", " ")
+                l_cnt = l_counts.get(uid, 0)
+                s_cnt = surv_counts.get(uid, a_cnt - l_cnt)
+                t_atk.add_row(ship_name, f"{a_cnt:,}", f"{l_cnt:,}", f"{s_cnt:,}")
+            console.print(t_atk)
+            console.print()
+
+        # Salvage Report
+        salv = sim_result.get("salvage", {})
+        t_salv = Table(title="Salvage Report", box=box.SIMPLE_HEAVY, header_style="bold yellow")
+        t_salv.add_column("Metal", justify="right")
+        t_salv.add_column("Crystal", justify="right")
+        t_salv.add_column("Eonium", justify="right")
+        t_salv.add_column("Total Salvage", justify="right", style="bold green")
+        t_salv.add_row(
+            f"{salv.get('metal', 0):,}",
+            f"{salv.get('crystal', 0):,}",
+            f"{salv.get('eonium', 0):,}",
+            f"{salv.get('total', 0):,}"
+        )
+        console.print(t_salv)
+        console.print()
+
+        # Asteroids & Resources Captured
+        plunder = sim_result.get("plunder", {})
+        stolen_roids = sim_result.get("asteroidsStolen", {})
+        t_plund = Table(title="Asteroids & Resources Captured", box=box.SIMPLE_HEAVY, header_style="bold green")
+        t_plund.add_column("Category", justify="left")
+        t_plund.add_column("Metal", justify="right")
+        t_plund.add_column("Crystal", justify="right")
+        t_plund.add_column("Eonium", justify="right")
+        t_plund.add_column("Total", justify="right", style="bold green")
+        t_plund.add_row(
+            "Asteroids Captured",
+            f"{stolen_roids.get('metalRoids', 0):,} roids",
+            f"{stolen_roids.get('crystalRoids', 0):,} roids",
+            f"{stolen_roids.get('eoniumRoids', 0):,} roids",
+            f"{stolen_roids.get('total', 0):,} roids"
+        )
+        t_plund.add_row(
+            "Resources Plundered",
+            f"{plunder.get('metal', 0):,} res",
+            f"{plunder.get('crystal', 0):,} res",
+            f"{plunder.get('eonium', 0):,} res",
+            f"{plunder.get('total', 0):,} res"
+        )
+        console.print(t_plund)
+        console.print()
+        return
+
+    # Render formatted CLI output
     badge_color = "bold green" if outcome == "attacker" else ("bold red" if outcome == "defender" else "bold yellow")
     banner_text = f"[{badge_color}]=== SIMULATION RESULT: {outcome_detail} (in {rounds} round(s)) ===[/{badge_color}]\n\n"
     banner_text += f"[bold cyan]Attacker:[/bold cyan] {chosen_atk_label} ({sum(chosen_atk_ships.values())} ships)\n"
@@ -824,7 +1053,7 @@ def run_battle_calc_cmd(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Pegasus Galaxy MCP Tool & Game State Inspector v0.3 (macOS / Linux / Windows)",
+        description="Pegasus Galaxy MCP Tool & Game State Inspector v0.5 (macOS / Linux / Windows)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -889,7 +1118,19 @@ def main():
     parser.add_argument(
         "--defender",
         metavar="TARGET",
-        help="Defender target (planet ID, coords, or owner name from scan history)",
+        help="Defender target (coords e.g. 12:1:1, planet ID, or owner name from scan history)",
+    )
+    parser.add_argument(
+        "--source",
+        choices=["all", "user", "ally"],
+        default="all",
+        help="Scan intel source for battle simulation: 'all', 'user', or 'ally' (default: all)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["standard", "bcalc"],
+        default="standard",
+        help="Output format: 'standard' (rich tables) or 'bcalc' (Planetarion battlecalc reports)",
     )
     parser.add_argument(
         "--json",
@@ -922,7 +1163,15 @@ def main():
         elif args.reference is not None:
             print_reference(client, category_filter=args.reference, raw_json=args.json)
         elif args.battle_calc:
-            run_battle_calc_cmd(client, attacker_name=args.attacker, defender_target=args.defender, defend=args.defend, raw_json=args.json)
+            run_battle_calc_cmd(
+                client,
+                attacker_name=args.attacker,
+                defender_target=args.defender,
+                defend=args.defend,
+                source=args.source,
+                raw_json=args.json,
+                output_format=args.format
+            )
         else:
             print_dashboard(client, raw_json=args.json)
     except PegasusMCPError as e:

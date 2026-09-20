@@ -939,11 +939,23 @@ def parse_scan_record(scan_raw: Any, planet_lookup: Optional[Dict[str, Any]] = N
             resources = dict(meta["resources"])
         if not any(asteroids.values()) and meta.get("asteroids"):
             asteroids = dict(meta["asteroids"])
+        if not owner or owner == "Unknown":
+            owner = meta.get("owner") or owner
+
+    planet_name = ""
+    if planet_lookup and target_id in planet_lookup:
+        planet_name = planet_lookup[target_id].get("name", "")
+
+    source = scan_raw.get("source", "user")
+    alliance_id = scan_raw.get("allianceId", "")
+    alliance_tag = scan_raw.get("allianceTag", "")
+    scanner_name = scan_raw.get("scannerPlayerName", "") or scan_raw.get("scannerPlanetId", "")
 
     return {
         "targetPlanetId": target_id,
         "coords": coords or "Unknown",
         "owner": owner or "Unknown",
+        "planetName": planet_name,
         "population": population,
         "resources": resources,
         "asteroids": asteroids,
@@ -957,6 +969,10 @@ def parse_scan_record(scan_raw: Any, planet_lookup: Optional[Dict[str, Any]] = N
         "scanId": scan_id,
         "status": scan_raw.get("status", "success"),
         "isBlocked": (scan_raw.get("status") == "blocked"),
+        "source": source,
+        "allianceId": alliance_id,
+        "allianceTag": alliance_tag,
+        "scannerPlayerName": scanner_name,
     }
 
 
@@ -1318,17 +1334,24 @@ def simulate_combat(
                     remaining_dmg -= dmg_used
 
                     eff_note = f" ({int(target_efficiency * 100)}% eff)" if target_efficiency < 1.0 else ""
-                    msg = f"{shooter.side.capitalize()}:{shooter.name} dealt {int(dmg_used):,} damage to {chosen_target.name}{eff_note}"
+                    side_label = "🛡️ Defender" if shooter.side == "defender" else "🚀 Attacker"
+                    shooter_label = f"[{shooter.fleet_name}] {shooter.count:,}x {shooter.name}" if shooter.fleet_name else f"{shooter.count:,}x {shooter.name}"
+                    target_label = f"[{chosen_target.fleet_name}] {chosen_target.name}" if chosen_target.fleet_name else chosen_target.name
+                    msg = f"{side_label} {shooter_label} (Init {shooter.init}) fired at {target_label} -> dealt {int(dmg_used):,} dmg{eff_note}"
                     if destroyed > 0:
-                        msg += f", destroyed {destroyed:,}"
+                        msg += f", destroyed {destroyed:,} ships"
                     else:
-                        msg += ", no kills"
+                        msg += f", 0 destroyed ({chosen_target.count:,} remaining)"
                     round_events.append(msg)
 
                     action_data = {
                         "firingShipGroup": shooter.name,
+                        "firingFleet": shooter.fleet_name,
+                        "firingCount": shooter.count,
+                        "init": shooter.init,
                         "side": shooter.side,
                         "targetShipGroup": chosen_target.name,
+                        "targetFleet": chosen_target.fleet_name,
                         "targetSide": target_side,
                         "damageDealt": int(dmg_used),
                         "damageAbsorbed": int(absorbed_pds + absorbed_aura) if len(round_actions) == 0 else 0,
@@ -1360,8 +1383,8 @@ def simulate_combat(
                     if chosen_target.count <= 0 or chosen_target.emp_disabled:
                         continue
 
-                    # Oblivion / 100% resistance check or Colossus resistance
-                    if chosen_target.emp_resistance >= 100 or chosen_target.name == "Colossus":
+                    # Oblivion / 100% resistance check
+                    if chosen_target.emp_resistance >= 100:
                         action_data = {
                             "firingShipGroup": shooter.name,
                             "side": shooter.side,
@@ -1545,7 +1568,12 @@ def simulate_combat(
         tot_start = sum(f_start.values())
         tot_lost = sum(f_lost.values())
         tot_surv = sum(f_survived.values())
+        f_val_start = compute_value(f_start, f_groups)
+        f_val_surv = compute_value(f_survived, f_groups)
         f_val_lost = compute_value(f_lost, f_groups)
+        f_score_start = round(f_val_start["total"] / 9)
+        f_score_lost = round(f_val_lost["total"] / 9)
+        f_score_surv = round(f_val_surv["total"] / 9)
 
         atk_fleets_summary.append({
             "id": f_id,
@@ -1558,7 +1586,13 @@ def simulate_combat(
             "totalLost": tot_lost,
             "totalSurvived": tot_surv,
             "lossPercent": round((tot_lost / tot_start * 100) if tot_start > 0 else 0, 1),
-            "valueLost": f_val_lost
+            "valueStart": f_val_start,
+            "valueLost": f_val_lost,
+            "valueSurvived": f_val_surv,
+            "scoreStart": f_score_start,
+            "scoreLost": f_score_lost,
+            "scoreSurvived": f_score_surv,
+            "scoreDynamics": -f_score_lost
         })
 
     # Build per-fleet casualty breakdown for defenders
@@ -1589,7 +1623,12 @@ def simulate_combat(
         tot_start = sum(f_start.values())
         tot_lost = sum(f_lost.values())
         tot_surv = sum(f_survived.values())
+        f_val_start = compute_value(f_start, f_groups)
+        f_val_surv = compute_value(f_survived, f_groups)
         f_val_lost = compute_value(f_lost, f_groups)
+        f_score_start = round(f_val_start["total"] / 9)
+        f_score_lost = round(f_val_lost["total"] / 9)
+        f_score_surv = round(f_val_surv["total"] / 9)
 
         def_fleets_summary.append({
             "id": f_id,
@@ -1602,7 +1641,13 @@ def simulate_combat(
             "totalLost": tot_lost,
             "totalSurvived": tot_surv,
             "lossPercent": round((tot_lost / tot_start * 100) if tot_start > 0 else 0, 1),
-            "valueLost": f_val_lost
+            "valueStart": f_val_start,
+            "valueLost": f_val_lost,
+            "valueSurvived": f_val_surv,
+            "scoreStart": f_score_start,
+            "scoreLost": f_score_lost,
+            "scoreSurvived": f_score_surv,
+            "scoreDynamics": -f_score_lost
         })
 
     # Include Defender PDS in def_fleets_summary if present
@@ -1616,12 +1661,31 @@ def simulate_combat(
         tot_surv = sum(pds_surv.values())
         pds_cost_map = {g.unit_id: g.cost for g in pds_groups}
         pds_val = {"metal": 0, "crystal": 0, "eonium": 0, "total": 0}
+        pds_val_start = {"metal": 0, "crystal": 0, "eonium": 0, "total": 0}
+        pds_val_surv = {"metal": 0, "crystal": 0, "eonium": 0, "total": 0}
         for u_id, cnt in pds_lost.items():
             c = pds_cost_map.get(u_id, {})
             pds_val["metal"] += c.get("metal", 0) * cnt
             pds_val["crystal"] += c.get("crystal", 0) * cnt
             pds_val["eonium"] += c.get("eonium", 0) * cnt
         pds_val["total"] = pds_val["metal"] + pds_val["crystal"] + pds_val["eonium"]
+        for u_id, cnt in pds_start.items():
+            c = pds_cost_map.get(u_id, {})
+            pds_val_start["metal"] += c.get("metal", 0) * cnt
+            pds_val_start["crystal"] += c.get("crystal", 0) * cnt
+            pds_val_start["eonium"] += c.get("eonium", 0) * cnt
+        pds_val_start["total"] = pds_val_start["metal"] + pds_val_start["crystal"] + pds_val_start["eonium"]
+        for u_id, cnt in pds_surv.items():
+            c = pds_cost_map.get(u_id, {})
+            pds_val_surv["metal"] += c.get("metal", 0) * cnt
+            pds_val_surv["crystal"] += c.get("crystal", 0) * cnt
+            pds_val_surv["eonium"] += c.get("eonium", 0) * cnt
+        pds_val_surv["total"] = pds_val_surv["metal"] + pds_val_surv["crystal"] + pds_val_surv["eonium"]
+
+        pds_score_start = round(pds_val_start["total"] / 9)
+        pds_score_lost = round(pds_val["total"] / 9)
+        pds_score_surv = round(pds_val_surv["total"] / 9)
+
         def_fleets_summary.append({
             "id": "def_pds",
             "name": "Base Planetary Defenses",
@@ -1634,7 +1698,13 @@ def simulate_combat(
             "totalLost": tot_lost,
             "totalSurvived": tot_surv,
             "lossPercent": round((tot_lost / tot_start * 100) if tot_start > 0 else 0, 1),
-            "valueLost": pds_val
+            "valueStart": pds_val_start,
+            "valueLost": pds_val,
+            "valueSurvived": pds_val_surv,
+            "scoreStart": pds_score_start,
+            "scoreLost": pds_score_lost,
+            "scoreSurvived": pds_score_surv,
+            "scoreDynamics": -pds_score_lost
         })
 
     # Salvage Calculation (Pegasus Galaxy Official Formula)
@@ -1873,3 +1943,230 @@ def simulate_combat(
         "tacticalAdvice": advice,
         "roundDetails": round_details
     }
+
+
+# =========================================================================
+# TACTICAL DEFENSE INTEL & RELIABILITY HELPERS
+# =========================================================================
+
+def evaluate_scan_reliability(scan_dict: Dict[str, Any], current_tick: int) -> Dict[str, Any]:
+    """
+    Evaluates the reliability index (0-100%) of a scan record based on:
+    1. Scan Type: DEEP_SCAN (100%), INCOMING_SCAN (75%), MILITARY_SCAN (80%),
+       FLEET_COMPOSITION_SCAN (65%), SURFACE_SCAN (25%).
+    2. Freshness / Tick Age: Delta = current_tick - scan_tick.
+    3. Cloak / Stealth Vulnerability: Non-Deep scans cannot detect cloaked vessels.
+    """
+    scan_type = (scan_dict.get("scanType") or "UNKNOWN").upper()
+    scan_tick = int(scan_dict.get("tick") or 0)
+    
+    # 1. Base Scan Type Score
+    base_scores = {
+        "DEEP_SCAN": 100,
+        "MILITARY_SCAN": 80,
+        "INCOMING_SCAN": 75,
+        "FLEET_COMPOSITION_SCAN": 65,
+        "RESEARCH_SCAN": 50,
+        "INFRASTRUCTURE_SCAN": 50,
+        "RESOURCE_SCAN": 35,
+        "SURFACE_SCAN": 25,
+        "NEWS_SCAN": 40,
+    }
+    base = base_scores.get(scan_type, 50)
+
+    # 2. Freshness Multiplier based on tick delta
+    delta_ticks = max(0, current_tick - scan_tick) if current_tick > 0 and scan_tick > 0 else 0
+    if delta_ticks == 0:
+        freshness_factor = 1.0
+        freshness_label = "Live (Current Tick)"
+    elif delta_ticks <= 1:
+        freshness_factor = 0.95
+        freshness_label = "Very Fresh (1 tick ago)"
+    elif delta_ticks <= 3:
+        freshness_factor = 0.85
+        freshness_label = f"Recent ({delta_ticks} ticks ago)"
+    elif delta_ticks <= 7:
+        freshness_factor = 0.70
+        freshness_label = f"Aging ({delta_ticks} ticks ago)"
+    elif delta_ticks <= 15:
+        freshness_factor = 0.45
+        freshness_label = f"Stale ({delta_ticks} ticks ago)"
+    elif delta_ticks <= 30:
+        freshness_factor = 0.25
+        freshness_label = f"Old ({delta_ticks} ticks ago)"
+    else:
+        freshness_factor = 0.10
+        freshness_label = f"Obsolete ({delta_ticks} ticks ago)"
+
+    # 3. Cloak / Stealth Detection Risk
+    # In Pegasus Galaxy, cloak tech hides ships unless scanned with DEEP_SCAN
+    cloak_risk = False
+    cloak_penalty = 1.0
+    if scan_type != "DEEP_SCAN":
+        cloak_risk = True
+        cloak_penalty = 0.85  # 15% uncertainty due to stealth/cloaked ships
+
+    # Final Composite Reliability Percentage
+    reliability = int(round(base * freshness_factor * cloak_penalty))
+    reliability = max(5, min(100, reliability))
+
+    if reliability >= 80:
+        rating = "HIGH"
+        color = "#86efac"  # Green
+    elif reliability >= 55:
+        rating = "MODERATE"
+        color = "#fde047"  # Yellow
+    elif reliability >= 30:
+        rating = "LOW"
+        color = "#fb923c"  # Orange
+    else:
+        rating = "UNRELIABLE"
+        color = "#f87171"  # Red
+
+    warnings = []
+    if cloak_risk:
+        warnings.append("⚠️ Non-Deep scan cannot reveal cloaked warships or stealth escorts.")
+    if delta_ticks >= 6:
+        warnings.append(f"⏳ Scan is {delta_ticks} ticks old. Enemy may have constructed reinforcements or launched fleets.")
+
+    return {
+        "score": reliability,
+        "rating": rating,
+        "color": color,
+        "scanType": scan_type,
+        "deltaTicks": delta_ticks,
+        "freshnessLabel": freshness_label,
+        "cloakRisk": cloak_risk,
+        "warnings": warnings
+    }
+
+
+def detect_fleet_decoy(fleet: Dict[str, Any], score_intel: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Analyzes an inbound or scanned fleet to evaluate the probability that it is a fake attack,
+    scout probe, feint, or decoy fleet.
+    """
+    ships = fleet.get("ships", {}) or {}
+    total_ships = sum(int(c) for c in ships.values() if isinstance(c, (int, float)) and c > 0)
+    mission = (fleet.get("mission") or "ATTACK").upper()
+
+    decoy_chance = 0
+    reasons = []
+
+    # 1. Zero ships anomaly
+    if total_ships == 0:
+        return {
+            "isDecoy": True,
+            "decoyChance": 99,
+            "badge": "EMPTY GHOST FLEET",
+            "color": "#f87171",
+            "reasons": ["Fleet has 0 verified ships (ghost fleet or placeholder signature)."]
+        }
+
+    # 2. Single-ship probe / suicide scout
+    if total_ships == 1:
+        decoy_chance = 95
+        reasons.append("Single ship sent on mission (classic scout probe or feint).")
+    elif total_ships <= 5:
+        decoy_chance = 80
+        reasons.append(f"Extremely small force ({total_ships} ships); likely testing defense alarms or pinging PDS.")
+    elif total_ships <= 20:
+        decoy_chance = 45
+        reasons.append(f"Light patrol wing ({total_ships} ships); low combat payload.")
+
+    # 3. Civilian / Non-combat ship composition
+    civilian_keys = ["freighter", "runner", "extractor", "driller", "harvester", "transport", "colonizer", "ark", "cargo"]
+    combat_keys = ["fighter", "interceptor", "corvette", "destroyer", "cruiser", "battleship", "carrier", "dreadnought", "titan", "colossus", "imperator", "sentinel", "guardian", "centurion", "sovereign"]
+
+    civilian_count = 0
+    combat_count = 0
+    for sid, count in ships.items():
+        sid_lower = sid.lower()
+        cnt = int(count) if isinstance(count, (int, float)) else 0
+        if any(k in sid_lower for k in civilian_keys):
+            civilian_count += cnt
+        elif any(k in sid_lower for k in combat_keys):
+            combat_count += cnt
+
+    if total_ships > 0 and civilian_count == total_ships and mission == "ATTACK":
+        decoy_chance = max(decoy_chance, 90)
+        reasons.append("100% civilian transports/extractors on an ATTACK mission — zero offensive weaponry (decoy or plunder diversion).")
+    elif total_ships > 0 and (civilian_count / total_ships) > 0.85 and combat_count <= 5 and mission == "ATTACK":
+        decoy_chance = max(decoy_chance, 75)
+        reasons.append("Predominantly logistical vessels with minimal escort; questionable strike efficacy.")
+
+    # 4. Military Score Correlation
+    if score_intel and isinstance(score_intel, dict):
+        ships_score = score_intel.get("fromShips", 0)
+        if ships_score and ships_score < 10000 and total_ships > 500:
+            decoy_chance = max(decoy_chance, 85)
+            reasons.append(f"Attacker military ship score ({ships_score:,}) cannot support reported fleet volume ({total_ships:,} ships).")
+
+    is_decoy = decoy_chance >= 60
+    if decoy_chance >= 75:
+        badge = "HIGH DECOY PROBABILITY"
+        color = "#f87171"
+    elif decoy_chance >= 40:
+        badge = "SUSPECTED FEINT"
+        color = "#fb923c"
+    elif decoy_chance >= 20:
+        badge = "POSSIBLE DIVERSION"
+        color = "#fde047"
+    else:
+        badge = "GENUINE STRIKE"
+        color = "#86efac"
+
+    return {
+        "isDecoy": is_decoy,
+        "decoyChance": decoy_chance,
+        "badge": badge,
+        "color": color,
+        "totalShips": total_ships,
+        "civilianCount": civilian_count,
+        "combatCount": combat_count,
+        "reasons": reasons if reasons else ["Fleet exhibits genuine warship configuration and offensive profile."]
+    }
+
+
+def filter_fleets_by_arrival(fleets: List[Dict[str, Any]], target_tick: int, window: int = 0) -> Dict[str, Any]:
+    """
+    Partitions fleets into available (arrivesAt <= target_tick + window) and late arrivals.
+    """
+    available = []
+    late = []
+    for f in fleets:
+        arr = f.get("arrivesAt")
+        status = (f.get("status") or "").upper()
+        if status in ("DOCKED", "STATIONARY", "ORBIT") or arr is None:
+            f_copy = dict(f)
+            f_copy["arrivalStatus"] = "DOCKED_NOW"
+            f_copy["readyForBattle"] = True
+            available.append(f_copy)
+        else:
+            try:
+                arr_tick = int(arr)
+            except (ValueError, TypeError):
+                arr_tick = 0
+
+            f_copy = dict(f)
+            f_copy["arrivalTick"] = arr_tick
+            if arr_tick <= (target_tick + window):
+                f_copy["arrivalStatus"] = "ARRIVES_IN_TIME"
+                f_copy["readyForBattle"] = True
+                f_copy["marginTicks"] = (target_tick + window) - arr_tick
+                available.append(f_copy)
+            else:
+                f_copy["arrivalStatus"] = "TOO_LATE"
+                f_copy["readyForBattle"] = False
+                f_copy["missedByTicks"] = arr_tick - (target_tick + window)
+                late.append(f_copy)
+
+    return {
+        "targetTick": target_tick,
+        "window": window,
+        "availableFleets": available,
+        "lateFleets": late,
+        "availableCount": len(available),
+        "lateCount": len(late)
+    }
+
