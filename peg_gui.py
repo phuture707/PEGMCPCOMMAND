@@ -28,7 +28,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     except AttributeError:
         pass
 
-from peg_client import PegasusMCPClient, PegasusMCPError
+from peg_client import PegasusMCPClient, PegasusMCPError, load_token_from_env
 import peg_combat
 
 DEFAULT_PORT = 7890
@@ -296,6 +296,30 @@ class PegasusHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": True, "tools": cached_tools})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, status=500)
+            return
+
+        if url_path == "/api/mobile_setup":
+            token = load_token_from_env() or ""
+            local_ip = "127.0.0.1"
+            try:
+                import socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                pass
+            cloud_url = f"https://phuture707.github.io/PEGMCPCOMMAND/calc.html#setup_pat={token}" if token else "https://phuture707.github.io/PEGMCPCOMMAND/calc.html"
+            local_url = f"http://{local_ip}:{DEFAULT_PORT}/calc"
+            self._send_json({
+                "success": True,
+                "token": token,
+                "hasToken": bool(token),
+                "cloudMobileUrl": cloud_url,
+                "localWifiUrl": local_url,
+                "localIp": local_ip,
+                "port": DEFAULT_PORT
+            })
             return
 
         if url_path == "/api/missions":
@@ -2698,6 +2722,46 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     .bcalc-report-table th:first-child, .bcalc-report-table td:first-child {
       text-align: left;
     }
+
+    /* Mobile & Touch Responsive Styles */
+    @media (max-width: 960px) {
+      .container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0.35rem !important;
+      }
+      header {
+        padding: 0.6rem 0.85rem !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+      }
+      .bcalc-matrix-container, .sim-bcalc-matrix-wrapper {
+        -webkit-overflow-scrolling: touch;
+      }
+      .bcalc-matrix-table th:first-child,
+      .bcalc-matrix-table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: #090f1d;
+        border-right: 1px solid rgba(0, 229, 255, 0.25);
+        box-shadow: 2px 0 6px rgba(0, 0, 0, 0.6);
+      }
+    }
+    @media (max-width: 640px) {
+      .modal-box {
+        max-width: 96vw !important;
+        width: 96vw !important;
+        max-height: 88vh !important;
+        overflow-y: auto !important;
+        padding: 1rem 0.75rem !important;
+      }
+      .ship-input {
+        width: 84px;
+        min-width: 74px;
+        font-size: 0.85rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2744,6 +2808,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       <button class="btn-refresh" onclick="startFreshCalculation()" title="Start a clean calculation from scratch" style="padding: 0.38rem 0.85rem; font-size: 0.82rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08);">
         ✨ Start Fresh
       </button>
+      <button class="btn-refresh" onclick="openMobileSetupModal()" title="Connect your mobile phone (works when PC is turned off)" style="padding: 0.38rem 0.85rem; font-size: 0.82rem; color: #f472b6; border-color: rgba(244,114,182,0.45); background: rgba(244,114,182,0.1); font-weight: 700;">
+        📱 Connect Phone
+      </button>
       <a href="/" target="_blank" class="btn-refresh" style="text-decoration: none; padding: 0.38rem 0.85rem; font-size: 0.82rem; color: #86efac; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
         🪐 Open Full Hub
       </a>
@@ -2765,6 +2832,9 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <span>Tick: <strong id="header-tick">---</strong></span>
         <span style="color: var(--cyan);">(In: <span id="header-countdown">---</span>)</span>
       </div>
+      <button class="btn-refresh" onclick="openMobileSetupModal()" style="color: #f472b6; border-color: rgba(244,114,182,0.45); font-weight: 600;">
+        <span>📱</span> Phone Setup
+      </button>
       <button class="btn-refresh" onclick="refreshDashboard()">
         <span>🔄</span> Refresh Telemetry
       </button>
@@ -4487,6 +4557,89 @@ HTML_CONTENT = r"""<!DOCTYPE html>
           🚀 Send In-Game Message
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile Phone Setup Modal -->
+<div id="mobile-setup-modal" style="display: none; position: fixed; inset: 0; z-index: 10003; background: rgba(5, 7, 15, 0.88); backdrop-filter: blur(6px); align-items: center; justify-content: center; padding: 1.5rem;" onclick="if(event.target === this) closeMobileSetupModal()">
+  <div style="background: #0d1222; border: 1px solid rgba(244,114,182,0.45); border-radius: 12px; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 16px 60px rgba(0,0,0,0.95); overflow: hidden;" onclick="event.stopPropagation()">
+    <div style="padding: 1.1rem 1.4rem; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25);">
+      <div>
+        <div style="font-size: 1.15rem; font-weight: 700; color: #f472b6; display: flex; align-items: center; gap: 0.5rem;">
+          📱 Mobile Phone MCP Setup &amp; Access
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 0.2rem;">
+          Use the BattleCalc, live radar, and scans from your phone anywhere — even with your PC turned OFF!
+        </div>
+      </div>
+      <button class="btn-refresh" style="font-size: 1.2rem; padding: 0.2rem 0.6rem; line-height: 1;" onclick="closeMobileSetupModal()">✕</button>
+    </div>
+
+    <div style="padding: 1.25rem 1.4rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.1rem;">
+      <!-- Mode 1: Cloud MCP on Phone (Works when PC is OFF) -->
+      <div style="background: rgba(244,114,182,0.06); border: 1px solid rgba(244,114,182,0.3); border-radius: 8px; padding: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div style="font-weight: 700; color: #f472b6; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>📷 1-Click QR Code Transfer</span>
+            <span class="badge" style="background: rgba(16,185,129,0.2); color: #86efac; font-size: 0.68rem;">Works While PC is OFF</span>
+          </div>
+        </div>
+        <p style="font-size: 0.8rem; color: #cbd5e1; margin-bottom: 0.75rem; line-height: 1.4;">
+          Point your phone camera at this QR code. It opens the public mobile calculator and automatically transfers your <code>.env</code> token into your phone's browser memory (<code>localStorage</code>). Once scanned, you can <strong>turn off your PC</strong> and the phone talks directly to the Pegasus Galaxy cloud servers!
+        </p>
+        <div style="display: flex; gap: 1rem; align-items: center; justify-content: center; margin: 0.8rem 0; flex-wrap: wrap;">
+          <div style="background: #fff; padding: 8px; border-radius: 8px; display: inline-block;">
+            <img id="mobile-setup-qr" src="" alt="Scan with Phone Camera" style="width: 170px; height: 170px; display: block;">
+          </div>
+          <div style="flex: 1; min-width: 220px;">
+            <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); margin-bottom: 0.35rem;">
+              Or copy/send this transfer link to your phone:
+            </label>
+            <div style="display: flex; gap: 0.4rem;">
+              <input type="text" id="mobile-setup-cloud-link" class="form-control" readonly style="font-size: 0.75rem; background: #070b14; flex: 1;" onclick="this.select()">
+              <button class="btn-refresh" onclick="navigator.clipboard.writeText(document.getElementById('mobile-setup-cloud-link').value); showToast('📋 Mobile setup link copied!');" style="font-size: 0.78rem; padding: 0.3rem 0.65rem;">
+                Copy
+              </button>
+            </div>
+            <div style="font-size: 0.72rem; color: #86efac; margin-top: 0.45rem;">
+              ✅ Auto-saves to phone storage • Zero installation required
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode 2: Local Wi-Fi Direct (While PC is running) -->
+      <div style="background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.2); border-radius: 8px; padding: 0.9rem 1rem;">
+        <div style="font-weight: 700; color: var(--cyan); font-size: 0.88rem; margin-bottom: 0.35rem;">
+          📶 Same Wi-Fi Direct Access (While PC is On)
+        </div>
+        <p style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.5rem;">
+          If your PC and phone are on the same Wi-Fi network, open this address directly in your phone browser:
+        </p>
+        <div style="display: flex; gap: 0.4rem;">
+          <input type="text" id="mobile-setup-wifi-link" class="form-control" readonly style="font-size: 0.8rem; background: #070b14; flex: 1; color: var(--cyan);" onclick="this.select()">
+          <button class="btn-refresh" onclick="navigator.clipboard.writeText(document.getElementById('mobile-setup-wifi-link').value); showToast('📋 Wi-Fi address copied!');" style="font-size: 0.78rem; padding: 0.3rem 0.65rem;">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <!-- Mode 3: 24/7 Automated Bot & Full Suite (VPS Cloud) -->
+      <div style="background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.25); border-radius: 8px; padding: 0.9rem 1rem;">
+        <div style="font-weight: 700; color: #c084fc; font-size: 0.88rem; margin-bottom: 0.35rem;">
+          🤖 Want the Automated Bot to run 24/7 while your PC is OFF?
+        </div>
+        <p style="font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; margin-bottom: 0.4rem;">
+          To run the automated economy/defense bot around the clock with your home computer powered down, run the suite on a cheap ($3/month) cloud Linux VPS using our included <code>deploy_vps.sh</code> script.
+        </p>
+      </div>
+    </div>
+
+    <div style="padding: 0.9rem 1.4rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: flex-end; background: rgba(0,0,0,0.25);">
+      <button class="btn-refresh" onclick="closeMobileSetupModal()" style="font-size: 0.85rem; padding: 0.4rem 1.25rem;">
+        Done
+      </button>
     </div>
   </div>
 </div>
@@ -10856,6 +11009,33 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
   function closeAllianceMessageModal() {
     const modal = document.getElementById('sim-alliance-msg-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function openMobileSetupModal() {
+    const modal = document.getElementById('mobile-setup-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    try {
+      const res = await fetch('/api/mobile_setup');
+      const data = await res.json();
+      if (data && data.success) {
+        const qrEl = document.getElementById('mobile-setup-qr');
+        const cloudLink = document.getElementById('mobile-setup-cloud-link');
+        const wifiLink = document.getElementById('mobile-setup-wifi-link');
+        if (cloudLink) cloudLink.value = data.cloudMobileUrl || '';
+        if (wifiLink) wifiLink.value = data.localWifiUrl || '';
+        if (qrEl && data.cloudMobileUrl) {
+          qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.cloudMobileUrl)}`;
+        }
+      }
+    } catch(e) {
+      console.error("Mobile setup fetch failed:", e);
+    }
+  }
+
+  function closeMobileSetupModal() {
+    const modal = document.getElementById('mobile-setup-modal');
     if (modal) modal.style.display = 'none';
   }
 

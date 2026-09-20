@@ -494,6 +494,74 @@
       font-weight: 700;
       box-shadow: 0 0 10px rgba(0,229,255,0.25);
     }
+
+    /* =========================================================================
+       MOBILE & TOUCH RESPONSIVE STYLES
+       ========================================================================= */
+    @media (max-width: 960px) {
+      .bcalc-dual-container {
+        flex-direction: column !important;
+      }
+      .container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+      }
+      body {
+        padding: 0.4rem !important;
+      }
+      header {
+        padding: 0.75rem !important;
+        flex-direction: column;
+        align-items: stretch !important;
+      }
+      header .brand {
+        justify-content: flex-start;
+      }
+      header .brand h1 {
+        font-size: 1.1rem;
+      }
+      #calc-multi-tabs-bar {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+      }
+      .bcalc-side-col {
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 0.75rem;
+      }
+      .bcalc-table th:first-child,
+      .bcalc-table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: #090f1d;
+        border-right: 1px solid rgba(0, 229, 255, 0.25);
+        box-shadow: 2px 0 6px rgba(0, 0, 0, 0.6);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .modal-overlay {
+        padding: 0.4rem !important;
+      }
+      .modal-box {
+        max-width: 96vw !important;
+        width: 96vw !important;
+        max-height: 88vh !important;
+        overflow-y: auto !important;
+        padding: 1rem 0.75rem !important;
+      }
+      .ship-input {
+        width: 84px;
+        min-width: 74px;
+        font-size: 0.85rem;
+      }
+      .btn {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.78rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2029,7 +2097,7 @@ function escapeHtml(str) {
 
 let mcpConfig = {
   url: localStorage.getItem('peg_mcp_url') || 'http://127.0.0.1:7890',
-  pat: sessionStorage.getItem('peg_mcp_pat') || '',
+  pat: localStorage.getItem('peg_mcp_pat') || sessionStorage.getItem('peg_mcp_pat') || '',
   connected: false,
   liveTick: null,
   nextTickIn: null,
@@ -5088,6 +5156,7 @@ function disconnectMcpToStandalone() {
   mcpConfig.mode = 'STANDALONE';
   mcpConfig.pat = '';
   sessionStorage.removeItem('peg_mcp_pat');
+  localStorage.removeItem('peg_mcp_pat');
   if (mcpPollTimer) {
     clearInterval(mcpPollTimer);
     mcpPollTimer = null;
@@ -5567,8 +5636,23 @@ window.addEventListener('DOMContentLoaded', async () => {
   updateTotals();
   updateLocalSuiteLink();
 
-  // Check URL hash for shared calculation FIRST
+  // Check URL hash for direct PAT setup (e.g. #setup_pat=... or #pat=...)
   const hash = window.location.hash || '';
+  const patMatch = hash.match(/#(?:setup_)?pat=([^&]+)/i);
+  if (patMatch && patMatch[1]) {
+    const rawToken = decodeURIComponent(patMatch[1]).trim();
+    if (rawToken) {
+      mcpConfig.pat = rawToken;
+      localStorage.setItem('peg_mcp_pat', rawToken);
+      sessionStorage.setItem('peg_mcp_pat', rawToken);
+      if (history.replaceState) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      showToast('🔑 Mobile MCP Token imported and saved to phone!');
+    }
+  }
+
+  // Check URL hash for shared calculation FIRST
   if (hash.includes('c=')) {
     const code = hash.split(/#?c=/)[1].split('&')[0];
     const data = await decompressFromUrlSafe(code);
