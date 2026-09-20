@@ -867,22 +867,61 @@ def parse_scan_record(scan_raw: Any, planet_lookup: Optional[Dict[str, Any]] = N
     asteroids = res.get("asteroids", {"metalRoids": 0, "crystalRoids": 0, "eoniumRoids": 0})
 
     # Named fleets docked or in transit at planet
+    # Prioritize 'namedFleets' as the canonical fleet roster (an empire can have at most 4 named fleets)
     named_fleets: List[Dict[str, Any]] = []
+    seen_fleet_ids = set()
+
     for nf in res.get("namedFleets", []):
+        f_id = nf.get("id")
+        if f_id:
+            seen_fleet_ids.add(f_id)
         named_fleets.append({
-            "id": nf.get("id"),
+            "id": f_id,
             "name": nf.get("name", "Unnamed Fleet"),
             "ships": nf.get("ships", {}),
             "status": nf.get("status", "DOCKED")
         })
 
+    # Transit fleets in flight (only include if truly distinct / not an echo of an existing named fleet)
     for tf in res.get("transitFleets", []):
-        named_fleets.append({
-            "id": tf.get("id"),
-            "name": (tf.get("name") or "Transit Fleet") + " (In Transit)",
-            "ships": tf.get("ships", {}),
-            "status": "TRANSIT"
-        })
+        tf_id = tf.get("id")
+        tf_ships = tf.get("ships", {})
+        is_duplicate = False
+
+        # 1. Deduplicate by fleet ID
+        if tf_id and tf_id in seen_fleet_ids:
+            is_duplicate = True
+            for nf in named_fleets:
+                if nf.get("id") == tf_id:
+                    if tf.get("mission"):
+                        nf["mission"] = tf.get("mission")
+                    if tf.get("targetPlanetId"):
+                        nf["targetPlanetId"] = tf.get("targetPlanetId")
+                    break
+
+        # 2. Deduplicate by matching ship composition against traveling named fleets
+        if not is_duplicate:
+            for nf in named_fleets:
+                if nf.get("status", "").startswith("TRAVELING") and nf.get("ships") == tf_ships:
+                    is_duplicate = True
+                    if tf.get("mission"):
+                        nf["mission"] = tf.get("mission")
+                    break
+
+        # 3. Maximum 4 fleets per empire: if 4 named fleets already present, all slots are filled
+        if not is_duplicate and len(named_fleets) < 4:
+            tf_name = tf.get("name") or "Transit Fleet"
+            mission_tag = f" ({tf.get('mission')})" if tf.get("mission") else " (In Transit)"
+            named_fleets.append({
+                "id": tf_id,
+                "name": tf_name + mission_tag,
+                "ships": tf_ships,
+                "status": "TRANSIT",
+                "mission": tf.get("mission", "TRANSIT"),
+                "targetPlanetId": tf.get("targetPlanetId", "")
+            })
+            if tf_id:
+                seen_fleet_ids.add(tf_id)
 
     # PDS constructions and levels
     pds_levels: Dict[str, int] = {}

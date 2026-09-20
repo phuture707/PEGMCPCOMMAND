@@ -2114,6 +2114,270 @@ const COMPACT_SHIP_KEYS = [
 const COMPACT_SHIP_MAP = {};
 COMPACT_SHIP_KEYS.forEach((k, i) => { COMPACT_SHIP_MAP[k] = i; });
 
+const SHIP_NAME_TO_KEY = {
+  "claw extractor": "main-ashkari-claw-extractor",
+  "fang": "main-ashkari-fang",
+  "marauder": "main-ashkari-marauder",
+  "oblivion": "main-ashkari-oblivion",
+  "plunder barge": "main-ashkari-plunder-barge",
+  "raid runner": "main-ashkari-raid-runner",
+  "ravager": "main-ashkari-ravager",
+  "reaper": "main-ashkari-reaper",
+  "talon": "main-ashkari-talon",
+  "viper": "main-ashkari-viper",
+  "arc": "main-synthara-arc",
+  "crystal borer": "main-synthara-crystal-borer",
+  "monolith": "main-synthara-monolith",
+  "nexus": "main-synthara-nexus",
+  "nexus freighter": "main-synthara-nexus-freighter",
+  "obelisk": "main-synthara-obelisk",
+  "oracle": "main-synthara-oracle",
+  "pulse": "main-synthara-pulse",
+  "pulse courier": "main-synthara-pulse-courier",
+  "singularity": "main-synthara-singularity",
+  "singularity hauler": "main-synthara-singularity-hauler",
+  "void harvester": "main-synthara-void-harvester",
+  "centurion": "main-vanguard-centurion",
+  "colossus": "main-vanguard-colossus",
+  "core driller": "main-vanguard-core-driller",
+  "fortress transport": "main-vanguard-fortress-transport",
+  "guardian": "main-vanguard-guardian",
+  "imperator": "main-vanguard-imperator",
+  "ironclad freighter": "main-vanguard-ironclad-freighter",
+  "ore extractor": "main-vanguard-ore-extractor",
+  "sentinel": "main-vanguard-sentinel",
+  "siege harvester": "main-vanguard-siege-harvester",
+  "sovereign": "main-vanguard-sovereign",
+  "supply runner": "main-vanguard-supply-runner",
+  "titan": "main-vanguard-titan"
+};
+
+function resolveShipName(str) {
+  if (!str) return null;
+  const clean = str.toLowerCase().replace(/main-/g, '').replace(/^(ashkari|synthara|vanguard)-/g, '').replace(/[-_]/g, ' ').trim();
+  if (SHIP_NAME_TO_KEY[clean]) return SHIP_NAME_TO_KEY[clean];
+  if (SHIP_NAME_TO_KEY[str.toLowerCase().trim()]) return SHIP_NAME_TO_KEY[str.toLowerCase().trim()];
+  for (const [k, v] of Object.entries(SHIP_NAME_TO_KEY)) {
+    if (clean === k || clean.endsWith(' ' + k) || clean.startsWith(k + ' ')) return v;
+  }
+  return null;
+}
+
+function parseScanTextOrJson(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+  const trimmed = rawText.trim();
+  if (!trimmed) return null;
+
+  // 1. Try parsing as JSON first
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      let parsed = JSON.parse(trimmed);
+      if (parsed && parsed.result) {
+        parsed = typeof parsed.result === 'string' ? JSON.parse(parsed.result) : parsed.result;
+      }
+      if (parsed && (parsed.namedFleets || parsed.transitFleets || parsed.ships || parsed.fleet)) {
+        const namedFleetsRaw = Array.isArray(parsed.namedFleets) ? parsed.namedFleets : [];
+        const transitFleetsRaw = Array.isArray(parsed.transitFleets) ? parsed.transitFleets : [];
+        const seenIds = new Set();
+        const fleets = [];
+
+        // Prioritize namedFleets as the most relevant part of a deep scan (max 4 fleets)
+        namedFleetsRaw.forEach((nf, idx) => {
+          if (fleets.length >= 4) return;
+          const fid = nf.id || ('nf_' + idx);
+          seenIds.add(fid);
+          const fname = (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${idx + 1}`;
+          fleets.push({
+            id: fid,
+            name: fname,
+            fleetName: fname,
+            status: nf.status || 'DOCKED',
+            enabled: true,
+            ships: Object.assign({}, nf.ships || {})
+          });
+        });
+
+        // Add transit fleets only if distinct and under 4-fleet cap
+        transitFleetsRaw.forEach((tf, idx) => {
+          if (fleets.length >= 4) return;
+          const tfid = tf.id || ('tf_' + idx);
+          if (seenIds.has(tfid)) return;
+          const tfShips = tf.ships || {};
+          const isDup = fleets.some(f => f.status && f.status.startsWith('TRAVELING') && JSON.stringify(f.ships) === JSON.stringify(tfShips));
+          if (isDup) return;
+
+          const fname = tf.name || `Transit Fleet ${idx + 1}`;
+          fleets.push({
+            id: tfid,
+            name: fname,
+            fleetName: fname,
+            status: 'TRANSIT',
+            enabled: true,
+            ships: Object.assign({}, tfShips)
+          });
+        });
+
+        const pds = {};
+        if (parsed.constructions && Array.isArray(parsed.constructions)) {
+          parsed.constructions.forEach(c => {
+            const cn = (c.name || '').toLowerCase();
+            const lvl = parseInt(c.level, 10) || 0;
+            if (cn.includes('laser')) pds['main-laser-battery'] = Math.max(pds['main-laser-battery'] || 0, lvl);
+            else if (cn.includes('missile')) pds['main-missile-silo'] = Math.max(pds['main-missile-silo'] || 0, lvl);
+            else if (cn.includes('ion')) pds['main-ion-cannon'] = Math.max(pds['main-ion-cannon'] || 0, lvl);
+            else if (cn.includes('shield')) pds['main-shield-generator'] = Math.max(pds['main-shield-generator'] || 0, lvl);
+          });
+        }
+        const rawShips = parsed.ships || parsed.fleet || {};
+        Object.entries(rawShips).forEach(([sid, cnt]) => {
+          if (sid.startsWith('pds-')) {
+            const lvl = parseInt(cnt, 10) || 0;
+            const sl = sid.toLowerCase();
+            if (sl.includes('laser')) pds['main-laser-battery'] = Math.max(pds['main-laser-battery'] || 0, lvl);
+            else if (sl.includes('missile')) pds['main-missile-silo'] = Math.max(pds['main-missile-silo'] || 0, lvl);
+            else if (sl.includes('ion')) pds['main-ion-cannon'] = Math.max(pds['main-ion-cannon'] || 0, lvl);
+            else if (sl.includes('shield')) pds['main-shield-generator'] = Math.max(pds['main-shield-generator'] || 0, lvl);
+          }
+        });
+
+        return {
+          coords: parsed.coords || '',
+          fleets: fleets,
+          pds: pds
+        };
+      }
+    } catch(e) {}
+  }
+
+  // 2. Parse human-readable / formatted scan text
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('named fleets') || lower.includes('transit fleets') || (lower.includes('fleet') && (lower.includes('pulse') || lower.includes('arc') || lower.includes('monolith')))) {
+    const lines = trimmed.split('\n');
+    const hasNamed = lower.includes('named fleets');
+    const fleets = [];
+    const pds = {
+      'main-shield-generator': 0,
+      'main-laser-battery': 0,
+      'main-missile-silo': 0,
+      'main-ion-cannon': 0
+    };
+
+    let currentSection = null;
+    let currentFleet = null;
+    let coords = '';
+
+    const coordsMatch = trimmed.match(/(?:target|coords|planet|coordinates)[\s:]+(\d+:\d+:\d+)/i);
+    if (coordsMatch) coords = coordsMatch[1];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const sLine = line.trim();
+      if (!sLine) continue;
+      const lLine = sLine.toLowerCase();
+
+      if (lLine.startsWith('named fleets')) {
+        currentSection = 'named';
+        currentFleet = null;
+        continue;
+      } else if (lLine.startsWith('transit fleets')) {
+        if (hasNamed) {
+          currentSection = 'skip_transit';
+        } else {
+          currentSection = 'transit';
+        }
+        currentFleet = null;
+        continue;
+      } else if (lLine.startsWith('constructions') || lLine.startsWith('buildings') || lLine.startsWith('structures')) {
+        currentSection = 'constructions';
+        currentFleet = null;
+        continue;
+      } else if (lLine.startsWith('fleet') && !lLine.includes('named') && !lLine.includes('transit')) {
+        currentSection = 'fleet_pds';
+        currentFleet = null;
+        continue;
+      }
+
+      if (currentSection === 'constructions' || currentSection === 'fleet_pds') {
+        const pdsM = lLine.match(/(laser|missile|ion|shield)[^\d:]*[:\s]+(?:level\s*)?(\d+)/i);
+        if (pdsM) {
+          const kind = pdsM[1].toLowerCase();
+          const lvl = parseInt(pdsM[2], 10) || 0;
+          if (kind.includes('laser')) pds['main-laser-battery'] = Math.max(pds['main-laser-battery'], lvl);
+          else if (kind.includes('missile')) pds['main-missile-silo'] = Math.max(pds['main-missile-silo'], lvl);
+          else if (kind.includes('ion')) pds['main-ion-cannon'] = Math.max(pds['main-ion-cannon'], lvl);
+          else if (kind.includes('shield')) pds['main-shield-generator'] = Math.max(pds['main-shield-generator'], lvl);
+        }
+        continue;
+      }
+
+      if (currentSection === 'named' || currentSection === 'transit') {
+        const shipM1 = sLine.match(/^([A-Za-z0-9_ -]+?)\s*[:=]\s*(\d[\d,\.]*)\s*$/);
+        const shipM2 = sLine.match(/^(\d[\d,\.]*)\s*[xX]?\s+([A-Za-z0-9_ -]+)$/);
+
+        let shipName = null;
+        let shipCount = 0;
+
+        if (shipM1) {
+          shipName = shipM1[1].trim();
+          shipCount = parseInt(shipM1[2].replace(/[,.]/g, ''), 10) || 0;
+        } else if (shipM2) {
+          shipCount = parseInt(shipM2[1].replace(/[,.]/g, ''), 10) || 0;
+          shipName = shipM2[2].trim();
+        }
+
+        const resolvedKey = shipName ? resolveShipName(shipName) : null;
+
+        if (resolvedKey && shipCount > 0) {
+          if (!currentFleet && fleets.length < 4) {
+            const fname = `Fleet ${fleets.length + 1}`;
+            currentFleet = {
+              id: 'fl_' + fleets.length,
+              name: fname,
+              fleetName: fname,
+              status: 'UNKNOWN',
+              enabled: true,
+              ships: {}
+            };
+            fleets.push(currentFleet);
+          }
+          if (currentFleet) {
+            currentFleet.ships[resolvedKey] = (currentFleet.ships[resolvedKey] || 0) + shipCount;
+          }
+          continue;
+        }
+
+        const fleetM = sLine.match(/^([A-Za-z0-9_ -]+?)(?:[\s\[\(]+(TRAVELING|DOCKED|DEFENDING|RECALLING|ATTACK)[^\]\)]*[\s\]\)])?$/i);
+        if (fleetM && sLine.length < 40 && !lLine.includes('metal') && !lLine.includes('crystal') && !lLine.includes('eonium')) {
+          if (fleets.length >= 4) {
+            continue;
+          }
+          const rawFname = fleetM[1].trim();
+          const fstatus = fleetM[2] ? fleetM[2].toUpperCase() : 'DOCKED';
+          currentFleet = {
+            id: 'fl_' + fleets.length,
+            name: rawFname,
+            fleetName: rawFname,
+            status: fstatus,
+            enabled: true,
+            ships: {}
+          };
+          fleets.push(currentFleet);
+        }
+      }
+    }
+
+    if (fleets.length > 0) {
+      return {
+        coords: coords,
+        fleets: fleets,
+        pds: pds
+      };
+    }
+  }
+
+  return null;
+}
+
 function compactFleets(fleets) {
   if (!Array.isArray(fleets)) return [];
   return fleets.map(f => {
@@ -2513,14 +2777,58 @@ async function applyImportedCode() {
     return;
   }
   
+  // Check if raw is a Deep Scan text report or Scan JSON
+  const scanData = parseScanTextOrJson(raw);
+  if (scanData && scanData.fleets && scanData.fleets.length > 0) {
+    applyScanIntoCalculator(scanData);
+    closeImportModal();
+    showToast(`Imported Deep Scan (${scanData.fleets.length} fleet(s))!`);
+    return;
+  }
+  
   const data = await decompressFromUrlSafe(raw);
   if (data) {
     applyCalcSnapshot(data);
     closeImportModal();
     showToast(`Successfully imported ${data.title || 'Battle Calculation'}!`);
   } else {
-    alert("Could not decode battle calculation. Please check the link or code.");
+    alert("Could not decode battle calculation. Please check the link, scan text, or code.");
   }
+}
+
+function applyScanIntoCalculator(scanData) {
+  if (!scanData || !scanData.fleets || scanData.fleets.length === 0) return;
+
+  userClearedRoster['def'] = false;
+  defenderFleets = scanData.fleets.map((f, i) => ({
+    id: f.id || ('def_' + (i + 1)),
+    name: f.name || (i === 0 ? 'Defender Garrison' : ('Defender Fleet ' + (i + 1))),
+    fleetName: f.fleetName || f.name || (i === 0 ? 'Defender Garrison' : ('Defender Fleet ' + (i + 1))),
+    coords: f.coords || scanData.coords || '',
+    enabled: f.enabled !== false,
+    ships: Object.assign({}, f.ships || {})
+  }));
+
+  if (scanData.coords) {
+    const bottomInp = document.getElementById('bottom-coords-input');
+    if (bottomInp) bottomInp.value = scanData.coords;
+  }
+
+  if (scanData.pds) {
+    defenderPds['main-shield-generator'] = scanData.pds['main-shield-generator'] || 0;
+    defenderPds['main-laser-battery'] = scanData.pds['main-laser-battery'] || 0;
+    defenderPds['main-missile-silo'] = scanData.pds['main-missile-silo'] || 0;
+    defenderPds['main-ion-cannon'] = scanData.pds['main-ion-cannon'] || 0;
+  }
+
+  if (calcSessions && calcSessions.length > 0) {
+    calcSessions[0].name = scanData.coords ? `Target ${scanData.coords}` : (scanData.fleets[0]?.name || 'Imported Scan');
+    calcSessions[0].state = captureCalcSnapshot();
+    renderCalcTabs();
+  }
+
+  renderMatrix();
+  updateTotals();
 }
 
 function downloadOfflineHtml() {
@@ -4662,16 +4970,79 @@ async function loadCloudFleetsAndScans(pat) {
         simScanTargets = scans.map(s => {
           let resObj = {};
           try { resObj = typeof s.result === 'string' ? JSON.parse(s.result) : (s.result || {}); } catch(e) {}
+          
+          const namedRaw = Array.isArray(resObj.namedFleets) ? resObj.namedFleets : [];
+          const transitRaw = Array.isArray(resObj.transitFleets) ? resObj.transitFleets : [];
+          const seenIds = new Set();
+          const nfs = [];
+
+          namedRaw.forEach((nf, idx) => {
+            if (nfs.length >= 4) return;
+            const fid = nf.id || ('nf_' + idx);
+            seenIds.add(fid);
+            nfs.push({
+              id: fid,
+              name: (nf.name && nf.name.trim()) ? nf.name.trim() : `Fleet ${idx + 1}`,
+              ships: Object.assign({}, nf.ships || {}),
+              status: nf.status || 'DOCKED'
+            });
+          });
+
+          transitRaw.forEach((tf, idx) => {
+            if (nfs.length >= 4) return;
+            const tfid = tf.id || ('tf_' + idx);
+            if (seenIds.has(tfid)) return;
+            const tfShips = tf.ships || {};
+            const isDup = nfs.some(f => f.status && f.status.startsWith('TRAVELING') && JSON.stringify(f.ships) === JSON.stringify(tfShips));
+            if (isDup) return;
+            nfs.push({
+              id: tfid,
+              name: tf.name || `Transit Fleet ${idx + 1}`,
+              ships: Object.assign({}, tfShips),
+              status: 'TRANSIT'
+            });
+          });
+
+          const rawShips = resObj.ships || resObj.fleet || {};
+          const garrisonShips = {};
+          const pdsLevels = {};
+          Object.entries(rawShips).forEach(([sid, cnt]) => {
+            if (sid.startsWith('pds-')) {
+              const lvl = parseInt(cnt, 10) || 0;
+              const sl = sid.toLowerCase();
+              if (sl.includes('laser')) pdsLevels['main-laser-battery'] = Math.max(pdsLevels['main-laser-battery'] || 0, lvl);
+              else if (sl.includes('missile')) pdsLevels['main-missile-silo'] = Math.max(pdsLevels['main-missile-silo'] || 0, lvl);
+              else if (sl.includes('ion')) pdsLevels['main-ion-cannon'] = Math.max(pdsLevels['main-ion-cannon'] || 0, lvl);
+              else if (sl.includes('shield')) pdsLevels['main-shield-generator'] = Math.max(pdsLevels['main-shield-generator'] || 0, lvl);
+            } else {
+              garrisonShips[sid] = parseInt(cnt, 10) || 0;
+            }
+          });
+
+          if (resObj.constructions && Array.isArray(resObj.constructions)) {
+            resObj.constructions.forEach(c => {
+              const cn = (c.name || '').toLowerCase();
+              const lvl = parseInt(c.level, 10) || 0;
+              if (cn.includes('laser')) pdsLevels['main-laser-battery'] = Math.max(pdsLevels['main-laser-battery'] || 0, lvl);
+              else if (cn.includes('missile')) pdsLevels['main-missile-silo'] = Math.max(pdsLevels['main-missile-silo'] || 0, lvl);
+              else if (cn.includes('ion')) pdsLevels['main-ion-cannon'] = Math.max(pdsLevels['main-ion-cannon'] || 0, lvl);
+              else if (cn.includes('shield')) pdsLevels['main-shield-generator'] = Math.max(pdsLevels['main-shield-generator'] || 0, lvl);
+            });
+          }
+
           return {
             id: s.id,
             tick: s.tick,
             type: s.scanType,
+            scanType: s.scanType,
             source: 'user',
             coords: resObj.coords || s.targetPlanetCoords || '',
             planetName: resObj.planetName || s.targetPlanetName || '',
             ownerName: resObj.playerName || s.targetPlayerName || '',
-            ships: resObj.ships || {},
-            pds: resObj.pds || {}
+            namedFleets: nfs,
+            garrisonShips: garrisonShips,
+            ships: rawShips,
+            pds: pdsLevels
           };
         });
         populateScanTargetsDropdown();
