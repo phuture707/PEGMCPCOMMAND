@@ -3068,7 +3068,11 @@ HTML_CONTENT = r"""<!DOCTYPE html>
         <div class="subtitle" style="font-size: 0.72rem; color: var(--cyan);">Dedicated Combat Sandbox &amp; Multi-Fleet Coalition Calculator</div>
       </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+      <div style="display: flex; gap: 0.25rem; align-items: center; background: rgba(0,0,0,0.35); padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12);">
+        <span style="font-size: 0.76rem; font-weight: 600; color: var(--text-dim); margin-right: 0.2rem;">Layout:</span>
+        <button class="filter-pill-btn sim-layout-bcalc-btn active" onclick="setSimulatorLayout('bcalc')" title="Switch to dual spreadsheet matrix view" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">📊 Matrix</button>
+        <button class="filter-pill-btn sim-layout-cards-btn" onclick="setSimulatorLayout('cards')" title="Switch to individual fleet cards view" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">🗂️ Cards</button>
+      </div>
       <button class="btn-refresh" onclick="openDefenseScenarioModal()" title="Auto-plan defense: calculate available defender fleets vs inbound attacker fleets for a specific tick" style="padding: 0.38rem 0.85rem; font-size: 0.82rem; color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12); font-weight: 700;">
         🛡️ Plan Defense at Tick X
       </button>
@@ -4380,9 +4384,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     <div id="sim-bcalc-view-container" style="display: block; margin-bottom: 1.5rem;">
       <div class="panel" style="border-top: 3px solid #f59e0b;">
         <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
             <span style="font-size: 1.1rem; font-weight: 700; color: #f59e0b;">📊 Combat Matrix Mode</span>
             <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; font-size: 0.72rem;">Side-by-Side Fleet Columns</span>
+            <div style="display: inline-flex; gap: 0.25rem; align-items: center; background: rgba(0,0,0,0.3); padding: 0.15rem 0.4rem; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1);">
+              <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-dim);">Layout:</span>
+              <button class="filter-pill-btn sim-layout-bcalc-btn active" onclick="setSimulatorLayout('bcalc')" title="Spreadsheet Matrix View" style="padding: 0.18rem 0.45rem; font-size: 0.75rem;">📊 Matrix</button>
+              <button class="filter-pill-btn sim-layout-cards-btn" onclick="setSimulatorLayout('cards')" title="Individual Fleet Cards View" style="padding: 0.18rem 0.45rem; font-size: 0.75rem;">🗂️ Cards</button>
+            </div>
           </div>
           <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
             <span style="font-size: 0.72rem; color: var(--text-dim); margin-right: 0.15rem;">Hull:</span>
@@ -8652,9 +8661,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   function isPlaceholderFleet(fleet) {
     if (!fleet) return false;
     if (getFleetShipCount(fleet) > 0) return false;
-    const name = (fleet.name || '').toLowerCase();
-    const src = fleet.sourceVal || '';
-    return (src === '__custom__' || name.includes('garrison') || name.includes('base') || name.includes('fleet 1') || name.includes('empty'));
+    return true;
   }
 
   function loadMyEmpireIntoDefender() {
@@ -8948,10 +8955,14 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     }
 
     if (presetVal === '__hangar__' || presetVal === '__my_hangar__' || presetVal === '__home_hangar__') {
-      const h = (simAttackerData && simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0)
+      const rawH = (simAttackerData && simAttackerData.hangarShips && Object.keys(simAttackerData.hangarShips).length > 0)
         ? simAttackerData.hangarShips
         : (homeDefenseData ? (homeDefenseData.hangarShips || homeDefenseData.garrisonShips) : {});
-      ships = Object.assign({}, h || {});
+      ships = {};
+      Object.entries(rawH || {}).forEach(([k, v]) => {
+        const num = parseInt(v, 10);
+        if (!isNaN(num) && num > 0) ships[k] = num;
+      });
       name = '🏠 Base Garrison (Docked at Base)';
       fleetName = 'Base Garrison';
       sourceVal = '__hangar__';
@@ -8960,7 +8971,12 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       const idx = parseInt(presetVal.replace('myfleet_', '').replace('fleet_', ''), 10);
       const f = (simAttackerData.namedFleets || [])[idx];
       if (f) {
-        ships = Object.assign({}, f.ships || {});
+        const rawShips = f.ships || {};
+        ships = {};
+        Object.entries(rawShips).forEach(([k, v]) => {
+          const num = parseInt(v, 10);
+          if (!isNaN(num) && num > 0) ships[k] = num;
+        });
         const isDocked = (f.status === 'DOCKED');
         const statusLabel = isDocked ? 'Docked at Base' : (f.status || 'Active');
         const displayName = (f.name && f.name.trim()) ? f.name.trim() : `Fleet ${idx + 1}`;
@@ -10190,16 +10206,21 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     const cardsContainer = document.getElementById('sim-cards-view-container');
     const cardsExplorer = document.getElementById('sim-cards-explorer-panel');
     const bcalcContainer = document.getElementById('sim-bcalc-view-container');
-    const cardsBtn = document.getElementById('sim-layout-cards-btn');
-    const bcalcBtn = document.getElementById('sim-layout-bcalc-btn');
     const mainContainer = document.querySelector('.container');
+
+    document.querySelectorAll('.sim-layout-cards-btn, #sim-layout-cards-btn').forEach(btn => {
+      if (layout === 'cards') btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+    document.querySelectorAll('.sim-layout-bcalc-btn, #sim-layout-bcalc-btn').forEach(btn => {
+      if (layout === 'bcalc') btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
 
     if (layout === 'bcalc') {
       if (cardsContainer) cardsContainer.style.display = 'none';
       if (cardsExplorer) cardsExplorer.style.display = 'none';
       if (bcalcContainer) bcalcContainer.style.display = 'block';
-      if (cardsBtn) cardsBtn.classList.remove('active');
-      if (bcalcBtn) bcalcBtn.classList.add('active');
       // Auto-enable wide-mode for matrix view to maximize horizontal space
       if (mainContainer && bcalcWideMode) mainContainer.classList.add('wide-mode');
       renderBcalcMatrix();
@@ -10207,8 +10228,6 @@ HTML_CONTENT = r"""<!DOCTYPE html>
       if (cardsContainer) cardsContainer.style.display = 'grid';
       if (cardsExplorer) cardsExplorer.style.display = 'block';
       if (bcalcContainer) bcalcContainer.style.display = 'none';
-      if (cardsBtn) cardsBtn.classList.add('active');
-      if (bcalcBtn) bcalcBtn.classList.remove('active');
       renderAllFleetCards('atk');
       renderAllFleetCards('def');
     }

@@ -4059,12 +4059,18 @@ function populateScanTargetsDropdown() {
   });
 }
 
+function isPlaceholderFleet(fleet) {
+  if (!fleet || !fleet.ships) return true;
+  const counts = Object.values(fleet.ships);
+  return counts.length === 0 || counts.every(v => !v || parseInt(v, 10) === 0);
+}
+
 function onQuickAddEmpireSelect(side, selectEl) {
   if (!selectEl) return;
   const val = selectEl.value;
   if (!val) return;
 
-  if (side === 'atk' && val === '__hangar__') {
+  if (side === 'atk' && (val === '__hangar__' || val === '__garrison__')) {
     showToast("Planetary Base Garrison cannot be assigned to attackers (Defender only).");
     selectEl.value = '';
     return;
@@ -4076,12 +4082,13 @@ function onQuickAddEmpireSelect(side, selectEl) {
     return;
   }
 
+  const myCoords = (homeDefenseData && homeDefenseData.coords) ? homeDefenseData.coords : (simEmpireData?.coords || mcpConfig.coords || '');
+
   let fleetObj = null;
   if (val === '__hangar__') {
     const rawHangar = (homeDefenseData && (homeDefenseData.hangarShips || homeDefenseData.garrisonShips))
       ? (homeDefenseData.hangarShips || homeDefenseData.garrisonShips)
       : (simEmpireData.hangarShips || {});
-    const myCoords = (homeDefenseData && homeDefenseData.coords) ? homeDefenseData.coords : (simEmpireData.coords || '');
     fleetObj = {
       id: side + '_' + (simFleetSeq++),
       name: `🏠 Base Garrison [${myCoords || 'Home'}]`,
@@ -4108,14 +4115,16 @@ function onQuickAddEmpireSelect(side, selectEl) {
 
   if (fleetObj) {
     userClearedRoster[side] = false;
-    const targetFleets = (side === 'atk') ? attackerFleets : defenderFleets;
-    const isEmpty = targetFleets.length === 1 && Object.keys(targetFleets[0].ships).length === 0;
-    if (isEmpty) {
-      if (side === 'atk') attackerFleets = [fleetObj];
-      else defenderFleets = [fleetObj];
+    let targetFleets = (side === 'atk') ? attackerFleets : defenderFleets;
+    const placeholderIdx = targetFleets.findIndex(f => isPlaceholderFleet(f));
+    if (placeholderIdx !== -1) {
+      targetFleets[placeholderIdx] = fleetObj;
     } else {
       targetFleets.push(fleetObj);
     }
+    if (side === 'atk') attackerFleets = targetFleets;
+    else defenderFleets = targetFleets;
+
     renderMatrix();
     updateTotals();
     showToast(`Added ${fleetObj.name} to ${side === 'atk' ? 'Attacker Coalition' : 'Defender Forces'}!`);
@@ -4184,7 +4193,9 @@ function loadMyEmpireIntoDefender() {
   };
 
   userClearedRoster['def'] = false;
-  if (defenderFleets.length === 1 && Object.keys(defenderFleets[0].ships).length === 0) {
+  if (defenderFleets.length > 0 && isPlaceholderFleet(defenderFleets[0])) {
+    defenderFleets[0] = garrisonFleet;
+  } else if (defenderFleets.length === 1 && Object.keys(defenderFleets[0].ships).length === 0) {
     defenderFleets = [garrisonFleet];
   } else {
     defenderFleets.unshift(garrisonFleet);
