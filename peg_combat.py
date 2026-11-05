@@ -22,7 +22,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'capitalAbility': None,
                                  'category': 'FRIGATE',
                                  'cloak': False,
-                                 'cost': {'crystal': 6000, 'eonium': 4000, 'metal': 10000},
+                                 'cost': {'crystal': 6000,
+                                          'eonium': 4000,
+                                          'metal': 10000},
                                  'damage': 0,
                                  'empDamage': 0,
                                  'empResistance': 10,
@@ -38,7 +40,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'targetClass1': 'ROIDS',
                                  'targetClass2': '',
                                  'targetClass3': ''},
- 'main-ashkari-fang': {'armor': 20,
+ 'main-ashkari-fang': {'armor': 24,
                        'asteroidCapacity': 0,
                        'capitalAbility': None,
                        'category': 'FIGHTER',
@@ -46,7 +48,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                        'cost': {'crystal': 500, 'eonium': 500, 'metal': 900},
                        'damage': 16,
                        'empDamage': 0,
-                       'empResistance': 3,
+                       'empResistance': 19,
                        'eta': 1,
                        'faction': 'ASHKARI',
                        'gun': 8,
@@ -59,6 +61,27 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                        'targetClass1': 'MEDIUM',
                        'targetClass2': 'LIGHT',
                        'targetClass3': 'HEAVY'},
+ 'main-ashkari-juggernaut': {'armor': 175,
+                             'asteroidCapacity': 0,
+                             'capitalAbility': None,
+                             'category': 'CRUISER',
+                             'cloak': False,
+                             'cost': {'crystal': 4600, 'eonium': 4600, 'metal': 8200},
+                             'damage': 84,
+                             'empDamage': 0,
+                             'empResistance': 22,
+                             'eta': 4,
+                             'faction': 'ASHKARI',
+                             'gun': 26,
+                             'id': 'main-ashkari-juggernaut',
+                             'init': 6,
+                             'name': 'Juggernaut',
+                             'resourceCapacity': 0,
+                             'shipClass': 'HEAVY',
+                             'speed': 8,
+                             'targetClass1': 'HEAVY',
+                             'targetClass2': 'MEDIUM',
+                             'targetClass3': 'LIGHT'},
  'main-ashkari-marauder': {'armor': 66,
                            'asteroidCapacity': 0,
                            'capitalAbility': None,
@@ -67,7 +90,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                            'cost': {'crystal': 2400, 'eonium': 2400, 'metal': 4200},
                            'damage': 54,
                            'empDamage': 0,
-                           'empResistance': 10,
+                           'empResistance': 26,
                            'eta': 3,
                            'faction': 'ASHKARI',
                            'gun': 17,
@@ -82,7 +105,8 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                            'targetClass3': 'HEAVY'},
  'main-ashkari-oblivion': {'armor': 470,
                            'asteroidCapacity': 0,
-                           'capitalAbility': {'damageReflectPercent': 15, 'type': 'siege_barrier'},
+                           'capitalAbility': {'damageReflectPercent': 15,
+                                              'type': 'siege_barrier'},
                            'category': 'BATTLESHIP',
                            'cloak': False,
                            'cost': {'crystal': 18000, 'eonium': 19000, 'metal': 30000},
@@ -106,7 +130,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                 'capitalAbility': None,
                                 'category': 'FRIGATE',
                                 'cloak': False,
-                                'cost': {'crystal': 4000, 'eonium': 2500, 'metal': 8000},
+                                'cost': {'crystal': 4000,
+                                         'eonium': 2500,
+                                         'metal': 8000},
                                 'damage': 0,
                                 'empDamage': 0,
                                 'empResistance': 10,
@@ -151,7 +177,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                           'cost': {'crystal': 1800, 'eonium': 1800, 'metal': 3200},
                           'damage': 44,
                           'empDamage': 0,
-                          'empResistance': 8,
+                          'empResistance': 24,
                           'eta': 2,
                           'faction': 'ASHKARI',
                           'gun': 15,
@@ -172,7 +198,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                          'cost': {'crystal': 3000, 'eonium': 3000, 'metal': 5200},
                          'damage': 62,
                          'empDamage': 0,
-                         'empResistance': 12,
+                         'empResistance': 28,
                          'eta': 3,
                          'faction': 'ASHKARI',
                          'gun': 19,
@@ -185,7 +211,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                          'targetClass1': 'MEDIUM',
                          'targetClass2': 'HEAVY',
                          'targetClass3': 'LIGHT'},
- 'main-ashkari-talon': {'armor': 26,
+ 'main-ashkari-talon': {'armor': 31,
                         'asteroidCapacity': 0,
                         'capitalAbility': None,
                         'category': 'FIGHTER',
@@ -193,7 +219,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                         'cost': {'crystal': 700, 'eonium': 700, 'metal': 1250},
                         'damage': 21,
                         'empDamage': 0,
-                        'empResistance': 4,
+                        'empResistance': 20,
                         'eta': 1,
                         'faction': 'ASHKARI',
                         'gun': 10,
@@ -206,7 +232,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                         'targetClass1': 'LIGHT',
                         'targetClass2': 'MEDIUM',
                         'targetClass3': 'HEAVY'},
- 'main-ashkari-viper': {'armor': 30,
+ 'main-ashkari-viper': {'armor': 36,
                         'asteroidCapacity': 0,
                         'capitalAbility': None,
                         'category': 'FIGHTER',
@@ -214,7 +240,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                         'cost': {'crystal': 850, 'eonium': 850, 'metal': 1500},
                         'damage': 24,
                         'empDamage': 0,
-                        'empResistance': 5,
+                        'empResistance': 21,
                         'eta': 2,
                         'faction': 'ASHKARI',
                         'gun': 11,
@@ -253,7 +279,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'capitalAbility': None,
                                  'category': 'CRUISER',
                                  'cloak': False,
-                                 'cost': {'crystal': 9000, 'eonium': 6000, 'metal': 15000},
+                                 'cost': {'crystal': 9000,
+                                          'eonium': 6000,
+                                          'metal': 15000},
                                  'damage': 0,
                                  'empDamage': 0,
                                  'empResistance': 15,
@@ -269,6 +297,27 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'targetClass1': 'ROIDS',
                                  'targetClass2': '',
                                  'targetClass3': ''},
+ 'main-synthara-lattice': {'armor': 70,
+                           'asteroidCapacity': 0,
+                           'capitalAbility': None,
+                           'category': 'FRIGATE',
+                           'cloak': False,
+                           'cost': {'crystal': 1900, 'eonium': 750, 'metal': 1750},
+                           'damage': 0,
+                           'empDamage': 12,
+                           'empResistance': 30,
+                           'eta': 2,
+                           'faction': 'SYNTHARA',
+                           'gun': 10,
+                           'id': 'main-synthara-lattice',
+                           'init': 2,
+                           'name': 'Lattice',
+                           'resourceCapacity': 0,
+                           'shipClass': 'MEDIUM',
+                           'speed': 9,
+                           'targetClass1': 'MEDIUM',
+                           'targetClass2': 'HEAVY',
+                           'targetClass3': 'LIGHT'},
  'main-synthara-monolith': {'armor': 250,
                             'asteroidCapacity': 0,
                             'capitalAbility': None,
@@ -276,7 +325,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                             'cloak': False,
                             'cost': {'crystal': 8000, 'eonium': 3500, 'metal': 7500},
                             'damage': 0,
-                            'empDamage': 30,
+                            'empDamage': 21,
                             'empResistance': 40,
                             'eta': 4,
                             'faction': 'SYNTHARA',
@@ -316,7 +365,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                    'capitalAbility': None,
                                    'category': 'CRUISER',
                                    'cloak': False,
-                                   'cost': {'crystal': 6000, 'eonium': 4000, 'metal': 12000},
+                                   'cost': {'crystal': 6000,
+                                            'eonium': 4000,
+                                            'metal': 12000},
                                    'damage': 0,
                                    'empDamage': 0,
                                    'empResistance': 15,
@@ -339,7 +390,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                            'cloak': False,
                            'cost': {'crystal': 11000, 'eonium': 5500, 'metal': 10500},
                            'damage': 0,
-                           'empDamage': 36,
+                           'empDamage': 25,
                            'empResistance': 50,
                            'eta': 5,
                            'faction': 'SYNTHARA',
@@ -401,7 +452,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'capitalAbility': None,
                                  'category': 'CORVETTE',
                                  'cloak': False,
-                                 'cost': {'crystal': 2500, 'eonium': 1500, 'metal': 5000},
+                                 'cost': {'crystal': 2500,
+                                          'eonium': 1500,
+                                          'metal': 5000},
                                  'damage': 0,
                                  'empDamage': 0,
                                  'empResistance': 5,
@@ -422,9 +475,11 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                'capitalAbility': None,
                                'category': 'BATTLESHIP',
                                'cloak': False,
-                               'cost': {'crystal': 14000, 'eonium': 7500, 'metal': 13000},
+                               'cost': {'crystal': 14000,
+                                        'eonium': 7500,
+                                        'metal': 13000},
                                'damage': 0,
-                               'empDamage': 42,
+                               'empDamage': 29,
                                'empResistance': 60,
                                'eta': 5,
                                'faction': 'SYNTHARA',
@@ -443,7 +498,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                       'capitalAbility': None,
                                       'category': 'CRUISER',
                                       'cloak': False,
-                                      'cost': {'crystal': 12000, 'eonium': 8000, 'metal': 20000},
+                                      'cost': {'crystal': 12000,
+                                               'eonium': 8000,
+                                               'metal': 20000},
                                       'damage': 0,
                                       'empDamage': 0,
                                       'empResistance': 20,
@@ -464,7 +521,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                   'capitalAbility': None,
                                   'category': 'CRUISER',
                                   'cloak': False,
-                                  'cost': {'crystal': 13000, 'eonium': 9000, 'metal': 22000},
+                                  'cost': {'crystal': 13000,
+                                           'eonium': 9000,
+                                           'metal': 22000},
                                   'damage': 0,
                                   'empDamage': 0,
                                   'empResistance': 20,
@@ -480,7 +539,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                   'targetClass1': 'ROIDS',
                                   'targetClass2': '',
                                   'targetClass3': ''},
- 'main-vanguard-centurion': {'armor': 74,
+ 'main-vanguard-centurion': {'armor': 89,
                              'asteroidCapacity': 0,
                              'capitalAbility': None,
                              'category': 'FRIGATE',
@@ -527,7 +586,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                 'capitalAbility': None,
                                 'category': 'CRUISER',
                                 'cloak': False,
-                                'cost': {'crystal': 9000, 'eonium': 6000, 'metal': 15000},
+                                'cost': {'crystal': 9000,
+                                         'eonium': 6000,
+                                         'metal': 15000},
                                 'damage': 0,
                                 'empDamage': 0,
                                 'empResistance': 15,
@@ -548,7 +609,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                       'capitalAbility': None,
                                       'category': 'CRUISER',
                                       'cloak': False,
-                                      'cost': {'crystal': 12000, 'eonium': 8000, 'metal': 20000},
+                                      'cost': {'crystal': 12000,
+                                               'eonium': 8000,
+                                               'metal': 20000},
                                       'damage': 0,
                                       'empDamage': 0,
                                       'empResistance': 20,
@@ -564,7 +627,7 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                       'targetClass1': 'RESOURCES',
                                       'targetClass2': '',
                                       'targetClass3': ''},
- 'main-vanguard-guardian': {'armor': 94,
+ 'main-vanguard-guardian': {'armor': 113,
                             'asteroidCapacity': 0,
                             'capitalAbility': None,
                             'category': 'FRIGATE',
@@ -592,7 +655,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                                 'type': 'shield_aura'},
                              'category': 'BATTLESHIP',
                              'cloak': False,
-                             'cost': {'crystal': 22000, 'eonium': 17000, 'metal': 34000},
+                             'cost': {'crystal': 22000,
+                                      'eonium': 17000,
+                                      'metal': 34000},
                              'damage': 170,
                              'empDamage': 0,
                              'empResistance': 45,
@@ -613,7 +678,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                       'capitalAbility': None,
                                       'category': 'CRUISER',
                                       'cloak': False,
-                                      'cost': {'crystal': 6000, 'eonium': 4000, 'metal': 12000},
+                                      'cost': {'crystal': 6000,
+                                               'eonium': 4000,
+                                               'metal': 12000},
                                       'damage': 0,
                                       'empDamage': 0,
                                       'empResistance': 15,
@@ -634,7 +701,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'capitalAbility': None,
                                  'category': 'FRIGATE',
                                  'cloak': False,
-                                 'cost': {'crystal': 6000, 'eonium': 4000, 'metal': 10000},
+                                 'cost': {'crystal': 6000,
+                                          'eonium': 4000,
+                                          'metal': 10000},
                                  'damage': 0,
                                  'empDamage': 0,
                                  'empResistance': 10,
@@ -650,7 +719,28 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'targetClass1': 'ROIDS',
                                  'targetClass2': '',
                                  'targetClass3': ''},
- 'main-vanguard-sentinel': {'armor': 116,
+ 'main-vanguard-picket': {'armor': 40,
+                          'asteroidCapacity': 0,
+                          'capitalAbility': None,
+                          'category': 'FIGHTER',
+                          'cloak': False,
+                          'cost': {'crystal': 650, 'eonium': 450, 'metal': 1100},
+                          'damage': 11,
+                          'empDamage': 0,
+                          'empResistance': 12,
+                          'eta': 1,
+                          'faction': 'VANGUARD',
+                          'gun': 7,
+                          'id': 'main-vanguard-picket',
+                          'init': 5,
+                          'name': 'Picket',
+                          'resourceCapacity': 0,
+                          'shipClass': 'LIGHT',
+                          'speed': 10,
+                          'targetClass1': 'LIGHT',
+                          'targetClass2': 'MEDIUM',
+                          'targetClass3': 'HEAVY'},
+ 'main-vanguard-sentinel': {'armor': 139,
                             'asteroidCapacity': 0,
                             'capitalAbility': None,
                             'category': 'DESTROYER',
@@ -676,7 +766,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                    'capitalAbility': None,
                                    'category': 'CRUISER',
                                    'cloak': False,
-                                   'cost': {'crystal': 13000, 'eonium': 9000, 'metal': 22000},
+                                   'cost': {'crystal': 13000,
+                                            'eonium': 9000,
+                                            'metal': 22000},
                                    'damage': 0,
                                    'empDamage': 0,
                                    'empResistance': 20,
@@ -718,7 +810,9 @@ SHIP_DEFINITIONS: Dict[str, Dict[str, Any]] = {'main-ashkari-claw-extractor': {'
                                  'capitalAbility': None,
                                  'category': 'FRIGATE',
                                  'cloak': False,
-                                 'cost': {'crystal': 4000, 'eonium': 2500, 'metal': 8000},
+                                 'cost': {'crystal': 4000,
+                                          'eonium': 2500,
+                                          'metal': 8000},
                                  'damage': 0,
                                  'empDamage': 0,
                                  'empResistance': 10,
@@ -819,6 +913,7 @@ class CombatGroup:
     fleet_id: str = ""
     fleet_name: str = ""
     initial_count: int = 0
+    evasion: float = 0.0
 
     def __post_init__(self):
         if self.initial_count == 0 and self.count > 0:
@@ -931,11 +1026,27 @@ def parse_scan_record(scan_raw: Any, planet_lookup: Optional[Dict[str, Any]] = N
 
     # Docked ships / garrison (separate PDS structure units if present)
     raw_ships = res.get("ships", {})
-    if not raw_ships and isinstance(res.get("fleet"), dict):
+    if not raw_ships and isinstance(res.get("fleet"), (dict, list)):
         raw_ships = res.get("fleet", {})
 
     garrison_ships: Dict[str, int] = {}
-    for s_id, cnt in raw_ships.items():
+    if isinstance(raw_ships, dict):
+        ship_pairs = list(raw_ships.items())
+    elif isinstance(raw_ships, list):
+        ship_pairs = [
+            (
+                item.get("shipDefinitionId") or item.get("id"),
+                item.get("quantity") or item.get("count", 1)
+            )
+            for item in raw_ships
+            if isinstance(item, dict)
+        ]
+    else:
+        ship_pairs = []
+
+    for s_id, cnt in ship_pairs:
+        if not s_id:
+            continue
         try:
             cnt_int = int(cnt)
         except (ValueError, TypeError):
@@ -1059,6 +1170,18 @@ def simulate_combat(
         def_armor_mult = def_home_bonus * (1.0 + (def_hull_lvl * 0.05))
     pds_mult = 1.0 + (def_pds_lvl * 0.03)
 
+    # Normalize list-format single fleets if passed
+    if isinstance(attacker_fleet, list):
+        attacker_fleet = {
+            (item.get("shipDefinitionId") or item.get("id")): int(item.get("quantity") or item.get("count", 1))
+            for item in attacker_fleet if isinstance(item, dict) and (item.get("shipDefinitionId") or item.get("id"))
+        }
+    if isinstance(defender_fleet, list):
+        defender_fleet = {
+            (item.get("shipDefinitionId") or item.get("id")): int(item.get("quantity") or item.get("count", 1))
+            for item in defender_fleet if isinstance(item, dict) and (item.get("shipDefinitionId") or item.get("id"))
+        }
+
     # Normalize multiple fleet inputs
     if attacker_fleets is None:
         attacker_fleets = [{
@@ -1101,7 +1224,13 @@ def simulate_combat(
         if not fleet.get("enabled", True):
             continue  # Disabled fleet takes 0 casualties and deals 0 damage
 
-        for s_id, count in fleet.get("ships", {}).items():
+        fleet_ships = fleet.get("ships", {})
+        if isinstance(fleet_ships, list):
+            fleet_ships = {
+                (item.get("shipDefinitionId") or item.get("id")): int(item.get("quantity") or item.get("count", 1))
+                for item in fleet_ships if isinstance(item, dict) and (item.get("shipDefinitionId") or item.get("id"))
+            }
+        for s_id, count in fleet_ships.items():
             if count <= 0:
                 continue
             def_info = SHIP_DEFINITIONS.get(s_id, {
@@ -1137,7 +1266,8 @@ def simulate_combat(
                 capital_ability=def_info.get("capitalAbility"),
                 cloak=bool(def_info.get("cloak", False)),
                 fleet_id=f_id,
-                fleet_name=f_name
+                fleet_name=f_name,
+                evasion=float(def_info.get("evasion", 0.0))
             ))
 
     # 2. Defender Fleets (Each enabled fleet adds its ships tagged with fleet_id and fleet_name)
@@ -1147,7 +1277,13 @@ def simulate_combat(
         if not fleet.get("enabled", True):
             continue  # Disabled fleet takes 0 casualties and deals 0 damage
 
-        for s_id, count in fleet.get("ships", {}).items():
+        fleet_ships = fleet.get("ships", {})
+        if isinstance(fleet_ships, list):
+            fleet_ships = {
+                (item.get("shipDefinitionId") or item.get("id")): int(item.get("quantity") or item.get("count", 1))
+                for item in fleet_ships if isinstance(item, dict) and (item.get("shipDefinitionId") or item.get("id"))
+            }
+        for s_id, count in fleet_ships.items():
             if count <= 0:
                 continue
             def_info = SHIP_DEFINITIONS.get(s_id, {
@@ -1183,7 +1319,8 @@ def simulate_combat(
                 capital_ability=def_info.get("capitalAbility"),
                 cloak=bool(def_info.get("cloak", False)),
                 fleet_id=f_id,
-                fleet_name=f_name
+                fleet_name=f_name,
+                evasion=float(def_info.get("evasion", 0.0))
             ))
 
     # 3. Defender PDS
@@ -1358,17 +1495,29 @@ def simulate_combat(
                         continue
 
                     # Calculate how many ships of this target group can be destroyed with remaining damage
-                    destroyed = min(chosen_target.count, int(remaining_dmg // chosen_target.armor))
-                    if destroyed == 0 and remaining_dmg > (chosen_target.armor * 0.75):
+                    target_evasion = getattr(chosen_target, "evasion", 0.0)
+                    if target_evasion > 0 and shooter.gun > 0:
+                        effective_gun = max(5.0, shooter.gun - target_evasion)
+                        evasion_mult = effective_gun / shooter.gun
+                    elif target_evasion > 0 and shooter.gun == 0:
+                        evasion_mult = max(0.05, 1.0 - (target_evasion / 100.0))
+                    else:
+                        evasion_mult = 1.0
+
+                    effective_remaining_dmg = remaining_dmg * evasion_mult
+                    destroyed = min(chosen_target.count, int(effective_remaining_dmg // chosen_target.armor))
+                    if destroyed == 0 and effective_remaining_dmg > (chosen_target.armor * 0.75):
                         destroyed = 1
 
-                    dmg_used = min(remaining_dmg, destroyed * chosen_target.armor)
-                    if destroyed == 0 and dmg_used == 0:
+                    dmg_used_effective = min(effective_remaining_dmg, destroyed * chosen_target.armor)
+                    dmg_used_raw = (dmg_used_effective / evasion_mult) if evasion_mult > 0 else dmg_used_effective
+                    if destroyed == 0 and dmg_used_effective == 0:
                         # Cannot destroy even 1 ship, damage expends against armor or carries over
                         break
 
                     chosen_target.count -= destroyed
-                    remaining_dmg -= dmg_used
+                    remaining_dmg -= dmg_used_raw
+                    dmg_used = dmg_used_effective
 
                     eff_note = f" ({int(target_efficiency * 100)}% eff)" if target_efficiency < 1.0 else ""
                     side_label = "🛡️ Defender" if shooter.side == "defender" else "🚀 Attacker"
@@ -1437,8 +1586,17 @@ def simulate_combat(
                         round_events.append(f"🛡️ {chosen_target.name} resisted EMP disruption from {shooter.name}")
                         continue
 
-                    # Official EMP chance per unit: Chance = 0.5 - (targetEmpRes / 100), clamped [0, 1]
-                    emp_chance = max(0.0, min(1.0, 0.5 - (chosen_target.emp_resistance / 100.0)))
+                    # Official EMP chance per unit with evasion tracking:
+                    target_evasion = getattr(chosen_target, "evasion", 0.0)
+                    if target_evasion > 0 and shooter.gun > 0:
+                        effective_gun = max(5.0, shooter.gun - target_evasion)
+                        evasion_mult = effective_gun / shooter.gun
+                    elif target_evasion > 0 and shooter.gun == 0:
+                        evasion_mult = max(0.05, 1.0 - (target_evasion / 100.0))
+                    else:
+                        evasion_mult = 1.0
+
+                    emp_chance = max(0.0, min(1.0, 0.5 - (chosen_target.emp_resistance / 100.0))) * evasion_mult
                     expected_disabled = int(round(chosen_target.count * emp_chance)) if emp_chance > 0 else 0
 
                     if expected_disabled > 0 and not chosen_target.is_pds:

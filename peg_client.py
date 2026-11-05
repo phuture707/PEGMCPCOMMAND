@@ -409,6 +409,121 @@ class PegasusMCPClient:
                 pass
         return []
 
+
+    # -------------------------------------------------------------------------
+    # High-Frequency Game Action Wrappers (Audited for Pegasus MCP 2025-03-26)
+    # -------------------------------------------------------------------------
+
+    def get_fleet_summary(self) -> Dict[str, Any]:
+        """Get summary of base fleets, named fleets, and traveling fleets."""
+        return self.call_tool("get_fleet_summary")
+
+    def list_pds(self) -> Dict[str, Any]:
+        """List all active planetary defense structures (PDS) and their levels."""
+        return self.call_tool("list_pds")
+
+    def repair_pds(self, construction_id: str) -> Dict[str, Any]:
+        """Repair or restore damaged PDS installations."""
+        return self.call_tool("repair_pds", {"constructionId": construction_id})
+
+    def produce_ships(self, ship_definition_id: str, quantity: int) -> Dict[str, Any]:
+        """Queue ship manufacturing production at the shipyard."""
+        return self.call_tool("produce_ships", {"shipDefinitionId": ship_definition_id, "quantity": quantity})
+
+    def cancel_production(self, production_id: str) -> Dict[str, Any]:
+        """Cancel in-progress or queued ship manufacturing."""
+        return self.call_tool("cancel_production", {"productionId": production_id})
+
+    def build_construction(self, construction_id: str) -> Dict[str, Any]:
+        """Start building or upgrading a planetary structure."""
+        return self.call_tool("build_construction", {"constructionId": construction_id})
+
+    def cancel_construction(self) -> Dict[str, Any]:
+        """Cancel active in-progress construction."""
+        return self.call_tool("cancel_construction")
+
+    def start_research(self, research_id: str) -> Dict[str, Any]:
+        """Begin researching a technology."""
+        return self.call_tool("start_research", {"researchId": research_id})
+
+    def cancel_research(self) -> Dict[str, Any]:
+        """Cancel active in-progress research."""
+        return self.call_tool("cancel_research")
+
+    def launch_fleet(
+        self,
+        target_coords: str,
+        mission: str,
+        ships: Dict[str, int],
+        target_planet_id: Optional[str] = None,
+        speed_percent: int = 100,
+    ) -> Dict[str, Any]:
+        """Launch a fleet toward target coordinates on a specific mission."""
+        payload: Dict[str, Any] = {
+            "targetCoords": target_coords,
+            "mission": mission,
+            "ships": ships,
+            "speedPercent": speed_percent
+        }
+        if target_planet_id:
+            payload["targetPlanetId"] = target_planet_id
+        return self.call_tool("launch_fleet", payload)
+
+    def launch_fleet_preview(
+        self,
+        target_coords: str,
+        mission: str,
+        ships: Dict[str, int],
+        target_planet_id: Optional[str] = None,
+        speed_percent: int = 100,
+    ) -> Dict[str, Any]:
+        """Preview travel time, fuel cost, and ETA before launching fleet."""
+        payload: Dict[str, Any] = {
+            "targetCoords": target_coords,
+            "mission": mission,
+            "ships": ships,
+            "speedPercent": speed_percent
+        }
+        if target_planet_id:
+            payload["targetPlanetId"] = target_planet_id
+        return self.call_tool("launch_fleet_preview", payload)
+
+    def recall_fleet(self, fleet_id: str) -> Dict[str, Any]:
+        """Recall a traveling or stationed fleet back to home planet."""
+        return self.call_tool("recall_fleet", {"fleetId": fleet_id})
+
+    def perform_scan(self, target_coords: str, scan_type: str = "MILITARY_SCAN") -> Dict[str, Any]:
+        """Execute a wave sensor scan against target coordinates."""
+        return self.call_tool("perform_scan", {"targetCoords": target_coords, "scanType": scan_type})
+
+    def get_battle_report(self, report_id: str) -> Dict[str, Any]:
+        """Fetch full battle combat log and casualties report by ID."""
+        return self.call_tool("get_battle_report", {"reportId": report_id})
+
+    def list_battle_reports(self, limit: int = 20) -> Dict[str, Any]:
+        """List recent combat engagements and battle reports."""
+        return self.call_tool("list_battle_reports", {"limit": limit})
+
+    def send_message(self, recipient: str, message: str) -> Dict[str, Any]:
+        """Send an in-game interstellar communication to another empire."""
+        return self.call_tool("send_message", {"recipientId": recipient, "body": message})
+
+    def list_inbox(self, limit: int = 20) -> Dict[str, Any]:
+        """List incoming interstellar messages in the communications inbox."""
+        return self.call_tool("list_inbox", {"limit": limit})
+
+    def get_trade_status(self) -> Dict[str, Any]:
+        """Get market exchange rates, daily limits, and trading status."""
+        return self.call_tool("get_trade_status")
+
+    def trade_resources(self, sell_resource: str, sell_amount: int, buy_resource: str) -> Dict[str, Any]:
+        """Execute an immediate resource exchange on the market."""
+        return self.call_tool("trade_resources", {
+            "sellResource": sell_resource,
+            "sellAmount": sell_amount,
+            "buyResource": buy_resource
+        })
+
     def close(self):
         """Close HTTP session."""
         self._session.close()

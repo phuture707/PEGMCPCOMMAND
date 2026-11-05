@@ -10913,18 +10913,19 @@ HTML_CONTENT = r"""<!DOCTYPE html>
   // COMPRESSION & SHAREABLE LINK ENGINE (ULTRA-COMPACT SCHEMA V2 & DEFLATE-RAW)
   // =========================================================================
   const COMPACT_SHIP_KEYS = [
-    "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-marauder",
-    "main-ashkari-oblivion", "main-ashkari-plunder-barge", "main-ashkari-raid-runner",
-    "main-ashkari-ravager", "main-ashkari-reaper", "main-ashkari-talon", "main-ashkari-viper",
-    "main-synthara-arc", "main-synthara-crystal-borer", "main-synthara-monolith",
+    "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-juggernaut",
+    "main-ashkari-marauder", "main-ashkari-oblivion", "main-ashkari-plunder-barge",
+    "main-ashkari-raid-runner", "main-ashkari-ravager", "main-ashkari-reaper",
+    "main-ashkari-talon", "main-ashkari-viper", "main-synthara-arc",
+    "main-synthara-crystal-borer", "main-synthara-lattice", "main-synthara-monolith",
     "main-synthara-nexus", "main-synthara-nexus-freighter", "main-synthara-obelisk",
     "main-synthara-oracle", "main-synthara-pulse", "main-synthara-pulse-courier",
-    "main-synthara-singularity", "main-synthara-singularity-hauler", "main-synthara-void-harvester",
-    "main-vanguard-centurion", "main-vanguard-colossus", "main-vanguard-core-driller",
-    "main-vanguard-fortress-transport", "main-vanguard-guardian", "main-vanguard-imperator",
-    "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor", "main-vanguard-sentinel",
-    "main-vanguard-siege-harvester", "main-vanguard-sovereign", "main-vanguard-supply-runner",
-    "main-vanguard-titan"
+    "main-synthara-singularity", "main-synthara-singularity-hauler",
+    "main-synthara-void-harvester", "main-vanguard-centurion", "main-vanguard-colossus",
+    "main-vanguard-core-driller", "main-vanguard-fortress-transport", "main-vanguard-guardian",
+    "main-vanguard-imperator", "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor",
+    "main-vanguard-picket", "main-vanguard-sentinel", "main-vanguard-siege-harvester",
+    "main-vanguard-sovereign", "main-vanguard-supply-runner", "main-vanguard-titan"
   ];
 
   const COMPACT_SHIP_MAP = {};
@@ -10941,7 +10942,10 @@ HTML_CONTENT = r"""<!DOCTYPE html>
     "reaper": "main-ashkari-reaper",
     "talon": "main-ashkari-talon",
     "viper": "main-ashkari-viper",
+    "juggernaut": "main-ashkari-juggernaut",
     "arc": "main-synthara-arc",
+    "lattice": "main-synthara-lattice",
+    "picket": "main-vanguard-picket",
     "crystal borer": "main-synthara-crystal-borer",
     "monolith": "main-synthara-monolith",
     "nexus": "main-synthara-nexus",

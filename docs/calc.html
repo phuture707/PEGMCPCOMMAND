@@ -1099,7 +1099,7 @@
 
 <script>
 // =========================================================================
-// EMBEDDED PEGASUS GALAXY GAME DEFINITIONS (35 SHIPS & 5 PDS)
+// EMBEDDED PEGASUS GALAXY GAME DEFINITIONS (38 SHIPS & 5 PDS)
 // =========================================================================
 const SHIP_DEFINITIONS = {
   "main-ashkari-claw-extractor": {
@@ -1135,12 +1135,12 @@ const SHIP_DEFINITIONS = {
     "faction": "ASHKARI",
     "category": "FIGHTER",
     "shipClass": "LIGHT",
-    "armor": 20,
+    "armor": 24,
     "damage": 16,
     "gun": 8,
     "init": 3,
     "empDamage": 0,
-    "empResistance": 3,
+    "empResistance": 19,
     "cloak": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
@@ -1156,6 +1156,33 @@ const SHIP_DEFINITIONS = {
     "speed": 10,
     "eta": 1
   },
+  "main-ashkari-juggernaut": {
+    "id": "main-ashkari-juggernaut",
+    "name": "Juggernaut",
+    "faction": "ASHKARI",
+    "category": "CRUISER",
+    "shipClass": "HEAVY",
+    "armor": 175,
+    "damage": 84,
+    "gun": 26,
+    "init": 6,
+    "empDamage": 0,
+    "empResistance": 22,
+    "cloak": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "HEAVY",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "LIGHT",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 8200,
+      "crystal": 4600,
+      "eonium": 4600
+    },
+    "speed": 8,
+    "eta": 4
+  },
   "main-ashkari-marauder": {
     "id": "main-ashkari-marauder",
     "name": "Marauder",
@@ -1167,7 +1194,7 @@ const SHIP_DEFINITIONS = {
     "gun": 17,
     "init": 5,
     "empDamage": 0,
-    "empResistance": 10,
+    "empResistance": 26,
     "cloak": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
@@ -1202,8 +1229,8 @@ const SHIP_DEFINITIONS = {
     "targetClass2": "MEDIUM",
     "targetClass3": "LIGHT",
     "capitalAbility": {
-      "type": "siege_barrier",
-      "damageReflectPercent": 15
+      "damageReflectPercent": 15,
+      "type": "siege_barrier"
     },
     "cost": {
       "metal": 30000,
@@ -1278,7 +1305,7 @@ const SHIP_DEFINITIONS = {
     "gun": 15,
     "init": 4,
     "empDamage": 0,
-    "empResistance": 8,
+    "empResistance": 24,
     "cloak": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
@@ -1305,7 +1332,7 @@ const SHIP_DEFINITIONS = {
     "gun": 19,
     "init": 5,
     "empDamage": 0,
-    "empResistance": 12,
+    "empResistance": 28,
     "cloak": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
@@ -1327,12 +1354,12 @@ const SHIP_DEFINITIONS = {
     "faction": "ASHKARI",
     "category": "FIGHTER",
     "shipClass": "LIGHT",
-    "armor": 26,
+    "armor": 31,
     "damage": 21,
     "gun": 10,
     "init": 3,
     "empDamage": 0,
-    "empResistance": 4,
+    "empResistance": 20,
     "cloak": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
@@ -1354,12 +1381,12 @@ const SHIP_DEFINITIONS = {
     "faction": "ASHKARI",
     "category": "FIGHTER",
     "shipClass": "LIGHT",
-    "armor": 30,
+    "armor": 36,
     "damage": 24,
     "gun": 11,
     "init": 4,
     "empDamage": 0,
-    "empResistance": 5,
+    "empResistance": 21,
     "cloak": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
@@ -1429,6 +1456,33 @@ const SHIP_DEFINITIONS = {
     "speed": 8,
     "eta": 8
   },
+  "main-synthara-lattice": {
+    "id": "main-synthara-lattice",
+    "name": "Lattice",
+    "faction": "SYNTHARA",
+    "category": "FRIGATE",
+    "shipClass": "MEDIUM",
+    "armor": 70,
+    "damage": 0,
+    "gun": 10,
+    "init": 2,
+    "empDamage": 12,
+    "empResistance": 30,
+    "cloak": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "MEDIUM",
+    "targetClass2": "HEAVY",
+    "targetClass3": "LIGHT",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 1750,
+      "crystal": 1900,
+      "eonium": 750
+    },
+    "speed": 9,
+    "eta": 2
+  },
   "main-synthara-monolith": {
     "id": "main-synthara-monolith",
     "name": "Monolith",
@@ -1439,7 +1493,7 @@ const SHIP_DEFINITIONS = {
     "damage": 0,
     "gun": 20,
     "init": 8,
-    "empDamage": 30,
+    "empDamage": 21,
     "empResistance": 40,
     "cloak": false,
     "resourceCapacity": 0,
@@ -1520,7 +1574,7 @@ const SHIP_DEFINITIONS = {
     "damage": 0,
     "gun": 24,
     "init": 9,
-    "empDamage": 36,
+    "empDamage": 25,
     "empResistance": 50,
     "cloak": false,
     "resourceCapacity": 0,
@@ -1556,8 +1610,8 @@ const SHIP_DEFINITIONS = {
     "targetClass2": "MEDIUM",
     "targetClass3": "LIGHT",
     "capitalAbility": {
-      "type": "disruption_field",
-      "fleetEmpChanceMultiplier": 0.3
+      "fleetEmpChanceMultiplier": 0.3,
+      "type": "disruption_field"
     },
     "cost": {
       "metal": 24000,
@@ -1631,7 +1685,7 @@ const SHIP_DEFINITIONS = {
     "damage": 0,
     "gun": 28,
     "init": 9,
-    "empDamage": 42,
+    "empDamage": 29,
     "empResistance": 60,
     "cloak": false,
     "resourceCapacity": 0,
@@ -1708,7 +1762,7 @@ const SHIP_DEFINITIONS = {
     "faction": "VANGUARD",
     "category": "FRIGATE",
     "shipClass": "MEDIUM",
-    "armor": 74,
+    "armor": 89,
     "damage": 44,
     "gun": 15,
     "init": 4,
@@ -1816,7 +1870,7 @@ const SHIP_DEFINITIONS = {
     "faction": "VANGUARD",
     "category": "FRIGATE",
     "shipClass": "MEDIUM",
-    "armor": 94,
+    "armor": 113,
     "damage": 58,
     "gun": 17,
     "init": 4,
@@ -1856,9 +1910,9 @@ const SHIP_DEFINITIONS = {
     "targetClass2": "MEDIUM",
     "targetClass3": "LIGHT",
     "capitalAbility": {
-      "type": "shield_aura",
+      "maxAbsorptionPercent": 25,
       "shieldAbsorptionPercent": 8,
-      "maxAbsorptionPercent": 25
+      "type": "shield_aura"
     },
     "cost": {
       "metal": 34000,
@@ -1922,13 +1976,40 @@ const SHIP_DEFINITIONS = {
     "speed": 9,
     "eta": 7
   },
+  "main-vanguard-picket": {
+    "id": "main-vanguard-picket",
+    "name": "Picket",
+    "faction": "VANGUARD",
+    "category": "FIGHTER",
+    "shipClass": "LIGHT",
+    "armor": 40,
+    "damage": 11,
+    "gun": 7,
+    "init": 5,
+    "empDamage": 0,
+    "empResistance": 12,
+    "cloak": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "LIGHT",
+    "targetClass2": "MEDIUM",
+    "targetClass3": "HEAVY",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 1100,
+      "crystal": 650,
+      "eonium": 450
+    },
+    "speed": 10,
+    "eta": 1
+  },
   "main-vanguard-sentinel": {
     "id": "main-vanguard-sentinel",
     "name": "Sentinel",
     "faction": "VANGUARD",
     "category": "DESTROYER",
     "shipClass": "MEDIUM",
-    "armor": 116,
+    "armor": 139,
     "damage": 72,
     "gun": 19,
     "init": 4,
@@ -2229,59 +2310,63 @@ const HULL_CATEGORIES = ['FIGHTER', 'CORVETTE', 'FRIGATE', 'DESTROYER', 'CRUISER
 // COMPRESSION & SHAREABLE LINK ENGINE (ULTRA-COMPACT SCHEMA V2 & DEFLATE-RAW)
 // =========================================================================
 const COMPACT_SHIP_KEYS = [
-  "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-marauder",
-  "main-ashkari-oblivion", "main-ashkari-plunder-barge", "main-ashkari-raid-runner",
-  "main-ashkari-ravager", "main-ashkari-reaper", "main-ashkari-talon", "main-ashkari-viper",
-  "main-synthara-arc", "main-synthara-crystal-borer", "main-synthara-monolith",
+  "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-juggernaut",
+  "main-ashkari-marauder", "main-ashkari-oblivion", "main-ashkari-plunder-barge",
+  "main-ashkari-raid-runner", "main-ashkari-ravager", "main-ashkari-reaper",
+  "main-ashkari-talon", "main-ashkari-viper", "main-synthara-arc",
+  "main-synthara-crystal-borer", "main-synthara-lattice", "main-synthara-monolith",
   "main-synthara-nexus", "main-synthara-nexus-freighter", "main-synthara-obelisk",
   "main-synthara-oracle", "main-synthara-pulse", "main-synthara-pulse-courier",
-  "main-synthara-singularity", "main-synthara-singularity-hauler", "main-synthara-void-harvester",
-  "main-vanguard-centurion", "main-vanguard-colossus", "main-vanguard-core-driller",
-  "main-vanguard-fortress-transport", "main-vanguard-guardian", "main-vanguard-imperator",
-  "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor", "main-vanguard-sentinel",
-  "main-vanguard-siege-harvester", "main-vanguard-sovereign", "main-vanguard-supply-runner",
-  "main-vanguard-titan"
+  "main-synthara-singularity", "main-synthara-singularity-hauler",
+  "main-synthara-void-harvester", "main-vanguard-centurion", "main-vanguard-colossus",
+  "main-vanguard-core-driller", "main-vanguard-fortress-transport", "main-vanguard-guardian",
+  "main-vanguard-imperator", "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor",
+  "main-vanguard-picket", "main-vanguard-sentinel", "main-vanguard-siege-harvester",
+  "main-vanguard-sovereign", "main-vanguard-supply-runner", "main-vanguard-titan"
 ];
 
 const COMPACT_SHIP_MAP = {};
 COMPACT_SHIP_KEYS.forEach((k, i) => { COMPACT_SHIP_MAP[k] = i; });
 
 const SHIP_NAME_TO_KEY = {
-  "claw extractor": "main-ashkari-claw-extractor",
+  "raid runner": "main-ashkari-raid-runner",
+  "pulse": "main-synthara-pulse",
+  "supply runner": "main-vanguard-supply-runner",
+  "guardian": "main-vanguard-guardian",
+  "reaper": "main-ashkari-reaper",
+  "pulse courier": "main-synthara-pulse-courier",
+  "colossus": "main-vanguard-colossus",
+  "lattice": "main-synthara-lattice",
+  "imperator": "main-vanguard-imperator",
+  "obelisk": "main-synthara-obelisk",
   "fang": "main-ashkari-fang",
   "marauder": "main-ashkari-marauder",
-  "oblivion": "main-ashkari-oblivion",
-  "plunder barge": "main-ashkari-plunder-barge",
-  "raid runner": "main-ashkari-raid-runner",
-  "ravager": "main-ashkari-ravager",
-  "reaper": "main-ashkari-reaper",
-  "talon": "main-ashkari-talon",
-  "viper": "main-ashkari-viper",
-  "arc": "main-synthara-arc",
-  "crystal borer": "main-synthara-crystal-borer",
-  "monolith": "main-synthara-monolith",
   "nexus": "main-synthara-nexus",
-  "nexus freighter": "main-synthara-nexus-freighter",
-  "obelisk": "main-synthara-obelisk",
-  "oracle": "main-synthara-oracle",
-  "pulse": "main-synthara-pulse",
-  "pulse courier": "main-synthara-pulse-courier",
-  "singularity": "main-synthara-singularity",
-  "singularity hauler": "main-synthara-singularity-hauler",
-  "void harvester": "main-synthara-void-harvester",
-  "centurion": "main-vanguard-centurion",
-  "colossus": "main-vanguard-colossus",
-  "core driller": "main-vanguard-core-driller",
-  "fortress transport": "main-vanguard-fortress-transport",
-  "guardian": "main-vanguard-guardian",
-  "imperator": "main-vanguard-imperator",
-  "ironclad freighter": "main-vanguard-ironclad-freighter",
-  "ore extractor": "main-vanguard-ore-extractor",
-  "sentinel": "main-vanguard-sentinel",
+  "titan": "main-vanguard-titan",
   "siege harvester": "main-vanguard-siege-harvester",
   "sovereign": "main-vanguard-sovereign",
-  "supply runner": "main-vanguard-supply-runner",
-  "titan": "main-vanguard-titan"
+  "nexus freighter": "main-synthara-nexus-freighter",
+  "monolith": "main-synthara-monolith",
+  "singularity": "main-synthara-singularity",
+  "picket": "main-vanguard-picket",
+  "claw extractor": "main-ashkari-claw-extractor",
+  "oblivion": "main-ashkari-oblivion",
+  "viper": "main-ashkari-viper",
+  "oracle": "main-synthara-oracle",
+  "ravager": "main-ashkari-ravager",
+  "juggernaut": "main-ashkari-juggernaut",
+  "core driller": "main-vanguard-core-driller",
+  "crystal borer": "main-synthara-crystal-borer",
+  "void harvester": "main-synthara-void-harvester",
+  "ore extractor": "main-vanguard-ore-extractor",
+  "ironclad freighter": "main-vanguard-ironclad-freighter",
+  "arc": "main-synthara-arc",
+  "singularity hauler": "main-synthara-singularity-hauler",
+  "talon": "main-ashkari-talon",
+  "sentinel": "main-vanguard-sentinel",
+  "plunder barge": "main-ashkari-plunder-barge",
+  "fortress transport": "main-vanguard-fortress-transport",
+  "centurion": "main-vanguard-centurion"
 };
 
 function resolveShipName(str) {
@@ -2361,7 +2446,13 @@ function parseScanTextOrJson(rawText) {
           });
         }
         const rawShips = parsed.ships || parsed.fleet || {};
-        Object.entries(rawShips).forEach(([sid, cnt]) => {
+        let shipEntries = [];
+        if (Array.isArray(rawShips)) {
+          shipEntries = rawShips.map(item => [item.shipDefinitionId || item.id, item.quantity || item.count || 1]);
+        } else if (typeof rawShips === 'object' && rawShips !== null) {
+          shipEntries = Object.entries(rawShips);
+        }
+        shipEntries.forEach(([sid, cnt]) => {
           if (sid.startsWith('pds-')) {
             const lvl = parseInt(cnt, 10) || 0;
             const sl = sid.toLowerCase();
@@ -3413,6 +3504,8 @@ function runSimulation() {
         damage: sDef.damage || ((sDef.gun || 0) * 2.5),
         empDamage: sDef.empDamage || 0,
         empResistance: sDef.empResistance || 0,
+        gun: sDef.gun || 0,
+        evasion: sDef.evasion || 0,
         init: sDef.init || 6,
         shipClass: sDef.shipClass || 'MEDIUM',
         targetClass1: sDef.targetClass1 || 'MEDIUM',
@@ -3444,6 +3537,8 @@ function runSimulation() {
         damage: sDef.damage || ((sDef.gun || 0) * 2.5),
         empDamage: sDef.empDamage || 0,
         empResistance: sDef.empResistance || 0,
+        gun: sDef.gun || 0,
+        evasion: sDef.evasion || 0,
         init: sDef.init || 6,
         shipClass: sDef.shipClass || 'MEDIUM',
         targetClass1: sDef.targetClass1 || 'MEDIUM',
@@ -3530,27 +3625,51 @@ function runSimulation() {
         dmg -= absorbed;
       }
 
-      // Apply damage
+      // Apply damage with evasion and gun tracking
       for (const target of candidates) {
         if (dmg <= 0 || target.count <= 0) break;
-        let destroyed = Math.min(target.count, Math.floor(dmg / target.armor));
-        if (destroyed === 0 && dmg > target.armor * 0.75) destroyed = 1;
-        if (destroyed > 0) {
+
+        const targetEvasion = target.evasion || 0;
+        let evasionMult = 1.0;
+        if (targetEvasion > 0 && shooter.gun > 0) {
+          const effectiveGun = Math.max(5.0, shooter.gun - targetEvasion);
+          evasionMult = effectiveGun / shooter.gun;
+        } else if (targetEvasion > 0 && shooter.gun === 0) {
+          evasionMult = Math.max(0.05, 1.0 - (targetEvasion / 100.0));
+        }
+
+        const effectiveDmg = dmg * evasionMult;
+        let destroyed = Math.min(target.count, Math.floor(effectiveDmg / target.armor));
+        if (destroyed === 0 && effectiveDmg > target.armor * 0.75) destroyed = 1;
+        const dmgUsedEffective = Math.min(effectiveDmg, destroyed * target.armor);
+        const dmgUsedRaw = (evasionMult > 0) ? (dmgUsedEffective / evasionMult) : dmgUsedEffective;
+
+        if (destroyed > 0 || dmgUsedEffective > 0) {
           target.count -= destroyed;
-          const dmgUsed = destroyed * target.armor;
-          dmg -= dmgUsed;
+          dmg -= dmgUsedRaw;
           const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
           const effNote = eff < 1.0 ? ` (${Math.round(eff * 100)}% eff)` : '';
-          roundEvents.push(`${sideTag} [${shooter.fleetName}] ${shooter.count.toLocaleString()}x ${shooter.name} (Init ${shooter.init}) fired at [${target.fleetName}] ${target.name} -> dealt ${dmgUsed.toLocaleString()} dmg${effNote}, destroyed ${destroyed.toLocaleString()} ships (Round ${round})`);
+          const evaNote = targetEvasion > 0 ? ` [${Math.round(evasionMult * 100)}% hit vs ${targetEvasion}% eva]` : '';
+          roundEvents.push(`${sideTag} [${shooter.fleetName}] ${shooter.count.toLocaleString()}x ${shooter.name} (Init ${shooter.init}) fired at [${target.fleetName}] ${target.name} -> dealt ${dmgUsedEffective.toLocaleString()} dmg${effNote}${evaNote}, destroyed ${destroyed.toLocaleString()} ships (Round ${round})`);
         }
       }
 
-      // EMP weapons
+      // EMP weapons with evasion tracking
       if (shooter.empDamage > 0) {
         for (const target of candidates) {
           if (target.count <= 0 || target.empDisabled) continue;
-          const empChance = Math.max(0, Math.min(1.0, 0.5 - (target.empResistance / 100)));
-          if (empChance > 0.3) {
+
+          const targetEvasion = target.evasion || 0;
+          let evasionMult = 1.0;
+          if (targetEvasion > 0 && shooter.gun > 0) {
+            const effectiveGun = Math.max(5.0, shooter.gun - targetEvasion);
+            evasionMult = effectiveGun / shooter.gun;
+          } else if (targetEvasion > 0 && shooter.gun === 0) {
+            evasionMult = Math.max(0.05, 1.0 - (targetEvasion / 100.0));
+          }
+
+          const empChance = Math.max(0, Math.min(1.0, 0.5 - (target.empResistance / 100))) * evasionMult;
+          if (empChance > 0.25) {
             target.empDisabled = true;
             const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
             roundEvents.push(`⚡ ${sideTag} [${shooter.fleetName}] ${shooter.name} EMP disrupted ${target.name} [${target.fleetName}] (Round ${round})`);
