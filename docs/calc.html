@@ -674,13 +674,13 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.6rem;">
       <div style="display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap;">
         <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); margin-right: 0.3rem;">Hulls:</span>
-        <button class="filter-pill-btn active" onclick="setCategoryFilter('ALL', this)">All (35)</button>
-        <button class="filter-pill-btn" onclick="setCategoryFilter('FIGHTER', this)">Fi (6)</button>
+        <button class="filter-pill-btn active" onclick="setCategoryFilter('ALL', this)">All (34)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('FIGHTER', this)">Fi (5)</button>
         <button class="filter-pill-btn" onclick="setCategoryFilter('CORVETTE', this)">Co (6)</button>
-        <button class="filter-pill-btn" onclick="setCategoryFilter('FRIGATE', this)">Fr (8)</button>
-        <button class="filter-pill-btn" onclick="setCategoryFilter('DESTROYER', this)">De (6)</button>
-        <button class="filter-pill-btn" onclick="setCategoryFilter('CRUISER', this)">Cr (5)</button>
-        <button class="filter-pill-btn" onclick="setCategoryFilter('BATTLESHIP', this)">Bs (4)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('FRIGATE', this)">Fr (5)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('DESTROYER', this)">De (7)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('CRUISER', this)">Cr (6)</button>
+        <button class="filter-pill-btn" onclick="setCategoryFilter('BATTLESHIP', this)">Bs (5)</button>
         <button class="filter-pill-btn" onclick="setCategoryFilter('PDS', this)">PDS (5)</button>
       </div>
 
@@ -1102,86 +1102,67 @@
 // EMBEDDED PEGASUS GALAXY GAME DEFINITIONS (38 SHIPS & 5 PDS)
 // =========================================================================
 const SHIP_DEFINITIONS = {
-  "main-ashkari-claw-extractor": {
-    "id": "main-ashkari-claw-extractor",
-    "name": "Claw Extractor",
-    "faction": "ASHKARI",
-    "category": "FRIGATE",
-    "shipClass": "MEDIUM",
-    "armor": 200,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 10,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 5,
-    "targetClass1": "ROIDS",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 10000,
-      "crystal": 6000,
-      "eonium": 4000
-    },
-    "speed": 9,
-    "eta": 7
-  },
   "main-ashkari-fang": {
     "id": "main-ashkari-fang",
     "name": "Fang",
     "faction": "ASHKARI",
     "category": "FIGHTER",
     "shipClass": "LIGHT",
-    "armor": 24,
-    "damage": 16,
-    "gun": 8,
-    "init": 3,
+    "armor": 14,
+    "damage": 8,
+    "gun": 1,
+    "init": 8,
     "empDamage": 0,
-    "empResistance": 19,
+    "empResistance": 30,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "LIGHT",
-    "targetClass3": "HEAVY",
+    "targetClass1": "FRIGATE",
+    "targetClass2": "CORVETTE",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 900,
-      "crystal": 500,
-      "eonium": 500
+      "metal": 100,
+      "crystal": 70,
+      "eonium": 70
     },
     "speed": 10,
-    "eta": 1
+    "eta": 8,
+    "fuelCapacity": 250,
+    "fuelConsumptionRate": 5,
+    "description": "Ultra-fast strike fighter built for first blood"
   },
   "main-ashkari-juggernaut": {
     "id": "main-ashkari-juggernaut",
     "name": "Juggernaut",
     "faction": "ASHKARI",
-    "category": "CRUISER",
+    "category": "BATTLESHIP",
     "shipClass": "HEAVY",
-    "armor": 175,
-    "damage": 84,
-    "gun": 26,
+    "armor": 86,
+    "damage": 50,
+    "gun": 1,
     "init": 6,
     "empDamage": 0,
-    "empResistance": 22,
+    "empResistance": 94,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
+    "targetClass1": "CRUISER",
+    "targetClass2": "",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 8200,
-      "crystal": 4600,
-      "eonium": 4600
+      "metal": 525,
+      "crystal": 470,
+      "eonium": 470
     },
     "speed": 8,
-    "eta": 4
+    "eta": 10,
+    "fuelCapacity": 3500,
+    "fuelConsumptionRate": 34,
+    "description": "Overwhelming heavy raider built to crack battle lines"
   },
   "main-ashkari-marauder": {
     "id": "main-ashkari-marauder",
@@ -1189,26 +1170,30 @@ const SHIP_DEFINITIONS = {
     "faction": "ASHKARI",
     "category": "DESTROYER",
     "shipClass": "MEDIUM",
-    "armor": 66,
-    "damage": 54,
-    "gun": 17,
-    "init": 5,
+    "armor": 46,
+    "damage": 26,
+    "gun": 1,
+    "init": 7,
     "empDamage": 0,
-    "empResistance": 26,
+    "empResistance": 88,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "LIGHT",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "HEAVY",
+    "targetClass1": "CRUISER",
+    "targetClass2": "",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 4200,
-      "crystal": 2400,
-      "eonium": 2400
+      "metal": 300,
+      "crystal": 265,
+      "eonium": 265
     },
     "speed": 9,
-    "eta": 3
+    "eta": 9,
+    "fuelCapacity": 1150,
+    "fuelConsumptionRate": 18,
+    "description": "Brutal cruiser designed for shock assaults"
   },
   "main-ashkari-oblivion": {
     "id": "main-ashkari-oblivion",
@@ -1216,613 +1201,138 @@ const SHIP_DEFINITIONS = {
     "faction": "ASHKARI",
     "category": "BATTLESHIP",
     "shipClass": "SPECIAL",
-    "armor": 470,
-    "damage": 250,
-    "gun": 55,
-    "init": 7,
+    "armor": 90,
+    "damage": 0,
+    "gun": 1,
+    "init": 24,
     "empDamage": 0,
-    "empResistance": 100,
-    "cloak": false,
+    "empResistance": 96,
+    "cloak": true,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": {
-      "damageReflectPercent": 15,
-      "type": "siege_barrier"
-    },
+    "targetClass1": "",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
     "cost": {
-      "metal": 30000,
-      "crystal": 18000,
-      "eonium": 19000
+      "metal": 450,
+      "crystal": 580,
+      "eonium": 580
     },
     "speed": 7,
-    "eta": 7
+    "eta": 10,
+    "fuelCapacity": 8500,
+    "fuelConsumptionRate": 68,
+    "description": "Ashkari siege capital ship — immune to EMP and reflects damage back at attackers"
   },
   "main-ashkari-plunder-barge": {
     "id": "main-ashkari-plunder-barge",
     "name": "Plunder Barge",
     "faction": "ASHKARI",
-    "category": "FRIGATE",
+    "category": "DESTROYER",
     "shipClass": "MEDIUM",
-    "armor": 150,
+    "armor": 40,
     "damage": 0,
-    "gun": 0,
-    "init": 12,
+    "gun": 1,
+    "init": 35,
     "empDamage": 0,
-    "empResistance": 10,
+    "empResistance": 80,
     "cloak": false,
-    "resourceCapacity": 50000,
+    "nonCombat": true,
+    "resourceCapacity": 0,
     "asteroidCapacity": 0,
     "targetClass1": "RESOURCES",
     "targetClass2": "",
     "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 8000,
-      "crystal": 4000,
-      "eonium": 2500
+      "metal": 250,
+      "crystal": 350,
+      "eonium": 350
     },
     "speed": 9,
-    "eta": 6
-  },
-  "main-ashkari-raid-runner": {
-    "id": "main-ashkari-raid-runner",
-    "name": "Raid Runner",
-    "faction": "ASHKARI",
-    "category": "CORVETTE",
-    "shipClass": "LIGHT",
-    "armor": 80,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 5,
-    "cloak": false,
-    "resourceCapacity": 25000,
-    "asteroidCapacity": 0,
-    "targetClass1": "RESOURCES",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 5000,
-      "crystal": 2500,
-      "eonium": 1500
-    },
-    "speed": 10,
-    "eta": 5
+    "eta": 9,
+    "fuelCapacity": 4000,
+    "fuelConsumptionRate": 20,
+    "description": "Mid-range Ashkari pillaging vessel for sustained resource raids"
   },
   "main-ashkari-ravager": {
     "id": "main-ashkari-ravager",
     "name": "Ravager",
     "faction": "ASHKARI",
-    "category": "FRIGATE",
+    "category": "DESTROYER",
     "shipClass": "MEDIUM",
-    "armor": 54,
-    "damage": 44,
-    "gun": 15,
-    "init": 4,
+    "armor": 48,
+    "damage": 25,
+    "gun": 1,
+    "init": 8,
     "empDamage": 0,
-    "empResistance": 24,
+    "empResistance": 87,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "LIGHT",
-    "targetClass3": "HEAVY",
+    "targetClass1": "BATTLESHIP",
+    "targetClass2": "",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 3200,
-      "crystal": 1800,
-      "eonium": 1800
+      "metal": 280,
+      "crystal": 250,
+      "eonium": 250
     },
     "speed": 9,
-    "eta": 2
+    "eta": 9,
+    "fuelCapacity": 1100,
+    "fuelConsumptionRate": 17,
+    "description": "Fast-attack warship with devastating broadsides"
   },
   "main-ashkari-reaper": {
     "id": "main-ashkari-reaper",
     "name": "Reaper",
     "faction": "ASHKARI",
-    "category": "DESTROYER",
-    "shipClass": "MEDIUM",
-    "armor": 80,
-    "damage": 62,
-    "gun": 19,
-    "init": 5,
-    "empDamage": 0,
-    "empResistance": 28,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 5200,
-      "crystal": 3000,
-      "eonium": 3000
-    },
-    "speed": 9,
-    "eta": 3
-  },
-  "main-ashkari-talon": {
-    "id": "main-ashkari-talon",
-    "name": "Talon",
-    "faction": "ASHKARI",
-    "category": "FIGHTER",
-    "shipClass": "LIGHT",
-    "armor": 31,
-    "damage": 21,
-    "gun": 10,
-    "init": 3,
-    "empDamage": 0,
-    "empResistance": 20,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "LIGHT",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "HEAVY",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 1250,
-      "crystal": 700,
-      "eonium": 700
-    },
-    "speed": 10,
-    "eta": 1
-  },
-  "main-ashkari-viper": {
-    "id": "main-ashkari-viper",
-    "name": "Viper",
-    "faction": "ASHKARI",
-    "category": "FIGHTER",
-    "shipClass": "LIGHT",
-    "armor": 36,
-    "damage": 24,
-    "gun": 11,
-    "init": 4,
-    "empDamage": 0,
-    "empResistance": 21,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 1500,
-      "crystal": 850,
-      "eonium": 850
-    },
-    "speed": 10,
-    "eta": 2
-  },
-  "main-synthara-arc": {
-    "id": "main-synthara-arc",
-    "name": "Arc",
-    "faction": "SYNTHARA",
-    "category": "FIGHTER",
-    "shipClass": "LIGHT",
-    "armor": 46,
-    "damage": 0,
-    "gun": 7,
-    "init": 2,
-    "empDamage": 14,
-    "empResistance": 14,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "LIGHT",
-    "targetClass2": "HEAVY",
-    "targetClass3": "MEDIUM",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 1100,
-      "crystal": 1200,
-      "eonium": 500
-    },
-    "speed": 10,
-    "eta": 1
-  },
-  "main-synthara-crystal-borer": {
-    "id": "main-synthara-crystal-borer",
-    "name": "Crystal Borer",
-    "faction": "SYNTHARA",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 280,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 15,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 10,
-    "targetClass1": "ROIDS",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 15000,
-      "crystal": 9000,
-      "eonium": 6000
-    },
-    "speed": 8,
-    "eta": 8
-  },
-  "main-synthara-lattice": {
-    "id": "main-synthara-lattice",
-    "name": "Lattice",
-    "faction": "SYNTHARA",
-    "category": "FRIGATE",
-    "shipClass": "MEDIUM",
-    "armor": 70,
-    "damage": 0,
-    "gun": 10,
-    "init": 2,
-    "empDamage": 12,
-    "empResistance": 30,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 1750,
-      "crystal": 1900,
-      "eonium": 750
-    },
-    "speed": 9,
-    "eta": 2
-  },
-  "main-synthara-monolith": {
-    "id": "main-synthara-monolith",
-    "name": "Monolith",
-    "faction": "SYNTHARA",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 250,
-    "damage": 0,
-    "gun": 20,
-    "init": 8,
-    "empDamage": 21,
-    "empResistance": 40,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 7500,
-      "crystal": 8000,
-      "eonium": 3500
-    },
-    "speed": 8,
-    "eta": 4
-  },
-  "main-synthara-nexus": {
-    "id": "main-synthara-nexus",
-    "name": "Nexus",
-    "faction": "SYNTHARA",
-    "category": "FIGHTER",
-    "shipClass": "LIGHT",
-    "armor": 54,
-    "damage": 0,
-    "gun": 8,
-    "init": 3,
-    "empDamage": 16,
-    "empResistance": 16,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 1300,
-      "crystal": 1450,
-      "eonium": 600
-    },
-    "speed": 10,
-    "eta": 2
-  },
-  "main-synthara-nexus-freighter": {
-    "id": "main-synthara-nexus-freighter",
-    "name": "Nexus Freighter",
-    "faction": "SYNTHARA",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 220,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 15,
-    "cloak": false,
-    "resourceCapacity": 100000,
-    "asteroidCapacity": 0,
-    "targetClass1": "RESOURCES",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 12000,
-      "crystal": 6000,
-      "eonium": 4000
-    },
-    "speed": 8,
-    "eta": 7
-  },
-  "main-synthara-obelisk": {
-    "id": "main-synthara-obelisk",
-    "name": "Obelisk",
-    "faction": "SYNTHARA",
     "category": "BATTLESHIP",
     "shipClass": "HEAVY",
-    "armor": 330,
-    "damage": 0,
-    "gun": 24,
-    "init": 9,
-    "empDamage": 25,
-    "empResistance": 50,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 10500,
-      "crystal": 11000,
-      "eonium": 5500
-    },
-    "speed": 8,
-    "eta": 5
-  },
-  "main-synthara-oracle": {
-    "id": "main-synthara-oracle",
-    "name": "Oracle",
-    "faction": "SYNTHARA",
-    "category": "BATTLESHIP",
-    "shipClass": "SPECIAL",
-    "armor": 640,
-    "damage": 0,
-    "gun": 30,
-    "init": 8,
-    "empDamage": 60,
-    "empResistance": 80,
-    "cloak": true,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": {
-      "fleetEmpChanceMultiplier": 0.3,
-      "type": "disruption_field"
-    },
-    "cost": {
-      "metal": 24000,
-      "crystal": 29000,
-      "eonium": 12000
-    },
-    "speed": 7,
-    "eta": 7
-  },
-  "main-synthara-pulse": {
-    "id": "main-synthara-pulse",
-    "name": "Pulse",
-    "faction": "SYNTHARA",
-    "category": "FIGHTER",
-    "shipClass": "LIGHT",
-    "armor": 40,
-    "damage": 0,
-    "gun": 6,
-    "init": 2,
-    "empDamage": 12,
-    "empResistance": 12,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "LIGHT",
-    "targetClass3": "MEDIUM",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 900,
-      "crystal": 1000,
-      "eonium": 400
-    },
-    "speed": 10,
-    "eta": 1
-  },
-  "main-synthara-pulse-courier": {
-    "id": "main-synthara-pulse-courier",
-    "name": "Pulse Courier",
-    "faction": "SYNTHARA",
-    "category": "CORVETTE",
-    "shipClass": "LIGHT",
-    "armor": 80,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 5,
-    "cloak": false,
-    "resourceCapacity": 25000,
-    "asteroidCapacity": 0,
-    "targetClass1": "RESOURCES",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 5000,
-      "crystal": 2500,
-      "eonium": 1500
-    },
-    "speed": 10,
-    "eta": 5
-  },
-  "main-synthara-singularity": {
-    "id": "main-synthara-singularity",
-    "name": "Singularity",
-    "faction": "SYNTHARA",
-    "category": "BATTLESHIP",
-    "shipClass": "HEAVY",
-    "armor": 420,
-    "damage": 0,
-    "gun": 28,
-    "init": 9,
-    "empDamage": 29,
-    "empResistance": 60,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 13000,
-      "crystal": 14000,
-      "eonium": 7500
-    },
-    "speed": 8,
-    "eta": 5
-  },
-  "main-synthara-singularity-hauler": {
-    "id": "main-synthara-singularity-hauler",
-    "name": "Singularity Hauler",
-    "faction": "SYNTHARA",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 400,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 20,
-    "cloak": false,
-    "resourceCapacity": 200000,
-    "asteroidCapacity": 0,
-    "targetClass1": "RESOURCES",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 20000,
-      "crystal": 12000,
-      "eonium": 8000
-    },
-    "speed": 8,
-    "eta": 8
-  },
-  "main-synthara-void-harvester": {
-    "id": "main-synthara-void-harvester",
-    "name": "Void Harvester",
-    "faction": "SYNTHARA",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 380,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 20,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 18,
-    "targetClass1": "ROIDS",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 22000,
-      "crystal": 13000,
-      "eonium": 9000
-    },
-    "speed": 8,
-    "eta": 9
-  },
-  "main-vanguard-centurion": {
-    "id": "main-vanguard-centurion",
-    "name": "Centurion",
-    "faction": "VANGUARD",
-    "category": "FRIGATE",
-    "shipClass": "MEDIUM",
-    "armor": 89,
-    "damage": 44,
-    "gun": 15,
-    "init": 4,
-    "empDamage": 0,
-    "empResistance": 10,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 2200,
-      "crystal": 1400,
-      "eonium": 900
-    },
-    "speed": 9,
-    "eta": 2
-  },
-  "main-vanguard-colossus": {
-    "id": "main-vanguard-colossus",
-    "name": "Colossus",
-    "faction": "VANGUARD",
-    "category": "BATTLESHIP",
-    "shipClass": "HEAVY",
-    "armor": 340,
-    "damage": 156,
-    "gun": 30,
+    "armor": 82,
+    "damage": 50,
+    "gun": 1,
     "init": 6,
     "empDamage": 0,
-    "empResistance": 30,
+    "empResistance": 94,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
+    "targetClass1": "DESTROYER",
+    "targetClass2": "",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 11200,
-      "crystal": 7600,
-      "eonium": 5400
+      "metal": 500,
+      "crystal": 450,
+      "eonium": 450
     },
     "speed": 8,
-    "eta": 5
+    "eta": 10,
+    "fuelCapacity": 3300,
+    "fuelConsumptionRate": 32,
+    "description": "Fearsome destroyer that leaves no survivors"
   },
-  "main-vanguard-core-driller": {
-    "id": "main-vanguard-core-driller",
-    "name": "Core Driller",
-    "faction": "VANGUARD",
-    "category": "CRUISER",
+  "main-ashkari-roid-extractor": {
+    "id": "main-ashkari-roid-extractor",
+    "name": "Roid Extractor",
+    "faction": "ASHKARI",
+    "category": "BATTLESHIP",
     "shipClass": "HEAVY",
-    "armor": 280,
+    "armor": 84,
     "damage": 0,
-    "gun": 0,
-    "init": 12,
+    "gun": 1,
+    "init": 30,
     "empDamage": 0,
-    "empResistance": 15,
+    "empResistance": 92,
     "cloak": false,
+    "nonCombat": true,
     "resourceCapacity": 0,
     "asteroidCapacity": 10,
     "targetClass1": "ROIDS",
@@ -1830,138 +1340,30 @@ const SHIP_DEFINITIONS = {
     "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 15000,
-      "crystal": 9000,
-      "eonium": 6000
+      "metal": 500,
+      "crystal": 500,
+      "eonium": 500
     },
     "speed": 8,
-    "eta": 8
+    "eta": 10,
+    "fuelCapacity": 6500,
+    "fuelConsumptionRate": 36,
+    "description": "Heavy Ashkari mining platform for deep-core asteroid extraction"
   },
-  "main-vanguard-fortress-transport": {
-    "id": "main-vanguard-fortress-transport",
-    "name": "Fortress Transport",
-    "faction": "VANGUARD",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 400,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 20,
-    "cloak": false,
-    "resourceCapacity": 200000,
-    "asteroidCapacity": 0,
-    "targetClass1": "RESOURCES",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 20000,
-      "crystal": 12000,
-      "eonium": 8000
-    },
-    "speed": 8,
-    "eta": 8
-  },
-  "main-vanguard-guardian": {
-    "id": "main-vanguard-guardian",
-    "name": "Guardian",
-    "faction": "VANGUARD",
-    "category": "FRIGATE",
+  "main-ashkari-roid-runner": {
+    "id": "main-ashkari-roid-runner",
+    "name": "Roid Runner",
+    "faction": "ASHKARI",
+    "category": "DESTROYER",
     "shipClass": "MEDIUM",
-    "armor": 113,
-    "damage": 58,
-    "gun": 17,
-    "init": 4,
-    "empDamage": 0,
-    "empResistance": 14,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 3000,
-      "crystal": 1900,
-      "eonium": 1200
-    },
-    "speed": 9,
-    "eta": 3
-  },
-  "main-vanguard-imperator": {
-    "id": "main-vanguard-imperator",
-    "name": "Imperator",
-    "faction": "VANGUARD",
-    "category": "BATTLESHIP",
-    "shipClass": "SPECIAL",
-    "armor": 720,
-    "damage": 170,
-    "gun": 42,
-    "init": 11,
-    "empDamage": 0,
-    "empResistance": 45,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "HEAVY",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "LIGHT",
-    "capitalAbility": {
-      "maxAbsorptionPercent": 25,
-      "shieldAbsorptionPercent": 8,
-      "type": "shield_aura"
-    },
-    "cost": {
-      "metal": 34000,
-      "crystal": 22000,
-      "eonium": 17000
-    },
-    "speed": 7,
-    "eta": 7
-  },
-  "main-vanguard-ironclad-freighter": {
-    "id": "main-vanguard-ironclad-freighter",
-    "name": "Ironclad Freighter",
-    "faction": "VANGUARD",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 220,
+    "armor": 44,
     "damage": 0,
-    "gun": 0,
-    "init": 12,
+    "gun": 1,
+    "init": 30,
     "empDamage": 0,
-    "empResistance": 15,
+    "empResistance": 85,
     "cloak": false,
-    "resourceCapacity": 100000,
-    "asteroidCapacity": 0,
-    "targetClass1": "RESOURCES",
-    "targetClass2": "",
-    "targetClass3": "",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 12000,
-      "crystal": 6000,
-      "eonium": 4000
-    },
-    "speed": 8,
-    "eta": 7
-  },
-  "main-vanguard-ore-extractor": {
-    "id": "main-vanguard-ore-extractor",
-    "name": "Ore Extractor",
-    "faction": "VANGUARD",
-    "category": "FRIGATE",
-    "shipClass": "MEDIUM",
-    "armor": 200,
-    "damage": 0,
-    "gun": 0,
-    "init": 12,
-    "empDamage": 0,
-    "empResistance": 10,
-    "cloak": false,
+    "nonCombat": true,
     "resourceCapacity": 0,
     "asteroidCapacity": 5,
     "targetClass1": "ROIDS",
@@ -1969,12 +1371,635 @@ const SHIP_DEFINITIONS = {
     "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 10000,
-      "crystal": 6000,
-      "eonium": 4000
+      "metal": 300,
+      "crystal": 300,
+      "eonium": 300
     },
     "speed": 9,
-    "eta": 7
+    "eta": 9,
+    "fuelCapacity": 5000,
+    "fuelConsumptionRate": 26,
+    "description": "Aggressive Ashkari mining vessel that rips asteroids from orbit"
+  },
+  "main-ashkari-talon": {
+    "id": "main-ashkari-talon",
+    "name": "Talon",
+    "faction": "ASHKARI",
+    "category": "CORVETTE",
+    "shipClass": "LIGHT",
+    "armor": 28,
+    "damage": 15,
+    "gun": 1,
+    "init": 7,
+    "empDamage": 0,
+    "empResistance": 55,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "FIGHTER",
+    "targetClass2": "DESTROYER",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 180,
+      "crystal": 145,
+      "eonium": 145
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 300,
+    "fuelConsumptionRate": 6,
+    "description": "Aggressive interceptor with overcharged weapons"
+  },
+  "main-ashkari-viper": {
+    "id": "main-ashkari-viper",
+    "name": "Viper",
+    "faction": "ASHKARI",
+    "category": "DESTROYER",
+    "shipClass": "MEDIUM",
+    "armor": 40,
+    "damage": 22,
+    "gun": 1,
+    "init": 6,
+    "empDamage": 0,
+    "empResistance": 86,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "CORVETTE",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 260,
+      "crystal": 225,
+      "eonium": 225
+    },
+    "speed": 9,
+    "eta": 9,
+    "fuelCapacity": 950,
+    "fuelConsumptionRate": 15,
+    "description": "Deadly raider with armor-piercing ordnance"
+  },
+  "main-synthara-arc": {
+    "id": "main-synthara-arc",
+    "name": "Arc",
+    "faction": "SYNTHARA",
+    "category": "CORVETTE",
+    "shipClass": "LIGHT",
+    "armor": 20,
+    "damage": 0,
+    "gun": 1,
+    "init": 2,
+    "empDamage": 6,
+    "empResistance": 55,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "FIGHTER",
+    "targetClass2": "CORVETTE",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 150,
+      "crystal": 180,
+      "eonium": 150
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 310,
+    "fuelConsumptionRate": 6,
+    "description": "EMP-hardened light fighter with regenerative plating"
+  },
+  "main-synthara-crystal-borer": {
+    "id": "main-synthara-crystal-borer",
+    "name": "Crystal Borer",
+    "faction": "SYNTHARA",
+    "category": "CRUISER",
+    "shipClass": "SPECIAL",
+    "armor": 280,
+    "damage": 0,
+    "gun": 1,
+    "init": 5,
+    "empDamage": 15,
+    "empResistance": 15,
+    "cloak": true,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 450,
+      "crystal": 450,
+      "eonium": 450
+    },
+    "speed": 7,
+    "eta": 10,
+    "fuelCapacity": 8800,
+    "fuelConsumptionRate": 66,
+    "description": "Synthara research capital ship — emits a disruption field that attempts to EMP all enemy groups"
+  },
+  "main-synthara-lattice": {
+    "id": "main-synthara-lattice",
+    "name": "Lattice",
+    "faction": "SYNTHARA",
+    "category": "CORVETTE",
+    "shipClass": "LIGHT",
+    "armor": 22,
+    "damage": 0,
+    "gun": 1,
+    "init": 2,
+    "empDamage": 6,
+    "empResistance": 57,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "FRIGATE",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 160,
+      "crystal": 180,
+      "eonium": 160
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 400,
+    "fuelConsumptionRate": 8,
+    "description": "Light EMP skirmisher — networked disruptors that lock down enemy groups"
+  },
+  "main-synthara-mobster": {
+    "id": "main-synthara-mobster",
+    "name": "Mobster",
+    "faction": "SYNTHARA",
+    "category": "CRUISER",
+    "shipClass": "HEAVY",
+    "armor": 50,
+    "damage": 0,
+    "gun": 1,
+    "init": 35,
+    "empDamage": 0,
+    "empResistance": 88,
+    "cloak": false,
+    "nonCombat": true,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "RESOURCES",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 440,
+      "crystal": 390,
+      "eonium": 440
+    },
+    "speed": 8,
+    "eta": 10,
+    "fuelCapacity": 7000,
+    "fuelConsumptionRate": 44,
+    "description": "Reality-bending Synthara heavy resource transport for massive raids"
+  },
+  "main-synthara-monolith": {
+    "id": "main-synthara-monolith",
+    "name": "Monolith",
+    "faction": "SYNTHARA",
+    "category": "FRIGATE",
+    "shipClass": "MEDIUM",
+    "armor": 35,
+    "damage": 0,
+    "gun": 1,
+    "init": 1,
+    "empDamage": 10,
+    "empResistance": 80,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "CRUISER",
+    "targetClass2": "BATTLESHIP",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 225,
+      "crystal": 260,
+      "eonium": 225
+    },
+    "speed": 9,
+    "eta": 9,
+    "fuelCapacity": 1400,
+    "fuelConsumptionRate": 20,
+    "description": "Crystalline medium EMP frigate with near-impervious shielding"
+  },
+  "main-synthara-nexus": {
+    "id": "main-synthara-nexus",
+    "name": "Nexus",
+    "faction": "SYNTHARA",
+    "category": "CORVETTE",
+    "shipClass": "LIGHT",
+    "armor": 22,
+    "damage": 0,
+    "gun": 1,
+    "init": 2,
+    "empDamage": 7,
+    "empResistance": 57,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "DESTROYER",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 155,
+      "crystal": 180,
+      "eonium": 155
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 350,
+    "fuelConsumptionRate": 7,
+    "description": "Networked light drone with coordinated EMP targeting and heavy plating"
+  },
+  "main-synthara-obelisk": {
+    "id": "main-synthara-obelisk",
+    "name": "Obelisk",
+    "faction": "SYNTHARA",
+    "category": "CRUISER",
+    "shipClass": "HEAVY",
+    "armor": 57,
+    "damage": 0,
+    "gun": 1,
+    "init": 2,
+    "empDamage": 20,
+    "empResistance": 92,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "BATTLESHIP",
+    "targetClass2": "CRUISER",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 400,
+      "crystal": 440,
+      "eonium": 400
+    },
+    "speed": 8,
+    "eta": 10,
+    "fuelCapacity": 4500,
+    "fuelConsumptionRate": 38,
+    "description": "Ancient-tech heavy EMP dreadnought with adaptive shielding"
+  },
+  "main-synthara-pulse": {
+    "id": "main-synthara-pulse",
+    "name": "Pulse",
+    "faction": "SYNTHARA",
+    "category": "FIGHTER",
+    "shipClass": "LIGHT",
+    "armor": 12,
+    "damage": 0,
+    "gun": 1,
+    "init": 1,
+    "empDamage": 4,
+    "empResistance": 39,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "CORVETTE",
+    "targetClass2": "FRIGATE",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 95,
+      "crystal": 125,
+      "eonium": 95
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 260,
+    "fuelConsumptionRate": 5,
+    "description": "Energy-shielded light skirmisher with an EMP disruption field"
+  },
+  "main-synthara-roid-courier": {
+    "id": "main-synthara-roid-courier",
+    "name": "Roid Courier",
+    "faction": "SYNTHARA",
+    "category": "CRUISER",
+    "shipClass": "HEAVY",
+    "armor": 52,
+    "damage": 0,
+    "gun": 1,
+    "init": 30,
+    "empDamage": 0,
+    "empResistance": 90,
+    "cloak": false,
+    "nonCombat": true,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 10,
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 420,
+      "crystal": 420,
+      "eonium": 420
+    },
+    "speed": 8,
+    "eta": 10,
+    "fuelCapacity": 6500,
+    "fuelConsumptionRate": 36,
+    "description": "Crystalline Synthara heavy mining transport with near-impervious shielding"
+  },
+  "main-synthara-roid-transporter": {
+    "id": "main-synthara-roid-transporter",
+    "name": "Roid Transporter",
+    "faction": "SYNTHARA",
+    "category": "CORVETTE",
+    "shipClass": "LIGHT",
+    "armor": 20,
+    "damage": 0,
+    "gun": 1,
+    "init": 30,
+    "empDamage": 0,
+    "empResistance": 53,
+    "cloak": false,
+    "nonCombat": true,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 5,
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 150,
+      "crystal": 150,
+      "eonium": 150
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 3000,
+    "fuelConsumptionRate": 14,
+    "description": "Energy-shielded Synthara light mining transport for precision extraction"
+  },
+  "main-synthara-singularity": {
+    "id": "main-synthara-singularity",
+    "name": "Singularity",
+    "faction": "SYNTHARA",
+    "category": "CRUISER",
+    "shipClass": "HEAVY",
+    "armor": 57,
+    "damage": 0,
+    "gun": 1,
+    "init": 1,
+    "empDamage": 19,
+    "empResistance": 92,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "DESTROYER",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 410,
+      "crystal": 450,
+      "eonium": 410
+    },
+    "speed": 8,
+    "eta": 10,
+    "fuelCapacity": 5800,
+    "fuelConsumptionRate": 46,
+    "description": "Reality-bending heavy EMP carrier that warps disruption fields around it"
+  },
+  "main-vanguard-centurion": {
+    "id": "main-vanguard-centurion",
+    "name": "Centurion",
+    "faction": "VANGUARD",
+    "category": "FIGHTER",
+    "shipClass": "LIGHT",
+    "armor": 20,
+    "damage": 12,
+    "gun": 1,
+    "init": 10,
+    "empDamage": 0,
+    "empResistance": 35,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "FRIGATE",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 92,
+      "crystal": 92,
+      "eonium": 105
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 300,
+    "fuelConsumptionRate": 6,
+    "description": "Balanced light cruiser with reliable kinetic guns"
+  },
+  "main-vanguard-colossus": {
+    "id": "main-vanguard-colossus",
+    "name": "Colossus",
+    "faction": "VANGUARD",
+    "category": "DESTROYER",
+    "shipClass": "MEDIUM",
+    "armor": 55,
+    "damage": 0,
+    "gun": 1,
+    "init": 3,
+    "empDamage": 15,
+    "empResistance": 90,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "FIGHTER",
+    "targetClass2": "CORVETTE",
+    "targetClass3": "BATTLESHIP",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 250,
+      "crystal": 250,
+      "eonium": 250
+    },
+    "speed": 9,
+    "eta": 9,
+    "fuelCapacity": 1200,
+    "fuelConsumptionRate": 18,
+    "description": "Medium EMP platform — disables enemy groups with disruption pulses"
+  },
+  "main-vanguard-core-driller": {
+    "id": "main-vanguard-core-driller",
+    "name": "Core Driller",
+    "faction": "VANGUARD",
+    "category": "DESTROYER",
+    "shipClass": "SPECIAL",
+    "armor": 280,
+    "damage": 0,
+    "gun": 1,
+    "init": 0,
+    "empDamage": 0,
+    "empResistance": 15,
+    "cloak": true,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 1500,
+      "crystal": 1500,
+      "eonium": 1500
+    },
+    "speed": 7,
+    "eta": 8,
+    "fuelCapacity": 9000,
+    "fuelConsumptionRate": 70,
+    "description": "Vanguard command capital ship — projects a shield aura that absorbs damage for the entire fleet"
+  },
+  "main-vanguard-guardian": {
+    "id": "main-vanguard-guardian",
+    "name": "Guardian",
+    "faction": "VANGUARD",
+    "category": "CORVETTE",
+    "shipClass": "LIGHT",
+    "armor": 35,
+    "damage": 20,
+    "gun": 1,
+    "init": 11,
+    "empDamage": 0,
+    "empResistance": 65,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "FIGHTER",
+    "targetClass2": "FRIGATE",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 150,
+      "crystal": 150,
+      "eonium": 180
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 350,
+    "fuelConsumptionRate": 7,
+    "description": "Armored escort built to absorb punishment and hold the line"
+  },
+  "main-vanguard-imperator": {
+    "id": "main-vanguard-imperator",
+    "name": "Imperator",
+    "faction": "VANGUARD",
+    "category": "BATTLESHIP",
+    "shipClass": "HEAVY",
+    "armor": 85,
+    "damage": 0,
+    "gun": 1,
+    "init": 5,
+    "empDamage": 25,
+    "empResistance": 88,
+    "cloak": false,
+    "nonCombat": false,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 0,
+    "targetClass1": "CRUISER",
+    "targetClass2": "DESTROYER",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 510,
+      "crystal": 510,
+      "eonium": 510
+    },
+    "speed": 8,
+    "eta": 10,
+    "fuelCapacity": 5500,
+    "fuelConsumptionRate": 48,
+    "description": "Vanguard heavy EMP battleship — overwhelming disruption output"
+  },
+  "main-vanguard-ironclad-freighter": {
+    "id": "main-vanguard-ironclad-freighter",
+    "name": "Ironclad Freighter",
+    "faction": "VANGUARD",
+    "category": "FRIGATE",
+    "shipClass": "MEDIUM",
+    "armor": 50,
+    "damage": 0,
+    "gun": 1,
+    "init": 30,
+    "empDamage": 0,
+    "empResistance": 85,
+    "cloak": false,
+    "nonCombat": true,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 10,
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 240,
+      "crystal": 240,
+      "eonium": 240
+    },
+    "speed": 9,
+    "eta": 9,
+    "fuelCapacity": 5500,
+    "fuelConsumptionRate": 30,
+    "description": "Heavily plated Vanguard mining hauler for deep-space extraction runs"
+  },
+  "main-vanguard-ore-extractor": {
+    "id": "main-vanguard-ore-extractor",
+    "name": "Ore Extractor",
+    "faction": "VANGUARD",
+    "category": "FIGHTER",
+    "shipClass": "LIGHT",
+    "armor": 20,
+    "damage": 0,
+    "gun": 1,
+    "init": 30,
+    "empDamage": 0,
+    "empResistance": 33,
+    "cloak": false,
+    "nonCombat": true,
+    "resourceCapacity": 0,
+    "asteroidCapacity": 5,
+    "targetClass1": "ROIDS",
+    "targetClass2": "",
+    "targetClass3": "",
+    "capitalAbility": null,
+    "cost": {
+      "metal": 100,
+      "crystal": 100,
+      "eonium": 100
+    },
+    "speed": 10,
+    "eta": 8,
+    "fuelCapacity": 5000,
+    "fuelConsumptionRate": 26,
+    "description": "Sturdy Vanguard mining barge with reinforced drill arrays"
   },
   "main-vanguard-picket": {
     "id": "main-vanguard-picket",
@@ -1982,107 +2007,92 @@ const SHIP_DEFINITIONS = {
     "faction": "VANGUARD",
     "category": "FIGHTER",
     "shipClass": "LIGHT",
-    "armor": 40,
+    "armor": 20,
     "damage": 11,
-    "gun": 7,
-    "init": 5,
+    "gun": 1,
+    "init": 9,
     "empDamage": 0,
-    "empResistance": 12,
+    "empResistance": 35,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "LIGHT",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "HEAVY",
+    "targetClass1": "CORVETTE",
+    "targetClass2": "",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 1100,
-      "crystal": 650,
-      "eonium": 450
+      "metal": 90,
+      "crystal": 90,
+      "eonium": 110
     },
     "speed": 10,
-    "eta": 1
+    "eta": 8,
+    "fuelCapacity": 270,
+    "fuelConsumptionRate": 5,
+    "description": "Light escort screen — holds the line until the heavies arrive"
   },
   "main-vanguard-sentinel": {
     "id": "main-vanguard-sentinel",
     "name": "Sentinel",
     "faction": "VANGUARD",
-    "category": "DESTROYER",
+    "category": "FRIGATE",
     "shipClass": "MEDIUM",
-    "armor": 139,
-    "damage": 72,
-    "gun": 19,
-    "init": 4,
-    "empDamage": 0,
-    "empResistance": 16,
-    "cloak": false,
-    "resourceCapacity": 0,
-    "asteroidCapacity": 0,
-    "targetClass1": "LIGHT",
-    "targetClass2": "MEDIUM",
-    "targetClass3": "HEAVY",
-    "capitalAbility": null,
-    "cost": {
-      "metal": 3800,
-      "crystal": 2400,
-      "eonium": 1500
-    },
-    "speed": 9,
-    "eta": 3
-  },
-  "main-vanguard-siege-harvester": {
-    "id": "main-vanguard-siege-harvester",
-    "name": "Siege Harvester",
-    "faction": "VANGUARD",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 380,
-    "damage": 0,
-    "gun": 0,
+    "armor": 50,
+    "damage": 30,
+    "gun": 1,
     "init": 12,
     "empDamage": 0,
-    "empResistance": 20,
+    "empResistance": 88,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
-    "asteroidCapacity": 18,
-    "targetClass1": "ROIDS",
-    "targetClass2": "",
+    "asteroidCapacity": 0,
+    "targetClass1": "CORVETTE",
+    "targetClass2": "FIGHTER",
     "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 22000,
-      "crystal": 13000,
-      "eonium": 9000
+      "metal": 220,
+      "crystal": 220,
+      "eonium": 250
     },
-    "speed": 8,
-    "eta": 9
+    "speed": 9,
+    "eta": 9,
+    "fuelCapacity": 900,
+    "fuelConsumptionRate": 14,
+    "description": "Adaptive medium destroyer with balanced multi-role firepower"
   },
   "main-vanguard-sovereign": {
     "id": "main-vanguard-sovereign",
     "name": "Sovereign",
     "faction": "VANGUARD",
-    "category": "BATTLESHIP",
+    "category": "CRUISER",
     "shipClass": "HEAVY",
-    "armor": 420,
-    "damage": 200,
-    "gun": 34,
-    "init": 6,
-    "empDamage": 0,
-    "empResistance": 35,
+    "armor": 75,
+    "damage": 0,
+    "gun": 1,
+    "init": 4,
+    "empDamage": 20,
+    "empResistance": 83,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
+    "targetClass1": "FRIGATE",
+    "targetClass2": "BATTLESHIP",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 14400,
-      "crystal": 9900,
-      "eonium": 7200
+      "metal": 420,
+      "crystal": 420,
+      "eonium": 420
     },
     "speed": 8,
-    "eta": 5
+    "eta": 10,
+    "fuelCapacity": 4200,
+    "fuelConsumptionRate": 40,
+    "description": "Heavy EMP cruiser that shuts down enemy frigates and battleships"
   },
   "main-vanguard-supply-runner": {
     "id": "main-vanguard-supply-runner",
@@ -2090,53 +2100,61 @@ const SHIP_DEFINITIONS = {
     "faction": "VANGUARD",
     "category": "FRIGATE",
     "shipClass": "MEDIUM",
-    "armor": 150,
+    "armor": 45,
     "damage": 0,
-    "gun": 0,
-    "init": 12,
+    "gun": 1,
+    "init": 35,
     "empDamage": 0,
-    "empResistance": 10,
+    "empResistance": 85,
     "cloak": false,
-    "resourceCapacity": 50000,
+    "nonCombat": true,
+    "resourceCapacity": 0,
     "asteroidCapacity": 0,
     "targetClass1": "RESOURCES",
     "targetClass2": "",
     "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 8000,
-      "crystal": 4000,
-      "eonium": 2500
+      "metal": 230,
+      "crystal": 230,
+      "eonium": 230
     },
     "speed": 9,
-    "eta": 6
+    "eta": 9,
+    "fuelCapacity": 4000,
+    "fuelConsumptionRate": 20,
+    "description": "Armored Vanguard transport built for sustained supply runs"
   },
   "main-vanguard-titan": {
     "id": "main-vanguard-titan",
     "name": "Titan",
     "faction": "VANGUARD",
-    "category": "CRUISER",
-    "shipClass": "HEAVY",
-    "armor": 250,
-    "damage": 112,
-    "gun": 25,
-    "init": 5,
+    "category": "FRIGATE",
+    "shipClass": "MEDIUM",
+    "armor": 50,
+    "damage": 32,
+    "gun": 1,
+    "init": 12,
     "empDamage": 0,
-    "empResistance": 24,
+    "empResistance": 90,
     "cloak": false,
+    "nonCombat": false,
     "resourceCapacity": 0,
     "asteroidCapacity": 0,
-    "targetClass1": "MEDIUM",
-    "targetClass2": "HEAVY",
-    "targetClass3": "LIGHT",
+    "targetClass1": "CRUISER",
+    "targetClass2": "BATTLESHIP",
+    "targetClass3": "",
     "capitalAbility": null,
     "cost": {
-      "metal": 7800,
-      "crystal": 4900,
-      "eonium": 3500
+      "metal": 210,
+      "crystal": 210,
+      "eonium": 260
     },
-    "speed": 8,
-    "eta": 4
+    "speed": 9,
+    "eta": 9,
+    "fuelCapacity": 1050,
+    "fuelConsumptionRate": 16,
+    "description": "Versatile medium battleship with steady guns"
   }
 };
 const PDS_DEFINITIONS = {
@@ -2310,18 +2328,17 @@ const HULL_CATEGORIES = ['FIGHTER', 'CORVETTE', 'FRIGATE', 'DESTROYER', 'CRUISER
 // COMPRESSION & SHAREABLE LINK ENGINE (ULTRA-COMPACT SCHEMA V2 & DEFLATE-RAW)
 // =========================================================================
 const COMPACT_SHIP_KEYS = [
-  "main-ashkari-claw-extractor", "main-ashkari-fang", "main-ashkari-juggernaut",
-  "main-ashkari-marauder", "main-ashkari-oblivion", "main-ashkari-plunder-barge",
-  "main-ashkari-raid-runner", "main-ashkari-ravager", "main-ashkari-reaper",
-  "main-ashkari-talon", "main-ashkari-viper", "main-synthara-arc",
-  "main-synthara-crystal-borer", "main-synthara-lattice", "main-synthara-monolith",
-  "main-synthara-nexus", "main-synthara-nexus-freighter", "main-synthara-obelisk",
-  "main-synthara-oracle", "main-synthara-pulse", "main-synthara-pulse-courier",
-  "main-synthara-singularity", "main-synthara-singularity-hauler",
-  "main-synthara-void-harvester", "main-vanguard-centurion", "main-vanguard-colossus",
-  "main-vanguard-core-driller", "main-vanguard-fortress-transport", "main-vanguard-guardian",
-  "main-vanguard-imperator", "main-vanguard-ironclad-freighter", "main-vanguard-ore-extractor",
-  "main-vanguard-picket", "main-vanguard-sentinel", "main-vanguard-siege-harvester",
+  "main-ashkari-fang", "main-ashkari-juggernaut", "main-ashkari-marauder",
+  "main-ashkari-oblivion", "main-ashkari-plunder-barge", "main-ashkari-ravager",
+  "main-ashkari-reaper", "main-ashkari-roid-extractor", "main-ashkari-roid-runner",
+  "main-ashkari-talon", "main-ashkari-viper",
+  "main-synthara-arc", "main-synthara-crystal-borer", "main-synthara-lattice",
+  "main-synthara-mobster", "main-synthara-monolith", "main-synthara-nexus",
+  "main-synthara-obelisk", "main-synthara-pulse", "main-synthara-roid-courier",
+  "main-synthara-roid-transporter", "main-synthara-singularity",
+  "main-vanguard-centurion", "main-vanguard-colossus", "main-vanguard-core-driller",
+  "main-vanguard-guardian", "main-vanguard-imperator", "main-vanguard-ironclad-freighter",
+  "main-vanguard-ore-extractor", "main-vanguard-picket", "main-vanguard-sentinel",
   "main-vanguard-sovereign", "main-vanguard-supply-runner", "main-vanguard-titan"
 ];
 
@@ -2329,44 +2346,40 @@ const COMPACT_SHIP_MAP = {};
 COMPACT_SHIP_KEYS.forEach((k, i) => { COMPACT_SHIP_MAP[k] = i; });
 
 const SHIP_NAME_TO_KEY = {
-  "raid runner": "main-ashkari-raid-runner",
-  "pulse": "main-synthara-pulse",
-  "supply runner": "main-vanguard-supply-runner",
-  "guardian": "main-vanguard-guardian",
-  "reaper": "main-ashkari-reaper",
-  "pulse courier": "main-synthara-pulse-courier",
-  "colossus": "main-vanguard-colossus",
-  "lattice": "main-synthara-lattice",
-  "imperator": "main-vanguard-imperator",
-  "obelisk": "main-synthara-obelisk",
   "fang": "main-ashkari-fang",
-  "marauder": "main-ashkari-marauder",
-  "nexus": "main-synthara-nexus",
-  "titan": "main-vanguard-titan",
-  "siege harvester": "main-vanguard-siege-harvester",
-  "sovereign": "main-vanguard-sovereign",
-  "nexus freighter": "main-synthara-nexus-freighter",
-  "monolith": "main-synthara-monolith",
-  "singularity": "main-synthara-singularity",
-  "picket": "main-vanguard-picket",
-  "claw extractor": "main-ashkari-claw-extractor",
-  "oblivion": "main-ashkari-oblivion",
-  "viper": "main-ashkari-viper",
-  "oracle": "main-synthara-oracle",
-  "ravager": "main-ashkari-ravager",
   "juggernaut": "main-ashkari-juggernaut",
-  "core driller": "main-vanguard-core-driller",
-  "crystal borer": "main-synthara-crystal-borer",
-  "void harvester": "main-synthara-void-harvester",
-  "ore extractor": "main-vanguard-ore-extractor",
-  "ironclad freighter": "main-vanguard-ironclad-freighter",
-  "arc": "main-synthara-arc",
-  "singularity hauler": "main-synthara-singularity-hauler",
-  "talon": "main-ashkari-talon",
-  "sentinel": "main-vanguard-sentinel",
+  "marauder": "main-ashkari-marauder",
+  "oblivion": "main-ashkari-oblivion",
   "plunder barge": "main-ashkari-plunder-barge",
-  "fortress transport": "main-vanguard-fortress-transport",
-  "centurion": "main-vanguard-centurion"
+  "ravager": "main-ashkari-ravager",
+  "reaper": "main-ashkari-reaper",
+  "roid extractor": "main-ashkari-roid-extractor",
+  "roid runner": "main-ashkari-roid-runner",
+  "talon": "main-ashkari-talon",
+  "viper": "main-ashkari-viper",
+  "arc": "main-synthara-arc",
+  "crystal borer": "main-synthara-crystal-borer",
+  "lattice": "main-synthara-lattice",
+  "mobster": "main-synthara-mobster",
+  "monolith": "main-synthara-monolith",
+  "nexus": "main-synthara-nexus",
+  "obelisk": "main-synthara-obelisk",
+  "pulse": "main-synthara-pulse",
+  "roid courier": "main-synthara-roid-courier",
+  "roid transporter": "main-synthara-roid-transporter",
+  "singularity": "main-synthara-singularity",
+  "centurion": "main-vanguard-centurion",
+  "colossus": "main-vanguard-colossus",
+  "core driller": "main-vanguard-core-driller",
+  "guardian": "main-vanguard-guardian",
+  "imperator": "main-vanguard-imperator",
+  "ironclad freighter": "main-vanguard-ironclad-freighter",
+  "ore extractor": "main-vanguard-ore-extractor",
+  "picket": "main-vanguard-picket",
+  "sentinel": "main-vanguard-sentinel",
+  "sovereign": "main-vanguard-sovereign",
+  "supply runner": "main-vanguard-supply-runner",
+  "titan": "main-vanguard-titan"
 };
 
 function resolveShipName(str) {
@@ -3468,6 +3481,15 @@ function checkFriendlyFireConflict() {
   return conflicts;
 }
 
+function matchesTargetClass(e, targetClass) {
+  if (!targetClass) return false;
+  if (e.category && e.category.toUpperCase() === targetClass.toUpperCase()) return true;
+  if (e.shipClass && e.shipClass.toUpperCase() === targetClass.toUpperCase()) return true;
+  if (targetClass.toUpperCase() === 'ROIDS' && (e.asteroidCapacity > 0)) return true;
+  if (targetClass.toUpperCase() === 'RESOURCES' && (e.resourceCapacity > 0 || e.nonCombat)) return true;
+  return false;
+}
+
 function runSimulation() {
   const ffConflicts = checkFriendlyFireConflict();
   if (ffConflicts.length > 0) {
@@ -3501,20 +3523,22 @@ function runSimulation() {
         count: count,
         initialCount: count,
         armor: Math.floor((sDef.armor || 50) * atkArmorMult),
-        damage: sDef.damage || ((sDef.gun || 0) * 2.5),
+        damage: (sDef.damage ?? ((sDef.gun || 0) * 2.5)),
         empDamage: sDef.empDamage || 0,
         empResistance: sDef.empResistance || 0,
         gun: sDef.gun || 0,
         evasion: sDef.evasion || 0,
         init: sDef.init || 6,
         shipClass: sDef.shipClass || 'MEDIUM',
-        targetClass1: sDef.targetClass1 || 'MEDIUM',
-        targetClass2: sDef.targetClass2 || 'LIGHT',
-        targetClass3: sDef.targetClass3 || 'HEAVY',
+        category: sDef.category || '',
+        nonCombat: !!sDef.nonCombat,
+        targetClass1: sDef.targetClass1 || '',
+        targetClass2: sDef.targetClass2 || '',
+        targetClass3: sDef.targetClass3 || '',
         cost: sDef.cost || { metal: 2000, crystal: 1000, eonium: 500 },
         asteroidCapacity: sDef.asteroidCapacity || 0,
         resourceCapacity: sDef.resourceCapacity || 0,
-        empDisabled: false
+        empDisabled: 0
       });
     }
   });
@@ -3534,20 +3558,22 @@ function runSimulation() {
         count: count,
         initialCount: count,
         armor: Math.floor((sDef.armor || 50) * defArmorMult),
-        damage: sDef.damage || ((sDef.gun || 0) * 2.5),
+        damage: (sDef.damage ?? ((sDef.gun || 0) * 2.5)),
         empDamage: sDef.empDamage || 0,
         empResistance: sDef.empResistance || 0,
         gun: sDef.gun || 0,
         evasion: sDef.evasion || 0,
         init: sDef.init || 6,
         shipClass: sDef.shipClass || 'MEDIUM',
-        targetClass1: sDef.targetClass1 || 'MEDIUM',
-        targetClass2: sDef.targetClass2 || 'LIGHT',
-        targetClass3: sDef.targetClass3 || 'HEAVY',
+        category: sDef.category || '',
+        nonCombat: !!sDef.nonCombat,
+        targetClass1: sDef.targetClass1 || '',
+        targetClass2: sDef.targetClass2 || '',
+        targetClass3: sDef.targetClass3 || '',
         cost: sDef.cost || { metal: 2000, crystal: 1000, eonium: 500 },
         asteroidCapacity: sDef.asteroidCapacity || 0,
         resourceCapacity: sDef.resourceCapacity || 0,
-        empDisabled: false
+        empDisabled: 0
       });
     }
   });
@@ -3566,8 +3592,8 @@ function runSimulation() {
     if (aliveAtk.length === 0 || aliveDef.length === 0) break;
 
     // Reset round EMP
-    atkGroups.forEach(g => g.empDisabled = false);
-    defGroups.forEach(g => g.empDisabled = false);
+    atkGroups.forEach(g => g.empDisabled = 0);
+    defGroups.forEach(g => g.empDisabled = 0);
 
     // 1. PDS Firing Phase
     ['main-laser-battery', 'main-missile-silo', 'main-ion-cannon'].forEach(pid => {
@@ -3577,7 +3603,7 @@ function runSimulation() {
       let pDmg = (pDef.damage || 80) * pLvl * pdsMult;
       
       // Target matching ships
-      const pdsTargets = aliveAtk.filter(g => g.shipClass === pDef.targetClass1 && g.count > 0);
+      const pdsTargets = aliveAtk.filter(g => matchesTargetClass(g, pDef.targetClass1) && g.count > 0);
       const chosenList = pdsTargets.length > 0 ? pdsTargets : aliveAtk;
       if (chosenList.length === 0) return;
 
@@ -3598,19 +3624,20 @@ function runSimulation() {
     allShooters.sort((a, b) => a.init - b.init);
 
     for (const shooter of allShooters) {
-      if (shooter.count <= 0 || shooter.empDisabled) continue;
+      const activeCount = shooter.count - Math.min(shooter.empDisabled || 0, shooter.count);
+      if (activeCount <= 0) continue;
       const enemies = shooter.side === 'attacker' ? defGroups.filter(g => g.count > 0) : atkGroups.filter(g => g.count > 0);
       if (enemies.length === 0) break;
 
       // Select target matching priority classes
-      let candidates = enemies.filter(e => e.shipClass === shooter.targetClass1);
+      let candidates = enemies.filter(e => matchesTargetClass(e, shooter.targetClass1));
       let eff = 1.0;
       if (candidates.length === 0) {
-        candidates = enemies.filter(e => e.shipClass === shooter.targetClass2);
+        candidates = enemies.filter(e => matchesTargetClass(e, shooter.targetClass2));
         eff = 0.80;
       }
       if (candidates.length === 0) {
-        candidates = enemies.filter(e => e.shipClass === shooter.targetClass3);
+        candidates = enemies.filter(e => matchesTargetClass(e, shooter.targetClass3));
         eff = 0.70;
       }
       if (candidates.length === 0) {
@@ -3618,7 +3645,7 @@ function runSimulation() {
         eff = 1.0;
       }
 
-      let dmg = shooter.count * shooter.damage * eff;
+      let dmg = activeCount * shooter.damage * eff;
       if (shooter.side === 'attacker' && currentShieldHp > 0 && shieldAbsorbPct > 0) {
         const absorbed = Math.min(dmg * shieldAbsorbPct, currentShieldHp);
         currentShieldHp -= absorbed;
@@ -3646,35 +3673,45 @@ function runSimulation() {
 
         if (destroyed > 0 || dmgUsedEffective > 0) {
           target.count -= destroyed;
+          target.empDisabled = Math.min(target.empDisabled || 0, target.count);
           dmg -= dmgUsedRaw;
           const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
           const effNote = eff < 1.0 ? ` (${Math.round(eff * 100)}% eff)` : '';
           const evaNote = targetEvasion > 0 ? ` [${Math.round(evasionMult * 100)}% hit vs ${targetEvasion}% eva]` : '';
-          roundEvents.push(`${sideTag} [${shooter.fleetName}] ${shooter.count.toLocaleString()}x ${shooter.name} (Init ${shooter.init}) fired at [${target.fleetName}] ${target.name} -> dealt ${dmgUsedEffective.toLocaleString()} dmg${effNote}${evaNote}, destroyed ${destroyed.toLocaleString()} ships (Round ${round})`);
+          const countLabel = (shooter.empDisabled > 0)
+            ? `${activeCount.toLocaleString()}x (of ${shooter.count.toLocaleString()}, ${shooter.empDisabled.toLocaleString()} stunned)`
+            : `${shooter.count.toLocaleString()}x`;
+          roundEvents.push(`${sideTag} [${shooter.fleetName}] ${countLabel} ${shooter.name} (Init ${shooter.init}) fired at [${target.fleetName}] ${target.name} -> dealt ${dmgUsedEffective.toLocaleString()} dmg${effNote}${evaNote}, destroyed ${destroyed.toLocaleString()} ships (Round ${round})`);
         }
       }
 
-      // EMP weapons with evasion tracking
+      // EMP: shots = active ships * empDamage; each shot stuns ONE ship with
+      // chance max(0, min(1, 0.5 - empRes/100)). Only hit ships are disabled; leftover shots spill over.
       if (shooter.empDamage > 0) {
+        let shots = activeCount * shooter.empDamage * eff;
         for (const target of candidates) {
-          if (target.count <= 0 || target.empDisabled) continue;
+          if (shots <= 0) break;
+          const available = target.count - Math.min(target.empDisabled || 0, target.count);
+          if (available <= 0) continue;
 
           const targetEvasion = target.evasion || 0;
           let evasionMult = 1.0;
           if (targetEvasion > 0 && shooter.gun > 0) {
-            const effectiveGun = Math.max(5.0, shooter.gun - targetEvasion);
-            evasionMult = effectiveGun / shooter.gun;
-          } else if (targetEvasion > 0 && shooter.gun === 0) {
+            evasionMult = Math.max(5.0, shooter.gun - targetEvasion) / shooter.gun;
+          } else if (targetEvasion > 0) {
             evasionMult = Math.max(0.05, 1.0 - (targetEvasion / 100.0));
           }
-
           const empChance = Math.max(0, Math.min(1.0, 0.5 - (target.empResistance / 100))) * evasionMult;
-          if (empChance > 0.25) {
-            target.empDisabled = true;
-            const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
-            roundEvents.push(`⚡ ${sideTag} [${shooter.fleetName}] ${shooter.name} EMP disrupted ${target.name} [${target.fleetName}] (Round ${round})`);
-            break;
+          const sideTag = shooter.side === 'attacker' ? '🚀 ATTACKER' : '🛡️ DEFENDER';
+          if (empChance <= 0) {
+            roundEvents.push(`🛡️ ${target.name} [${target.fleetName}] resisted EMP from ${shooter.name} (EMP res ${target.empResistance}%) (Round ${round})`);
+            continue;
           }
+          const stunned = Math.min(available, Math.floor(shots * empChance));
+          if (stunned <= 0) break;
+          target.empDisabled = (target.empDisabled || 0) + stunned;
+          shots -= stunned / empChance;
+          roundEvents.push(`⚡ ${sideTag} [${shooter.fleetName}] ${activeCount.toLocaleString()}x ${shooter.name} EMP stunned ${stunned.toLocaleString()}/${target.count.toLocaleString()} ${target.name} [${target.fleetName}] (${Math.round(empChance * 100)}% per shot, Round ${round})`);
         }
       }
     }
